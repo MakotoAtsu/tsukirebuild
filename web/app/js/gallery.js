@@ -275,6 +275,7 @@ export class Jukebox {
     this.offset = 0;
     this.fade = null;
     this.track = null;
+    audio.player = this;   // (Audio.renew moves this one's track to a new context)
   }
   get volume() { return session.volume; }
   get repeat() { return session.repeat; }
@@ -316,9 +317,9 @@ export class Jukebox {
     this.src = s; this.startedAt = ctx.currentTime - offset; this.state = "playing";
     s.onended = () => { if (this.src === s) this.finish(); };
   }
-  position() {
+  position(now = this.audio.ctx.currentTime) {
     if (this.state !== "playing" || !this.src) return this.offset;
-    let t = this.audio.ctx.currentTime - this.startedAt;
+    let t = now - this.startedAt;
     if (this.src.loop) { const [a, b] = this.loopPoints(); if (t > b) t = a + (t - a) % (b - a); }
     return t;
   }
@@ -364,6 +365,16 @@ export class Jukebox {
     if (this.gain && !this.fade && (this.state === "playing" || this.state === "paused")) this.gain.gain.value = this.gainAt(this.level());
   }
   release() { if (this.src) { const s = this.src; this.src = null; try { s.stop(); } catch { /* ended */ } } }
+  // The sound made again in a new context (Audio.renew, at the old context's time was): a track playing goes on there from
+  // where it was, one fading out ends now; the gain is made again in the new context when next needed (ready).
+  moved(was) {
+    const t = this.state === "playing" && this.src ? this.position(was) : null;
+    if (this.src) this.src.onended = null;
+    this.release();
+    this.gain = null;
+    if (this.fade) { this.finish(); return; }
+    if (t !== null && this.buf) this.start(t);
+  }
 }
 
 // The picture change's wipe (0xca54 / 0xcd58): the screen as it was, captured (0xa4610(1)), is drawn over the new

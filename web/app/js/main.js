@@ -1,6 +1,6 @@
 // main.js - the game's window: input, the frame loop, settings, saving; the screens themselves are in ui.js.
 import { TouchFx } from "./touchfx.js";
-import { installTouch } from "./touch.js";
+import { appleTouch, installTouch } from "./touch.js";
 import { relettered } from "./confart.js";
 import { Renderer } from "./renderer.js";
 import { Audio } from "./audio.js";
@@ -526,6 +526,7 @@ document.addEventListener("visibilitychange", () => {
   vm.holdClocks("hidden", document.hidden);
   lastFrame = null;   // no catching up on the time the page was hidden
   if (document.hidden) { globalThis.appSuspend(); audio.trim(0); gfx.release(); }
+  if (document.hidden && appleTouch()) audio.stale = true;   // the first press back makes the sound again (audio.renew)
   if (!audio.ctx) return;
   if (document.hidden) audio.ctx.suspend();
   else if (!touch.held) audio.ctx.resume();   // not under the rotate screen (touch.js)
@@ -1027,7 +1028,8 @@ function enterFullscreen() {
 addEventListener("click", () => { if (!fullHeld) enterFullscreen(); }, true);
 const gameStarted = () => { fullHeld = false; enterFullscreen(); };
 
-addEventListener("pointerdown", () => audio.start(), true);
+// (on an iPhone or an iPad, the first press after the page was out of sight makes the sound again, not under the rotate screen: audio.renew)
+addEventListener("pointerdown", () => { if (audio.stale && !touch.held && !document.hidden) audio.renew(); audio.start(); }, true);
 stage.addEventListener("click", (e) => {
   audio.start();
   if (touch.storyClick(e)) return;   // touch: the tap that sent the control panel up, or one at the top strip, which brings it down

@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 const { TOUCH, TOUCH_HINTS, TOUCH_CONTROLS, FrameGate, StoryTouch, appleTouch, backX, barPlace, fitPage, installTouch, pinch, stageFit, touchFirst } = await import("../../web/app/js/touch.js");
 const { UI, HINTS, QUICK_BAR } = await import("../../web/app/js/ui.js");
 const { KeyMap } = await import("../../web/app/js/keys.js");
+const { fakeContext, withContext } = await import("./fake-audio.mjs");
 const source = (name) => readFileSync(new URL(`../../web/app/${name}`, import.meta.url), "utf8");
 const near = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
 const store = () => ({ data: {}, getItem(k) { return this.data[k] ?? null; }, setItem(k, v) { this.data[k] = String(v); } });
@@ -202,10 +203,109 @@ test("a press resumes the sound whatever stopped it, an iPhone's interruption to
   }
 });
 
+test("where a node is in its sound: its loop region once it gets to the end, -1 once a sound played once is over", async () => {
+  const { Audio } = await import("../../web/app/js/audio.js");
+  const a = new Audio();
+  const n = (loop, loopStart = 0, loopEnd = 0, at = 0) => ({ s: { buffer: { duration: 100 }, loop, loopStart, loopEnd }, at });
+  assert.equal(a.playedTo(n(false), 99), 99);
+  assert.equal(a.playedTo(n(false), 101), -1);
+  assert.equal(a.playedTo(n(false, 0, 0, 20), 50), 30, "started 20 s in the context");
+  assert.equal(a.playedTo(n(true, 10, 50), 30), 30, "not yet at the loop end");
+  assert.equal(a.playedTo(n(true, 10, 50), 60), 20, "10 s past the end: 10 s into the region");
+  assert.equal(a.playedTo(n(true, 10, 50), 130), 10);
+  assert.equal(a.playedTo(n(true), 250), 50, "a whole-sound loop");
+  const fresh = withContext(new Audio());
+  const s = fresh.ctx;
+  s.currentTime = 7;
+  const node = new Audio().node.call(Object.assign(new Audio(), { ctx: s, groups: { se: s.createGain() } }), { duration: 100, numberOfChannels: 2 }, "se", { offset: 3, loop: true });
+  assert.deepEqual([node.at, node.group, node.opts], [4, "se", { loop: true, stream: false, pan: 0 }], "a node keeps where its top is and how it was made");
+});
+
+test("an iPhone's sound made again: everything playing moves to a new context from where it was", async () => {
+  const { Audio } = await import("../../web/app/js/audio.js");
+  const a = new Audio();
+  const { ctx: old, gainOf } = withContext(a);
+  a.buffer = async (url) => ({ duration: /SE_B/.test(url) ? 5 : 300, numberOfChannels: /\/voice\//.test(url) ? 1 : 2 });
+  await a.playSE(3, true, "SE_A", { "017": 50 });
+  await a.playSE(4, false, "SE_B", {});
+  await a.playVoice("VOICE_X");
+  const loop = a.se.get(3), once = a.se.get(4), voice = a.voiceSlots[a.voiceHandle].node;
+  a.fadeSE(3, 20000);   // a fade under way: it goes on from where it was
+  old.currentTime = 10;
+  const level = loop.lv.at(10), heard = gainOf(loop.n.s, 10);
+  const made = [];
+  const saved = globalThis.window;
+  globalThis.window = { AudioContext: function () { const c = fakeContext(); c.currentTime = 2; c.closed = false; made.push(c); return c; } };
+  old.close = () => { old.closed = true; return Promise.resolve(); };
+  let done = false;
+  a.voiceDone().then(() => { done = true; });
+  a.stale = true;
+  try { a.renew(); } finally { globalThis.window = saved; }
+  const now = made[0];
+  assert.equal(a.ctx, now);
+  assert.ok(old.closed, "the old context is closed");
+  assert.equal(a.stale, false);
+  assert.ok(old.sources.every((s) => s.stopped && s.onended === null), "what played there stopped, its end handlers taken off");
+  assert.equal(a.se.get(3), loop, "the same record");
+  assert.equal(loop.n.s.started.offset, 10, "the loop from where it was");
+  assert.equal(loop.n.s.buffer.duration, 300);
+  assert.equal(loop.lv.at(2), level, "its fade from the level it had");
+  assert.ok(Math.abs(gainOf(loop.n.s, 2) - heard) < 1e-9, "at the gain it had");
+  assert.ok(gainOf(loop.n.s, 12) < heard, "and still fading");
+  assert.equal(once.state, 0, "a sound played once that was over gets its end");
+  assert.equal(a.se.has(4), false);
+  assert.equal(a.voiceSlots[a.voiceHandle].node, voice, "the voice slot holds the same node");
+  assert.equal(voice.s.started.offset, 10);
+  assert.equal(voice.s.out.gain.value, 1);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(done, false, "the voice's wait goes on");
+  voice.s.end();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(done, true, "and ends with the moved voice");
+  assert.equal(a.voiceSlots[a.voiceHandle].node, null);
+  assert.equal(now.sources.length, 2, "nothing else started");
+  // nothing to make again
+  const b = new Audio();
+  b.renew();
+  assert.equal(b.ctx, null);
+});
+
+test("the gallery's music player moves its track with the sound", async () => {
+  globalThis.localStorage ||= { store: {}, getItem(k) { return this.store[k] ?? null; }, setItem(k, v) { this.store[k] = String(v); }, removeItem(k) { delete this.store[k]; } };
+  const { Audio } = await import("../../web/app/js/audio.js");
+  const gal = await import("../../web/app/js/gallery.js");
+  const a = new Audio();
+  const { ctx: old } = withContext(a);
+  const jb = new gal.Jukebox(a);
+  assert.equal(a.player, jb);
+  gal.session.repeat = false;
+  await jb.play({ stream: "M1", loopStart: 0, loopEnd: 300 * 48000 });
+  old.currentTime = 42;
+  const saved = globalThis.window;
+  let now;
+  globalThis.window = { AudioContext: function () { now = fakeContext(); now.currentTime = 1; return now; } };
+  try { a.renew(); } finally { globalThis.window = saved; }
+  assert.ok(old.sources[0].stopped);
+  const s = now.sources.at(-1);
+  assert.equal(s.started.offset, 42, "the track from where it was");
+  assert.equal(jb.gain.out, a.master, "through a gain of the new context");
+  assert.equal(jb.position(), 42);
+  assert.equal(jb.state, "playing");
+});
+
 test("the page going out of sight saves as pagehide does and lets the idle decoded sounds go", () => {
   const main = source("js/main.js");
   assert.match(main, /if \(document\.hidden\) \{ globalThis\.appSuspend\(\); audio\.trim\(0\); gfx\.release\(\); \}/);
   assert.match(main, /globalThis\.appSuspend = \(\) => \{ if \(!savesReplaced\(\)\) \{ autosave\(\); vm\.saveRead\(\); vm\.unlocks\.save\(\); \} \};/);
+  // on an iPhone or an iPad the sound is marked stale as the page hides, and made again at the first press back, not under the rotate screen
+  assert.match(main, /if \(document\.hidden && appleTouch\(\)\) audio\.stale = true;/);
+  assert.match(main, /addEventListener\("pointerdown", \(\) => \{ if \(audio\.stale && !touch\.held && !document\.hidden\) audio\.renew\(\); audio\.start\(\); \}, true\);/);
+});
+
+test("an iPhone or an iPad can open the page from its Home Screen as an app, with no status bar style", () => {
+  const html = source("index.html");
+  assert.match(html, /<meta name="apple-mobile-web-app-capable" content="yes">/);
+  assert.doesNotMatch(html, /<meta name="apple-mobile-web-app-status-bar-style"/, "black-translucent leaves the page short at the bottom");
 });
 
 test("a touch on the story is read as a tap, a swipe, a hold or two fingers", () => {

@@ -1662,3 +1662,39 @@ and letting things go) and `preload.test.mjs` (three new: the blurred copies' bu
 
 **Not known.** Nothing was tried on a real iPhone, nor in Chrome or Firefox there (the simulator has only Safari). The memory at which iOS
 ends a page is not known, so "no longer crashes" is not shown, only that the page holds far less over a long play.
+
+## iPhone: issue 8's third report (the sound after switching apps, the Home Screen, Chrome's smaller page), 2026-11-14
+
+The reporter tried `02d5c0d5` in all three browsers: Firefox no longer crashes. Still open: the sound gone after switching apps or Split
+View in Chrome and Firefox, a tap not bringing it back; Safari reloading to the opening page even after a short time away; and in Chrome
+the picture smaller than before.
+
+**The sound made again at the first press back.** A tap that did not help means the context said it was running (the earlier fix resumes
+only a context that says it stopped): iOS had cut the sound off underneath it. Now, on an iPhone or an iPad only (`appleTouch`), main.js
+marks the sound stale as the page goes out of sight, and the first press after it is back (not under the rotate screen) calls
+`audio.renew()`: a new context with its master and groups (`open()`, split from `start()`), and everything that was playing moved to it
+from where it was. Each node now keeps where its sound's top is in its context, its group and its options (`node()`), so `moveNode` starts
+the same buffer again at `playedTo` (the loop region once past its end) in the same object, its end handler moved with it: the records,
+the voice slots and a voice's wait (`voiceDone`) go on holding it. The records' levels move to the new context's clock, so a fade goes on
+from where it was. A sound played once that was over gets its end then. The gallery's music player moves its own track (`Jukebox.moved`;
+a fade under way ends the track). `playVoice` now has one end handler (it had a handler and a listener, and a listener cannot be moved).
+Checked in the iOS Simulator's Safari (which does not cut the sound itself): music playing, Home and back, then a tap: a new running
+context, the old one closed, the music on in the new one from 40.95 s to 42.45 s 1.5 s later at its volume, the looping effect moved too.
+Whether it brings the sound back on a real iPhone in Chrome and Firefox waits on the reporter.
+
+**Opening from the Home Screen as an app.** iPhone browsers cannot put a page full screen; a page added to the Home Screen can open as an
+app of its own with no browser bars, but only with Apple's `apple-mobile-web-app-capable` (with the plain `mobile-web-app-capable` alone
+the Add to Home Screen sheet says the icon opens the site "from your default browser"). Added to `index.html`. In the simulator (iPhone
+16 Pro Max): the page gets the whole screen turned, 956 x 440 points, the game 782 x 440. Apple's `black-translucent` status bar style
+was tried and left out: iOS 18.5 then keeps the web view a status bar short at the bottom (62 points upright, 54 turned, nothing draws
+there). Such an app keeps its own saves, apart from the browser's (SAVE DATA moves them).
+
+**Chrome's smaller picture is Chrome's page.** In the reporter's new screenshot Chrome gave the page itself 810 x 289 points (the earlier
+one: 810 x 366); the grey strip under it, 77 points, is Chrome's, outside the page, and the picture fills the height it was given. Nothing
+in the port sets the page's size; Safari in the simulator gives the full height whether the page is loaded upright or turned. Not changed.
+
+**Safari reloading after a short time away.** Not reproduced in the simulator, cause not known: iOS ending the page out of sight, or the
+graphics' restore (`renderer.js restore()`) uploading every picture at once on return. Not changed; questions to the reporter.
+
+Tests: `touch.test.mjs` (four new: `playedTo` and what `node()` keeps, `renew` moving music, effects, a voice and its wait, the gallery's
+player moving its track, the Home Screen tag; the main.js wiring added to the hiding test). 609 of 611 pass, 2 skipped as before.

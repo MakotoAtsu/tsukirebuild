@@ -180,6 +180,11 @@ export class Audio {
       if (this.ctx.state !== "running" && this.ctx.state !== "closed") this.ctx.resume()?.catch?.(() => {});
       return;
     }
+    this.open();
+  }
+
+  // A context, its master and groups, at the volumes set.
+  open() {
     this.ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000, latencyHint: "interactive" });
     this.master = this.ctx.createGain();
     this.master.connect(this.ctx.destination);
@@ -427,13 +432,61 @@ export class Audio {
       }));
       merge.connect(this.groups[group]);
     }
-    s.start(0, offset > 0 && offset < buf.duration ? offset : 0);
-    return { s, g, matrix };
+    const from = offset > 0 && offset < buf.duration ? offset : 0;
+    s.start(0, from);
+    // (at: the context's time at the sound's top, and the group and options: what renew needs to start it again elsewhere)
+    return { s, g, matrix, group, opts: { loop, stream, pan }, at: ctx.currentTime - from };
   }
 
   stopNode(n) {
     if (!n || !n.s) return;
     try { n.s.stop(); } catch { /* already stopped */ }
+  }
+
+  // Where in its sound a node is at the context's time t (every source plays at rate 1): looping in its loop region once
+  // it gets to the region's end; -1 for a sound played once that is over.
+  playedTo(n, t) {
+    const s = n.s, d = s.buffer?.duration || 0, p = Math.max(0, t - (n.at ?? t));
+    if (!s.loop) return p < d ? p : -1;
+    const a = s.loopStart || 0, b = s.loopEnd > a ? s.loopEnd : d;
+    return p < b || b <= a ? p : a + ((p - b) % (b - a));
+  }
+
+  // A node started again in the context now in use, from where it was at the old context's time t, at the gain it had;
+  // the same object, so whatever holds it (a record, a voice slot, a voice's wait) goes on holding it, and its end
+  // handler moves with it. A sound played once that was over gets its end now. True if it plays on.
+  moveNode(n, t) {
+    if (!n?.s?.buffer) return false;
+    const old = n.s, ended = old.onended, pos = this.playedTo(n, t);
+    old.onended = null;
+    try { old.stop(); } catch { /* stopped */ }
+    if (pos < 0) { ended?.call(old); return false; }
+    Object.assign(n, this.node(old.buffer, n.group, { ...n.opts, offset: pos, gain: n.g.gain.value }));
+    n.s.onended = ended;
+    return true;
+  }
+
+  // The sound made again (issue 8). On an iPhone or an iPad, a page that has been out of sight (another app, Split View,
+  // the app switcher) can come back with its sound cut off while its context says it is running, so neither main.js's
+  // resume nor start()'s brings it back (Chrome and Firefox there: a tap did not). main.js marks the sound stale as the
+  // page goes out of sight (iPhone and iPad only) and calls this at the first press after it is back, not under the
+  // rotate screen: a new context, and everything that was playing moved to it from where it was, the levels and their
+  // fades going on from where they were; the gallery's music player moves its own track (player, gallery.js).
+  renew() {
+    this.stale = false;
+    const old = this.ctx;
+    if (!old || this.muted) return;
+    const was = old.currentTime;
+    this.open();
+    const shift = this.ctx.currentTime - was;
+    for (const rec of this.records()) {
+      rec.lv.t0 += shift;
+      if (rec.n && rec.state !== 0 && this.moveNode(rec.n, was)) this.schedule(rec);
+    }
+    for (const n of this.voice) this.moveNode(n, was);
+    for (const n of [this.test, ...(this.sys || [])]) if (n?.s && !this.voice.includes(n)) this.moveNode(n, was);
+    this.player?.moved?.(was);
+    old.close?.()?.catch?.(() => {});
   }
 
   // ---- channel records ------------------------------------------------------------------------------------
@@ -801,10 +854,13 @@ export class Audio {
         const n = this.node(buf, "voice", { gain, stream: true });
         slot.node = n;
         this.voice.push(n);
-        n.ended = new Promise((r) => { n.s.onended = r; });
-        n.s.addEventListener("ended", () => {
-          this.voice = this.voice.filter((v) => v !== n);
-          if (slot.node === n) slot.node = null;
+        // (one end handler, not a listener as well: renew moves it to the node's new source)
+        n.ended = new Promise((r) => {
+          n.s.onended = () => {
+            this.voice = this.voice.filter((v) => v !== n);
+            if (slot.node === n) slot.node = null;
+            r();
+          };
         });
       } catch (e) { console.warn(e.message); }
     })();
