@@ -121,9 +121,13 @@ export function fitPage(win, doc) {
 
 // The 1920 x 1080 stage in a w x h window with the safe area's insets: as large as fits inside the insets, and centred in
 // the window itself where that keeps it inside them (a notch at one end of a wide phone does not push the picture aside).
+// The inset under it is the home bar's, and that one does not make the picture smaller: on a wide phone the picture runs
+// to the bottom and the bar lies over its edge, as over a film; a window with room to spare still keeps it above the bar.
+// (Chrome on an iPhone keeps the bar's strip out of the page and still gives the inset: making room for both left 42 points
+// of black under the picture, GitHub issue 8.)
 export function stageFit(w, h, inset = {}) {
   const { top = 0, right = 0, bottom = 0, left = 0 } = inset;
-  const aw = Math.max(1, w - left - right), ah = Math.max(1, h - top - bottom);
+  const aw = Math.max(1, w - left - right), ah = Math.max(1, h - top);
   const k = Math.min(aw / 1920, ah / 1080), sw = 1920 * k, sh = 1080 * k;
   const centre = (size, used, lo, hi) => Math.max(lo, Math.min((size - used) / 2, size - hi - used));
   return { k, x: centre(w, sw, left, right), y: centre(h, sh, top, bottom) };

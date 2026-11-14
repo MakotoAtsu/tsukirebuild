@@ -6,6 +6,8 @@
 //   068 a delay in ms before the command acts (sound effects; a per-channel frame countdown, 0x66200 / 0x65e50),
 //   069 a start offset in samples (MPLY; nn::atk StartInfo offset type 2, 0xee200), 070 the character (1-19) whose
 //   voice setting the sound follows (voiced sound effects, SEV_*).
+import { appleTouch } from "./touch.js";
+
 export function parseOpts(args) {
   const o = {};
   for (const a of args) {
@@ -113,11 +115,25 @@ const MUSIC_CUT = 416.6666564941406;   // 0x9c470: the track replaced without a 
 const MAX_STEPS = 1800;
 
 const PACKS_KEPT = 8;   // packs held in memory at once (about 1.5 MB each)
+const SOUNDS_KEPT = 80;  // decoded sounds kept at most, whatever their size
+
+// The decoded sounds kept for their next use take at most this many bytes. A decoded sound is its samples as 32-bit floats, so a
+// track of three minutes at 48 kHz in stereo takes 69 MB, and the longest (MOON01_BGM33, 308 s) 113 MB; with only a count to keep
+// them to, six tracks took a page on an iPhone from 237 to 826 MB, and an iPhone ends a page that takes much (GitHub issue 8). As the
+// pictures' budget (renderer.js), by what the device says of its memory, an iPhone or an iPad (which say nothing) as the least.
+export function soundBudget(win = globalThis) {
+  const memory = win.navigator?.deviceMemory || (appleTouch(win) ? 2 : 8);
+  return (memory <= 2 ? 256 : memory <= 4 ? 384 : 768) * 1024 * 1024;
+}
+// The bytes of a decoded sound.
+export const soundBytes = (buf) => (buf?.length || 0) * (buf?.numberOfChannels || 1) * 4;
 
 export class Audio {
   constructor() {
     this.ctx = null;
-    this.buffers = new Map();
+    this.buffers = new Map();     // url -> the decoding or decoded sound, the least recently used first
+    this.sizes = new Map();       // url -> { buf, bytes } once decoded
+    this.budget = soundBudget();
     this.se = new Map();          // channel 0-19 -> the record its handle plays (state 1, or 2 while fading out)
     this.seLast = Array(20).fill(-1);   // 0x146e6cc: each channel's last scripted volume (-1 after a script ends)
     this.seChar = Array(20).fill(0);    // 0x146e690: the 070 of the channel's last SEPL
@@ -159,7 +175,9 @@ export class Audio {
   start() {
     if (this.muted) return;
     if (this.ctx) {
-      if (this.ctx.state === "suspended") this.ctx.resume();
+      // Not only "suspended": on an iPhone or an iPad the sound is "interrupted" when another app, a call or Siri takes it, and it
+      // may stay so when they are done; a press resumes it (issue 8: the sound gone after switching apps).
+      if (this.ctx.state !== "running" && this.ctx.state !== "closed") this.ctx.resume()?.catch?.(() => {});
       return;
     }
     this.ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000, latencyHint: "interactive" });
@@ -335,16 +353,40 @@ export class Audio {
 
   async buffer(url) {
     let p = this.buffers.get(url);
-    if (!p) {
-      p = (async () => {
-        const data = await this.soundData(url);
-        return this.decoder().decodeAudioData(data);
-      })();
+    if (p) {
+      this.buffers.delete(url);   // the newest use goes last
       this.buffers.set(url, p);
-      p.catch(() => this.buffers.delete(url));
-      if (this.buffers.size > 80) this.buffers.delete(this.buffers.keys().next().value);
+      return p;
     }
+    p = (async () => {
+      const data = await this.soundData(url);
+      return this.decoder().decodeAudioData(data);
+    })();
+    this.buffers.set(url, p);
+    p.then((buf) => {
+      if (this.buffers.get(url) !== p) return;
+      this.sizes.set(url, { buf, bytes: soundBytes(buf) });
+      this.trim();
+    }, () => { if (this.buffers.get(url) === p) this.buffers.delete(url); });
     return p;
+  }
+
+  // Lets the least recently used decoded sounds go until those kept take no more than budget bytes and number no more than SOUNDS_KEPT.
+  // What plays (the music, the one fading out, the effects' channels) stays, and so does a sound still decoding. trim(0) keeps only
+  // those: main.js, as the page goes out of sight.
+  trim(budget = this.budget) {
+    let bytes = 0;
+    for (const s of this.sizes.values()) bytes += s.bytes;
+    if (bytes <= budget && this.buffers.size <= SOUNDS_KEPT) return;
+    const playing = new Set(this.records().map((r) => r.n?.s?.buffer).filter(Boolean));
+    for (const url of [...this.buffers.keys()]) {
+      if (bytes <= budget && this.buffers.size <= SOUNDS_KEPT) break;
+      const s = this.sizes.get(url);
+      if (!s || playing.has(s.buf)) continue;
+      this.buffers.delete(url);
+      this.sizes.delete(url);
+      bytes -= s.bytes;
+    }
   }
 
   // A buffer source through its own gain, then placed left / right as nn::atk places it (panMatrix: a stream or a

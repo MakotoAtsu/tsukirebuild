@@ -1575,3 +1575,90 @@ longer crashes" is not shown, only that the page takes far less. Taking a choice
 glow in the report is not explained (the streak pulsing on the lit row is the game's own). An iPad used with a mouse is not touch-first and
 keeps the old layout (it gets the smaller picture budget). Android was left as it was: Chrome is thought to draw a layer at the size it is
 shown, which was not measured.
+
+**Published, 2026-11-14** (at the user's word, "Push it"). Commit `d95e2cb1` pushed to main and deployed (green in 29 s): the site serves
+`v/94339703ebf2/`, with `fitPage` in its `touch.js`, the new budget in its `renderer.js` and `--unit` in its `touch.css`, and
+`update/app.json` names the same version, so the installed apps are offered it.
+
+## iPhone: black band under the picture (GitHub issue 8, follow-up), 2026-11-14
+
+**The report.** The same iPhone 13 Pro Max, in Chrome, landscape: "quite large black bars around the game window". Measured on the
+reporter's screenshot (2778 x 1284, so 926 x 428 points): Chrome's own bars leave the page 810 x 366 points (its top bar 62, a button strip
+at the left 69, a grey strip on the notch side 47), and the picture was 576 x 324, standing at the top with **42 points of black under it**.
+The bars at the sides are mostly not the port's: an iPhone gives a page no full screen in any browser (the FULL button's "Full screen is not
+available here"), and a 16:9 picture in a 2.2:1 space leaves black beside it however it is fitted.
+
+**The port's part.** `touch.js stageFit` fitted the stage inside the safe area's insets, the home bar's 21 points under it included. In
+Safari that left 21 points of black (measured in the iOS 18.5 simulator, iPhone 16 Pro Max: window 2868 x 1071 page pixels, insets
+0 / 186 / 63 / 186, stage 1008 pixels tall). Chrome on an iPhone left twice that: by the figures it keeps the bar's strip out of the page
+and still gives the inset, so room was made for the bar twice (not measured in Chrome: the simulator has only Safari).
+
+**The change.** The inset under the picture no longer makes it smaller: on a wide phone the picture runs to the bottom of the window and
+the home bar lies over its edge, as over a film. Where the window has room to spare (a tablet, bars above and below) the picture is still
+kept above the bar. The insets at the sides (the notch) are kept as they were, and so is the upright opening page's layout.
+
+**Checked** in the simulator's Safari: the stage is now 1071 pixels tall (the window's height, scale 0.9917 for 0.9333), the story picture
+reaches the screen's bottom edge, the control panel opens with a swipe, Save opens, and a tap on Back inside the bar's 21-point strip
+closes it (the bar's line is in the middle, Back is at the corner). Tests: `touch.test.mjs` updated for the new fit (three more cases);
+599 of 601 pass, 2 skipped as before.
+
+**Not known.** In Chrome the band should go from 42 points to 21 (Chrome's own strip, outside the page, which the port cannot draw in)
+or to none if Chrome counted the bar differently; nothing was tried on a real iPhone. A swipe up that starts on the picture's last 21 points
+goes to the iPhone's home gesture, not the log; the same strip was black before, where the game took no swipe either.
+
+## iPhone: the rest of issue 8's follow-up (sound, background, Firefox, choices), 2026-11-14
+
+What the reporter still saw after `d95e2cb1`, each checked in the iOS 18.5 simulator's Safari (iPhone 16 Pro Max) with the page's own
+memory read by `footprint` on its WebContent process.
+
+**Decoded sounds had no size limit (the crashes in normal play, Firefox's most of all, and a page the iPhone ends in the background).**
+`audio.js buffer()` kept up to 80 decoded sounds, by count. A decoded sound is its samples as 32-bit floats: the 128 tracks run 70 to 308
+seconds, about 69 MB for three minutes, 113 MB for the longest. Decoding six long tracks took the page from 237 MB to 826 MB. Now the kept
+sounds have a budget of bytes, set like the pictures' one (`soundBudget`: 256 MB on an iPhone or iPad, which say nothing of their memory,
+384 MB at 4 GB, 768 MB otherwise), and the least recently used go first; what plays (the music, the track fading out, the effects'
+channels) is never let go, and the count of 80 stays. Same six tracks after the change: 164 MB kept, the page at 276 MB once collected.
+A sound let go is decoded again when it is next asked for (the preloader asks ahead, as before).
+
+**The page going out of sight** (`main.js` visibilitychange). iOS ends a page it holds in the background when it wants the memory, with no
+`pagehide`, and opens it again from the start, which on the site is the opening page. The port saved only on `pagehide`, so anything since
+the last save was lost. Now hiding the page makes the same saves as `pagehide` (`appSuspend`: the automatic save, the read text, the
+unlocks), and the decoded sounds not playing are let go (`audio.trim(0)`). Checked: in the background the page fell from 276 to 169 MB;
+its process ended there (as iOS does), Safari opened it again, and the title's Continue (`newestRecord`) is the automatic save made as
+the page was hidden, at the line it was on. After an ordinary switch to the home screen and back, the music plays on.
+
+**The sound gone after switching apps.** A press resumed the sound only when it was `"suspended"`. On an iPhone or an iPad another app,
+a call or Siri puts it in WebKit's `"interrupted"` state, which may stay after they are done. Now any state but running or closed is
+resumed by a press (`audio.js start()`). Not reproduced: the simulator's Siri did not interrupt the sound, so this rests on WebKit's states.
+
+**The choice screen.** Taking a choice in the simulator: the page rose from 328 to 417 MB for about a second and fell back, no frame over
+28 ms, the GPU process's surfaces fell. Nothing there holds memory. The glow the report describes matches the game's own lit row
+(`ChoiceFx`: the selected row's glow pulses between a third and full, a second up and a second down, until it is taken), which on a
+touch device stays until the second tap (the game's touch rule: a tap lights a row, a tap on the lit row takes it). Left as it is.
+
+**The picture gone after coming back (the "freeze").** An iPhone may end Safari's GPU process for its memory, as it does to pages waiting
+in the background. Ending it in the simulator: the page's WebGL context was lost and never asked for again (the port had no
+`webglcontextlost` handler), so the story went on in black with the text alone, menus opened without the story behind them, and only
+opening the page again helped. Now the renderer asks for the context back (`preventDefault`), and WebKit gives a new one at once (55 ms
+in the simulator); `renderer.js restore()` makes the programs and targets again, uploads the pictures layers hold into the same entries,
+and lets the rest go to be loaded when next asked for. A menu open meanwhile freezes its backdrop again once those pictures are back. The
+menu's sparkles (`ui.js SparkleGL`, a second context) do the same. Checked: the GPU process ended twice, once in the story and once with
+Save open; the story and the Save backdrop came back whole each time. Desktop Chrome: a context lost and restored through
+`WEBGL_lose_context` draws the scene again.
+
+**Blurred copies were outside the pictures' budget.** A memory audit (read-only subagent, numbers measured on `web/assets`) found
+`renderer.js blurred()` keeping up to 24 blurred copies by count, uncounted and never freed: a scene's 24 largest take 70 MB at the
+median and 887 MB at most (13_01_02_CIEL13_5_1). Now they are kept to a quarter of the pictures' budget (100 MB on an iPhone), the least
+recently drawn first, those drawn in the last half second staying; a GPU with no room lets the others go too (`evict(true)`). Hiding the
+page also lets go of every blurred copy and every picture no layer holds (`gfx.release()`). Checked: on the home screen the copy on
+screen went and the five pictures the layers held stayed; back in Safari the copy was made again on the next frame.
+
+Not acted on from the same audit, as smaller or riskier: the interface art all uploaded at start (about 100 MB), up to eight 8 MB targets
+kept once made, a second WebGL context for the sparkles, parsed scripts never let go, the Config's listeners left behind at each opening,
+a scene's pictures all decoded at once at its start (a passing peak), no time limit on a picture's fetch.
+
+Tests: `touch.test.mjs` (three new: the sound budget and its order of going, a press resuming any stopped state, the page hiding saving
+and letting things go) and `preload.test.mjs` (three new: the blurred copies' budget, the page out of sight, a lost context restored).
+605 of 607 pass, 2 skipped as before.
+
+**Not known.** Nothing was tried on a real iPhone, nor in Chrome or Firefox there (the simulator has only Safari). The memory at which iOS
+ends a page is not known, so "no longer crashes" is not shown, only that the page holds far less over a long play.

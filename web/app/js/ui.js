@@ -290,6 +290,14 @@ class SparkleGL {
     const gl = canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: true, antialias: false });
     if (!gl) return;
     this.gl = gl;
+    this.setup();
+    this.ok = true;
+    // a context the browser takes away is asked for again and made again in the new one (as renderer.js restore)
+    canvas.addEventListener?.("webglcontextlost", (e) => e.preventDefault());
+    canvas.addEventListener?.("webglcontextrestored", () => { this.tex = null; this.setup(); });
+  }
+  setup() {
+    const gl = this.gl;
     const shader = (type, src) => {
       const s = gl.createShader(type);
       gl.shaderSource(s, src); gl.compileShader(s);
@@ -316,7 +324,6 @@ void main() { vec4 t = texture(tex, v); o = vec4(t.rgb * t.a * a, t.a * a); }`))
     const at = (name, n, off) => { const l = gl.getAttribLocation(prog, name); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, n, gl.FLOAT, false, 20, off); };
     at("pos", 2, 0); at("uv", 2, 8); at("alpha", 1, 16);
     this.tex = null;
-    this.ok = true;
   }
   draw(set, img) {
     const gl = this.gl;

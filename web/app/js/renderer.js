@@ -600,37 +600,21 @@ export class Renderer {
     const gl = canvas.getContext("webgl2", { alpha: false, antialias: false, preserveDrawingBuffer: true, powerPreference: "high-performance" });
     if (!gl) throw new Error("WebGL2 is not available");
     this.gl = gl;
-    this.layerProg = compile(gl, VS, FS_LAYER);
-    this.copyProg = compile(gl, VS, FS_COPY);
-    this.fadeProg = compile(gl, VS, FS_FADE);
-    this.displayProg = compile(gl, VS, FS_DISPLAY);
-    this.blurProg = compile(gl, VS, FS_BLUR);
-    this.gaussProg = compile(gl, VS, FS_GAUSS);
+    this.setup();
     this.menu = null;         // the system menu's blurred background (setMenuBlur)
-    this.frameProg = compile(gl, VS, FS_FRAME);
-    this.groupEdgeProg = compile(gl, VS, FS_GROUP_EDGE);
     this.groupState = { first: true, shader: 0, opacity: 0, stored: 0, mask: 1, lastMask: 1 };   // the group machine (drawTangled)
-    this.splitProg = compile(gl, VS, FS_SPLIT);
-    this.lineProg = compile(gl, VS, FS_LINE);
-    this.windowProg = compile(gl, VS, FS_WINDOW);
     this.windowPics = [];     // the text window's pictures this frame (main.js): { path, full | x, y, alpha, dx, dy }
     this.windowReady = false; // they are all loaded, so the canvas draws the window and the page's own element stays hidden
-    this.post = this.target(1920, 1080);
     this.ui = new Map();      // interface art used by the renderer: path -> {tex} once loaded
     this.split = null;        // FADE 40
     this.lines = null;        // FCLN
-    this.vao = gl.createVertexArray();
-    gl.bindVertexArray(this.vao);
-    const b = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, b);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-    this.scene = this.target(1920, 1080);
-    this.prev = this.target(1920, 1080);
-    this.backTex = this.target(1920, 1080);
     this.tex = new Map();     // name -> {tex, w, h, used, promise}
+    // The browser may take the context away: on an iPhone, when the system ends Safari's GPU process for its memory (as it does to a
+    // page waiting in the background), every texture and target is gone and the story went on in black, the text alone, until the page
+    // was opened again (issue 8: "freeze" after coming back). Asked for again (preventDefault), WebKit gives a new one at once (55 ms in
+    // the simulator), and everything is made again in it (restore).
+    canvas.addEventListener?.("webglcontextlost", (e) => e.preventDefault());
+    canvas.addEventListener?.("webglcontextrestored", () => this.restore());
     this.bytes = 0;
     this.files = new Map();   // name -> { read, done }: the pictures' files kept as they came (file)
     // What the GPU takes: the longest side of a texture, and how much of them is kept (evict). The machines with the 4096 limit and those that
@@ -642,8 +626,102 @@ export class Renderer {
     this.limit = (this.maxSide <= 4096 || memory <= 2 ? 400 : memory <= 4 ? 700 : 1400) * 1024 * 1024;
     this.blurCache = new Map();
     this.blurRefused = new Set();   // blurred copies the GPU would not hold: drawn sharp (blurred)
+    this.blurBytes = 0;             // what the blurred copies take (blurred: a share of limit)
     this.fade = null;
     this.shake = null;
+  }
+
+  // The context's own objects: the programs, the quad, and the targets every frame draws through.
+  setup() {
+    const gl = this.gl;
+    this.layerProg = compile(gl, VS, FS_LAYER);
+    this.copyProg = compile(gl, VS, FS_COPY);
+    this.fadeProg = compile(gl, VS, FS_FADE);
+    this.displayProg = compile(gl, VS, FS_DISPLAY);
+    this.blurProg = compile(gl, VS, FS_BLUR);
+    this.gaussProg = compile(gl, VS, FS_GAUSS);
+    this.frameProg = compile(gl, VS, FS_FRAME);
+    this.groupEdgeProg = compile(gl, VS, FS_GROUP_EDGE);
+    this.splitProg = compile(gl, VS, FS_SPLIT);
+    this.lineProg = compile(gl, VS, FS_LINE);
+    this.windowProg = compile(gl, VS, FS_WINDOW);
+    this.post = this.target(1920, 1080);
+    this.vao = gl.createVertexArray();
+    gl.bindVertexArray(this.vao);
+    const b = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    this.scene = this.target(1920, 1080);
+    this.prev = this.target(1920, 1080);
+    this.backTex = this.target(1920, 1080);
+  }
+
+  // A new context after the old one was lost: the programs and targets made again (those made when first needed, when next needed), the
+  // pictures layers hold uploaded again into the same entries (a layer keeps its entry: vm.js setImage), the others, the blurred copies
+  // and the interface art let go to be loaded when next asked for. What was drawn before is gone: a frozen menu backdrop is made again
+  // from the frame as it is now.
+  restore() {
+    this.setup();
+    for (const k of ["panelTarget", "groupTarget", "groupCopy", "ownerTarget", "menuA", "menuB", "displayTarget", "fadeBuffer", "blank"]) this[k] = null;
+    this.blurCache.clear();
+    this.blurRefused.clear();
+    this.blurBytes = 0;
+    this.ui.clear();
+    this.windowReady = false;
+    if (this.menu) this.menu.ready = false;
+    this.groupState.first = true;
+    const live = this.liveNames(), back = [];
+    this.bytes = 0;
+    for (const [key, e] of [...this.tex]) {
+      e.tex = null;
+      if (!live.has(key)) { this.tex.delete(key); continue; }
+      e.promise = (async () => {
+        await this.upload(e, await this.file(key), key);
+        this.bytes += e.w * e.h * 4;
+        return e;
+      })();
+      e.promise.catch(() => { if (this.tex.get(key) === e) this.tex.delete(key); });
+      back.push(e.promise);
+    }
+    // a menu open meanwhile froze the frame as it was while they came back: frozen again once they are all there
+    return Promise.allSettled(back).then(() => { if (this.menu) this.menu.ready = false; });
+  }
+
+  // The pictures layers hold (on screen, staged, left behind by a commit: vm.js inUse) and the rule picture a transition goes through.
+  liveNames() {
+    const live = new Set();
+    for (const l of this.inUse?.() || this.liveLayers || []) {
+      if (l.image) live.add(l.image.toUpperCase());
+      if (l.rule?.name) live.add(l.rule.name);
+    }
+    if (this.ruleSlot) live.add(this.ruleSlot);
+    return live;
+  }
+
+  // The page out of sight (main.js): the pictures no layer holds and every blurred copy go, to be made again when next drawn, so that the
+  // page holds less while it waits (an iPhone ends what holds much).
+  release() {
+    if (this.gl.isContextLost()) return;
+    this.dropBlurred(0, 0);
+    this.evict(true);
+  }
+
+  // Lets the blurred copies go, the least recently drawn first, until they take no more than `room` bytes. Copies drawn within the last
+  // `fresh` ms stay (they are on screen and would be made again on the next frame); 0: none stays.
+  dropBlurred(room = 0, fresh = 500) {
+    if (!this.blurCache?.size) return;
+    const now = performance.now();
+    const old = [...this.blurCache.entries()].sort((x, y) => x[1].used - y[1].used);
+    for (const [key, c] of old) {
+      if (this.blurBytes <= room) break;
+      if (now - c.used < fresh) continue;
+      this.freeTarget(c.target);
+      this.blurBytes -= c.bytes || 0;
+      this.blurCache.delete(key);
+    }
   }
 
   target(w, h) {
@@ -773,13 +851,9 @@ export class Renderer {
   // holds: on screen, staged for the next commit, or left behind by one (vm.js inUse), nor the rule picture a transition is going through.
   evict(all = false) {
     const limit = this.limit;
+    if (all) this.dropBlurred(0);   // (no room on the GPU: the blurred copies not on screen go too)
     if (!all && this.bytes < limit) return;
-    const live = new Set();
-    for (const l of this.inUse?.() || this.liveLayers || []) {
-      if (l.image) live.add(l.image.toUpperCase());
-      if (l.rule?.name) live.add(l.rule.name);
-    }
-    if (this.ruleSlot) live.add(this.ruleSlot);
+    const live = this.liveNames();
     const old = [...this.tex.entries()].filter(([k, v]) => v.tex && !live.has(k)).sort((a, b) => a[1].used - b[1].used);
     for (const [k, v] of old) {
       if (!all && this.bytes < limit * 0.8) break;
@@ -884,11 +958,16 @@ export class Renderer {
     this.freeTarget(b);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.drawFbo || this.scene.fbo);   // back to the frame being drawn
     gl.viewport(0, 0, 1920, 1080);
-    const out = { tex: a.tex, target: a, w: e.w + 2 * pad, h: e.h + 2 * pad, nw: (e.w + 2 * pad) / k, nh: (e.h + 2 * pad) / k, used: performance.now(), flipped: true };
+    const out = { tex: a.tex, target: a, w: e.w + 2 * pad, h: e.h + 2 * pad, nw: (e.w + 2 * pad) / k, nh: (e.h + 2 * pad) / k, used: performance.now(), flipped: true, bytes: w * h * 4 };
     this.blurCache.set(key, out);
+    this.blurBytes += out.bytes;
+    // The copies are kept to a quarter of the pictures' budget (100 MB on an iPhone), the least recently drawn going first, and to 24.
+    // They were kept to 24 alone, outside the budget: a scene's 24 largest took 70 MB at the median and up to 887 MB (13_01_02_CIEL13_5_1).
+    this.dropBlurred(this.limit / 4);
     if (this.blurCache.size > 24) {
       const old = [...this.blurCache.entries()].sort((x, y) => x[1].used - y[1].used)[0];
       this.freeTarget(old[1].target);
+      this.blurBytes -= old[1].bytes;
       this.blurCache.delete(old[0]);
     }
     return out;

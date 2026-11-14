@@ -479,3 +479,78 @@ test("the textures let go are never ones a layer holds: on screen, staged for th
   // the VM names its layers: on screen, staged and left behind
   assert.match(source("js/vm.js"), /gfx\.inUse = \(\) => \[\.\.\.this\.layers\.values\(\), \.\.\.this\.pending\.values\(\), \.\.\.this\.ghosts\.values\(\)\];/);
 });
+
+// ---- issue 8's follow-up: the blurred copies' bytes, the page out of sight, a lost context ----------------------------------
+const bareRenderer = (extra = {}) => {
+  const freed = [];
+  const gl = { deleteTexture: (t) => freed.push(t), deleteFramebuffer() {}, isContextLost: () => false };
+  return { freed, r: Object.assign(Object.create(Renderer.prototype), { gl, limit: 400, bytes: 0, tex: new Map(), blurCache: new Map(), blurRefused: new Set(), blurBytes: 0, ui: new Map(), ...extra }) };
+};
+
+test("the blurred copies are kept to a share of the pictures' budget, the least recently drawn going first and those on screen staying", () => {
+  const { r, freed } = bareRenderer();
+  const now = performance.now();
+  const copy = (name, ago) => r.blurCache.set(name, { target: { tex: name, fbo: name }, used: now - ago, bytes: 40 });
+  copy("A", 3000); copy("C", 100); copy("B", 2000);
+  r.blurBytes = 120;
+  r.dropBlurred(50);
+  assert.deepEqual([...r.blurCache.keys()], ["C"], "A then B, the least recently drawn, went down to the room");
+  assert.deepEqual(freed, ["A", "B"]);
+  assert.equal(r.blurBytes, 40);
+  r.blurBytes = 80; copy("D", 200);
+  r.dropBlurred(0);
+  assert.deepEqual([...r.blurCache.keys()], ["C", "D"], "drawn within the last half second: kept whatever the room");
+  r.dropBlurred(0, 0);
+  assert.equal(r.blurCache.size, 0, "out of sight: all of them");
+  assert.equal(r.blurBytes, 0);
+  // blurred keeps them to a quarter of the budget, and to 24
+  const src = source("js/renderer.js");
+  assert.match(src, /this\.blurBytes \+= out\.bytes;\n[^\n]*\n[^\n]*\n\s*this\.dropBlurred\(this\.limit \/ 4\);\n\s*if \(this\.blurCache\.size > 24\)/);
+});
+
+test("the page out of sight lets go of the blurred copies and the pictures no layer holds", () => {
+  const { r } = bareRenderer({ bytes: 8 * 1048576, limit: 400 * 1048576, inUse: () => [{ image: "shown" }] });
+  r.tex.set("SHOWN", { tex: "s", w: 1024, h: 1024, used: 1 });
+  r.tex.set("AHEAD", { tex: "a", w: 1024, h: 1024, used: 2 });
+  r.blurCache.set("SHOWN|2|2", { target: { tex: "b", fbo: "b" }, used: performance.now(), bytes: 10 });
+  r.blurBytes = 10;
+  r.release();
+  assert.deepEqual([...r.tex.keys()], ["SHOWN"]);
+  assert.equal(r.blurCache.size, 0, "even the one on screen: made again on the next frame");
+  r.gl.isContextLost = () => true;
+  r.tex.set("AHEAD", { tex: "a", w: 1, h: 1, used: 2 });
+  r.release();
+  assert.ok(r.tex.has("AHEAD"), "nothing is touched in a lost context");
+});
+
+test("a lost context is asked for again, and everything is made again in the new one: the pictures layers hold into the same entries", async () => {
+  const src = source("js/renderer.js");
+  assert.match(src, /canvas\.addEventListener\?\.\("webglcontextlost", \(e\) => e\.preventDefault\(\)\);\n\s*canvas\.addEventListener\?\.\("webglcontextrestored", \(\) => this\.restore\(\)\);/);
+  assert.match(source("js/ui.js"), /canvas\.addEventListener\?\.\("webglcontextrestored", \(\) => \{ this\.tex = null; this\.setup\(\); \}\);/, "the menu's sparkles too");
+  let setups = 0;
+  const { r } = bareRenderer({ inUse: () => [{ image: "shown", rule: { name: "RULE_03" } }], menu: { ready: true }, groupState: { first: false }, windowReady: true,
+    menuA: {}, menuB: {}, panelTarget: {}, groupTarget: {}, groupCopy: {}, ownerTarget: {}, displayTarget: {}, fadeBuffer: {}, blank: {}, bytes: 999 });
+  r.setup = () => { setups++; };
+  r.file = async (key) => `file ${key}`;
+  r.upload = async (e, blob) => { e.tex = `new ${blob}`; e.w = 2; e.h = 2; };
+  const shown = { tex: "old", w: 9, h: 9 }, rule = { tex: "old", w: 9, h: 9 }, other = { tex: "old", w: 9, h: 9 };
+  r.tex.set("SHOWN", shown); r.tex.set("RULE_03", rule); r.tex.set("OTHER", other);
+  r.blurCache.set("x", {}); r.blurRefused.add("y"); r.blurBytes = 5; r.ui.set("z", {});
+  const done = r.restore();
+  assert.equal(setups, 1);
+  for (const k of ["menuA", "menuB", "panelTarget", "groupTarget", "groupCopy", "ownerTarget", "displayTarget", "fadeBuffer", "blank"]) assert.equal(r[k], null, k);
+  assert.deepEqual([r.blurCache.size, r.blurRefused.size, r.blurBytes, r.ui.size], [0, 0, 0, 0]);
+  assert.equal(r.menu.ready, false, "a menu's backdrop is made again");
+  assert.equal(r.groupState.first, true);
+  assert.equal(r.windowReady, false);
+  assert.deepEqual([...r.tex.keys()], ["SHOWN", "RULE_03"], "what no layer holds goes");
+  assert.equal(r.tex.get("SHOWN"), shown, "the same entry, which the layer holds");
+  assert.equal(shown.tex, null, "nothing drawn from the old context meanwhile");
+  await shown.promise; await rule.promise;
+  assert.equal(shown.tex, "new file SHOWN");
+  assert.equal(rule.tex, "new file RULE_03");
+  assert.equal(r.bytes, 32);
+  r.menu.ready = true;   // the menu froze the frame while they came back
+  await done;
+  assert.equal(r.menu.ready, false, "frozen again once they are all there");
+});

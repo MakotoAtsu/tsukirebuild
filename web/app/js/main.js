@@ -518,9 +518,14 @@ async function frame(real) {
 }
 
 // No sound from a page nobody is looking at.
+// A browser may end a page it holds out of sight, to free memory, with no pagehide, and open it again from the start (an iPhone
+// after some minutes in the background, Chrome's tab discarding: issue 8): what pagehide saves is saved as the page goes out of
+// sight, as the apps' appSuspend does, and the decoded sounds not playing, the pictures no layer holds and the blurred copies are let go
+// (made again when next used), so that the page holds less while it waits.
 document.addEventListener("visibilitychange", () => {
   vm.holdClocks("hidden", document.hidden);
   lastFrame = null;   // no catching up on the time the page was hidden
+  if (document.hidden) { globalThis.appSuspend(); audio.trim(0); gfx.release(); }
   if (!audio.ctx) return;
   if (document.hidden) audio.ctx.suspend();
   else if (!touch.held) audio.ctx.resume();   // not under the rotate screen (touch.js)

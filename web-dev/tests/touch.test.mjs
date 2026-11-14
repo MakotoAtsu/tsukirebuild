@@ -72,12 +72,23 @@ test("the stage is fitted inside the safe area and centred in the window where t
   near(f.k, 390 / 1080);
   near(f.x, (844 - 1920 * f.k) / 2);
   assert.equal(f.y, 0);
-  // a notch at each end and a home bar: smaller, still centred, standing on the bar's edge
+  // a notch at each end and a home bar: the window's full height, centred, the bar over the picture's bottom edge (issue 8)
   f = stageFit(844, 390, { left: 47, right: 47, bottom: 21 });
-  near(f.k, 369 / 1080);
+  near(f.k, 390 / 1080);
   near(f.x, (844 - 1920 * f.k) / 2);
   assert.equal(f.y, 0);
-  near(f.y + 1080 * f.k, 369);
+  // ... where the insets at the sides make it narrower but leave too little room under it to clear the bar, it stands at the top
+  f = stageFit(844, 390, { left: 80, right: 80, bottom: 21 });
+  near(f.k, 684 / 1920);
+  assert.equal(f.y, 0);
+  // ... and a window with room to spare keeps it above the bar
+  f = stageFit(1024, 768, { bottom: 20 });
+  near(f.k, 1024 / 1920);
+  near(f.y, (768 - 576) / 2);
+  f = stageFit(1024, 640, { bottom: 60 });
+  near(f.k, 1024 / 1920);
+  near(f.y, 640 - 60 - 576);
+  assert.ok(f.y + 1080 * f.k <= 640 - 60);
   // a notch at one end only: the picture stays in the middle while it clears the notch
   f = stageFit(844, 390, { left: 44 });
   near(f.k, 390 / 1080);
@@ -138,6 +149,63 @@ test("on an iPhone the page is laid out one CSS pixel to a screen pixel, so a la
   const renderer = source("js/renderer.js");
   assert.match(renderer, /const memory = globalThis\.navigator\?\.deviceMemory \|\| \(appleTouch\(globalThis\) \? 2 : 8\);/);
   assert.match(renderer, /this\.limit = \(this\.maxSide <= 4096 \|\| memory <= 2 \? 400 : memory <= 4 \? 700 : 1400\) \* 1024 \* 1024;/);
+});
+
+// ---- issue 8's follow-up: decoded sounds, the sound after an interruption, a page ended out of sight ----------------------
+test("decoded sounds are kept to a budget of bytes, the least recently used going first and what plays staying", async () => {
+  const { Audio, soundBudget, soundBytes } = await import("../../web/app/js/audio.js");
+  const MB = 1024 * 1024;
+  assert.equal(soundBudget({ navigator: IPHONE }), 256 * MB, "an iPhone says nothing of its memory: the least");
+  assert.equal(soundBudget({ navigator: IPAD }), 256 * MB);
+  assert.equal(soundBudget({ navigator: { ...ANDROID, deviceMemory: 4 } }), 384 * MB);
+  assert.equal(soundBudget({ navigator: ANDROID }), 768 * MB);
+  assert.equal(soundBudget({}), 768 * MB, "a desktop");
+  assert.equal(soundBytes({ length: 48000 * 180, numberOfChannels: 2 }), 69120000, "three minutes of stereo at 48 kHz");
+  const a = new Audio();
+  a.budget = 300;
+  a.soundData = async (url) => url;
+  a.decoder = () => ({ decodeAudioData: async (url) => ({ url, length: 25, numberOfChannels: 1 }) });   // 100 bytes each
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+  const load = async (name) => { const b = await a.buffer(name); await settle(); return b; };
+  await load("a"); await load("b"); await load("c");
+  assert.deepEqual([...a.buffers.keys()], ["a", "b", "c"], "300 bytes: all kept");
+  await load("a");   // used again: the newest
+  await load("d");
+  assert.deepEqual([...a.buffers.keys()], ["c", "a", "d"], "b, the least recently used, went");
+  const c = await a.buffer("c");   // used again: a is now the least recently used
+  a.bgm = { n: { s: { buffer: c } } };   // the music plays c
+  await load("e");
+  assert.deepEqual([...a.buffers.keys()], ["d", "c", "e"], "a went");
+  a.bgm = { n: { s: { buffer: await a.buffer("d") } } };   // d plays; c is now the least recently used and idle
+  await load("f");
+  assert.deepEqual([...a.buffers.keys()], ["e", "d", "f"], "c went once it no longer played");
+  const d = a.sizes.get("d").buf;
+  a.bgm = null;
+  a.bgmOld = { n: { s: { buffer: d } } };   // the track fading out stays too
+  await load("g");
+  assert.deepEqual([...a.buffers.keys()], ["d", "f", "g"]);
+  a.trim(0);
+  assert.deepEqual([...a.buffers.keys()], ["d"], "out of sight: only what plays");
+  assert.deepEqual([...a.sizes.keys()], ["d"]);
+  const again = await load("a");
+  assert.equal(again.url, "a", "a sound let go is decoded again when asked for");
+});
+
+test("a press resumes the sound whatever stopped it, an iPhone's interruption too, but not a closed one", async () => {
+  const { Audio } = await import("../../web/app/js/audio.js");
+  for (const [state, resumed] of [["suspended", true], ["interrupted", true], ["running", false], ["closed", false]]) {
+    const a = new Audio();
+    let n = 0;
+    a.ctx = { state, resume() { n++; return Promise.resolve(); } };
+    a.start();
+    assert.equal(n, resumed ? 1 : 0, state);
+  }
+});
+
+test("the page going out of sight saves as pagehide does and lets the idle decoded sounds go", () => {
+  const main = source("js/main.js");
+  assert.match(main, /if \(document\.hidden\) \{ globalThis\.appSuspend\(\); audio\.trim\(0\); gfx\.release\(\); \}/);
+  assert.match(main, /globalThis\.appSuspend = \(\) => \{ if \(!savesReplaced\(\)\) \{ autosave\(\); vm\.saveRead\(\); vm\.unlocks\.save\(\); \} \};/);
 });
 
 test("a touch on the story is read as a tap, a swipe, a hold or two fingers", () => {
