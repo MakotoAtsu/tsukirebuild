@@ -23,7 +23,7 @@
     "files": ["main.js", "preload.js", "updater.js", "package.json"],
     "extraResources": [
       { "from": "../../web/app", "to": "www", "filter": ["**/*", "!**/.*"] },
-      { "from": "../../web/assets", "to": "www/assets", "filter": ["**/*", "!voice/**", "!se/**", "!ja/**", "!**/.*"] },
+      { "from": "../../web/assets", "to": "www/assets", "filter": ["**/*", "!voice/**", "!se/**", "!ja/**", "!zh/**", "!**/.*"] },
       { "from": "out/bundle", "to": "www" }
     ],
     "electronLanguages": ["en-US", "en"],

@@ -1,12 +1,13 @@
-// The language switch: English (the translation) or Japanese (the original game), web/app/js/lang.js, langsave.js, and the Japanese text's rows
-// (web-dev/tools/build_ja.py, web-dev/data/ja_rows.json). The last tests read the generated files when they are there.
+// The language switch: English (the translation), Japanese (the original game) or Chinese (the Chinese fan patch of the original), web/app/js/lang.js,
+// langsave.js, and the original engine's rows (web-dev/tools/build_ja.py, build_zh.py, web-dev/data/ja_rows.json, zh_rows.json). The last tests read the
+// generated files when they are there.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 
 const store = (init = {}) => ({ s: { ...init }, getItem(k) { return this.s[k] ?? null; }, setItem(k, v) { this.s[k] = String(v); } });
 globalThis.localStorage = store();
-const { LANGS, langOf, storedLang, chooseLang, asset, setOwn, has, LANG } = await import("../../web/app/js/lang.js");
+const { LANGS, langOf, storedLang, chooseLang, asset, setOwn, addOwn, has, overlays, LANG, ORIG, LAYERS } = await import("../../web/app/js/lang.js");
 const { mapPc, carryPoint, noteLine } = await import("../../web/app/js/langsave.js");
 const { ROW, SOFT, parseMarkup, plain } = await import("../../web/app/js/textbox.js");
 
@@ -14,9 +15,13 @@ const ASSETS = new URL("../../web/assets/", import.meta.url);
 const read = (rel) => JSON.parse(readFileSync(new URL(rel, ASSETS), "utf8"));
 const there = (rel) => existsSync(new URL(rel, ASSETS));
 
-test("the language is English unless Japanese was chosen; the address can name one for a visit", () => {
-  assert.deepEqual(LANGS, ["en", "ja"]);
+test("the language is English unless Japanese or Chinese was chosen; the address can name one for a visit", () => {
+  assert.deepEqual(LANGS, ["en", "ja", "zh"]);
   assert.equal(LANG, "en");
+  assert.equal(ORIG, false);
+  assert.deepEqual(LAYERS, []);
+  assert.equal(storedLang(store({ "tsuki.lang": "zh" })), "zh");
+  assert.equal(langOf("?lang=zh", store({ "tsuki.lang": "ja" })), "zh");
   assert.equal(storedLang(store()), "en");
   assert.equal(storedLang(store({ "tsuki.lang": "ja" })), "ja");
   assert.equal(storedLang(store({ "tsuki.lang": "fr" })), "en");
@@ -41,6 +46,21 @@ test("a file Japanese has of its own is asked for under ja/, every other where i
   assert.equal(asset("/assets/scripts/6.json"), "/assets/scripts/6.json");
   assert.equal(asset("/assets/ui/CONF_PARTS_JA/system_bg.webp"), "/assets/ja/ui/CONF_PARTS_JA/system_bg.webp");
   assert.equal(asset("/js/main.js"), "/js/main.js");
+  setOwn([]);
+});
+
+test("Chinese is laid over Japanese: a file is asked for under zh/, then ja/, then where it always was; a table is laid over in that order", () => {
+  setOwn(["text.json", "system.json", "images.json", "scripts/5.json", "scripts/6.json", "img/IMG0316.avif"], "ja");
+  addOwn(["text.json", "system.json", "scripts/6.json", "ui/MENU_PARTS_JA/menu_btn_ja.webp"], "zh");
+  assert.equal(asset("/assets/text.json"), "/assets/zh/text.json");
+  assert.equal(asset("/assets/scripts/5.json"), "/assets/ja/scripts/5.json");    // the original's script, which the patch did not change
+  assert.equal(asset("/assets/scripts/6.json"), "/assets/zh/scripts/6.json");    // one with Chinese rows
+  assert.equal(asset("/assets/scripts/7.json"), "/assets/scripts/7.json");
+  assert.equal(asset("/assets/ui/MENU_PARTS_JA/menu_btn_ja.webp"), "/assets/zh/ui/MENU_PARTS_JA/menu_btn_ja.webp");
+  assert.equal(asset("/assets/img/IMG0316.avif"), "/assets/ja/img/IMG0316.avif?v=2");   // a picture with writing stays the original's
+  assert.deepEqual(overlays("system.json"), ["/assets/ja/system.json", "/assets/zh/system.json"]);
+  assert.deepEqual(overlays("images.json"), ["/assets/ja/images.json"]);
+  assert.deepEqual(overlays("effects.json"), []);
   setOwn([]);
 });
 
@@ -106,13 +126,15 @@ test("a scene's point keeps its place", () => {
 });
 
 // ---- the generated files -----------------------------------------------------------------------------------------------------------
-test("the system and picture tables are the shared ones with Japanese's few entries laid over them, never replaced by them", () => {
+test("the system and picture tables are the shared ones with Japanese's (and Chinese's) few entries laid over them, never replaced by them", () => {
   const vm = readFileSync(new URL("../../web/app/js/vm.js", import.meta.url), "utf8");
   const shared = vm.match(/const shared = new Set\((\[[^\]]*\])\);/);
   assert.ok(shared, "vm.js names the tables read from the shared files");
   assert.deepEqual(JSON.parse(shared[1]).sort(), ["images", "system"]);
-  assert.match(vm, /if \(has\("images\.json"\)\) Object\.assign\(this\.gfx\.images, await fetch\("\/assets\/ja\/images\.json"\)/);
-  assert.match(vm, /Object\.assign\(this\.system, \(await systemOver\) \|\| \{\}\);/);
+  assert.match(vm, /for \(const u of overlays\("images\.json"\)\) Object\.assign\(this\.gfx\.images, await fetch\(u\)/);
+  assert.match(vm, /const systemOver = Promise\.all\(overlays\("system\.json"\)\.map/);
+  assert.match(vm, /for \(const over of await systemOver\) Object\.assign\(this\.system, over \|\| \{\}\);/);
+  for (const k of ["imageSizes", "pivots", "pivotCuts", "windows", "voices"]) if (there("zh/system.json")) assert.ok(!(k in read("zh/system.json")), `zh/system.json lays no ${k} over`);
   if (there("ja/images.json")) {
     const base = read("images.json"), over = read("ja/images.json");
     assert.ok(Object.keys(over).length < Object.keys(base).length / 10, "ja/images.json is an overlay, not a table of its own");
@@ -190,4 +212,105 @@ test("every line a Japanese script shows is one the translation's script shows, 
     }
   }
   assert.ok(checked > 3000, String(checked));
+});
+
+// ---- Chinese -------------------------------------------------------------------------------------------------------------------------
+test("Chinese has the patch's lines, words and rows, laid over Japanese, listed in zh/index.json", { skip: !there("zh/index.json") }, () => {
+  const files = new Set(read("zh/index.json").files);
+  for (const f of ["text.json", "system.json", "gallery.json", "flowchart.json", "rows.json", "fonts/TsukuMin.woff2", "fonts/TsukuGo.woff2", "fonts/SeuratPro.woff2",
+    "movie/phasetitle_02_00.mp4", "movie/phasetitle_14_01.mp4", "ui/DISP_PARTS_JA/help_txt_ja.webp"]) assert.ok(files.has(f), f);
+  // nothing the patch did not change: the scripts are Japanese's, the story's pictures too, and the openings stay the translation's
+  for (const f of files) assert.ok(!/^(scripts|img)\//.test(f) && !/^movie\/(op|ed)/.test(f), f);
+  const zh = read("zh/text.json"), ja = read("ja/text.json");
+  assert.equal(zh.length, ja.length, "the same lines, by the same numbers");
+  assert.equal(zh[0], "　万籁俱寂之时，在夜晚寒风的轻抚下眼睑微启。");
+  const cells = (row) => [...row.replace(/<([^|>]*)\|[^>]*>/g, "$1").replace(/\[[a-z]+\d*\]/g, "□").replace(/@[a-z]\d?/g, "")].reduce((n, c) => n + (c.charCodeAt(0) < 0x100 ? 0.5 : 1), 0);
+  let rows = 0, over = 0;
+  for (const line of zh) for (const part of line.split("^")) { const r = part.split(ROW); if (r.length > 1) for (const row of r.slice(0, -1)) { rows++; if (cells(row.trimEnd()) > 29) over++; } }
+  assert.ok(rows > 8000, String(rows));   // (8,750: Chinese says it in fewer letters than Japanese)
+  assert.ok(over <= 6, `${over} rows longer than 29 cells`);
+  // a space where the engine ended a row by it is left out of the game's rows: here it stays at the end of the row above, where it shows nothing (line 3815;
+  // a space that did not fit a full row starts the next one in the game too, line 2877)
+  assert.ok(zh[3815].includes(`不妙 ${ROW}学姐`), zh[3815]);
+  assert.ok(zh[2877].includes(`上学${ROW} 今天`), zh[2877]);
+  const sys = read("zh/system.json");
+  assert.deepEqual(Object.keys(sys).sort(), ["help", "messages", "saves"]);
+  assert.equal(sys.messages["178"], "要保留吗？");
+  const wanted = 1 + Math.max(...sys.help.screens.flat().filter(([kind]) => kind === 1).map(([, id]) => id));
+  assert.equal(sys.help.labels.length, wanted, "the help bar's labels cut whole from the patch's picture of them");
+  assert.equal(read("zh/flowchart.json").groups[0].parts[0].title, "琉璃之月");
+});
+
+test("Chinese's rows go with Japanese's scripts: each names the lines of the command it is for", { skip: !there("zh/rows.json") }, () => {
+  const table = read("zh/rows.json"), jaOwn = new Set(read("ja/index.json").files);
+  let n = 0;
+  for (const [i, rows] of Object.entries(table)) {
+    const s = read(jaOwn.has(`scripts/${i}.json`) ? `ja/scripts/${i}.json` : `scripts/${i}.json`);
+    if (rows === null) { assert.ok(s.rows, `${s.name}: null takes away rows the script has`); continue; }
+    for (const [op, texts] of Object.entries(rows)) {
+      const o = s.ops[Number(op)];
+      assert.ok(o && (o[0] === "MSG" || o[0] === "MSAD"), `${s.name} op ${op}`);
+      assert.equal([...o[1].matchAll(/\$(\d+)/g)].length, texts.length, `${s.name} op ${op}`);
+      n++;
+    }
+  }
+  assert.ok(n > 200, String(n));
+});
+
+test("a script is read with Chinese's own rows in place of Japanese's", async () => {
+  const lang = await import("../../web/app/js/lang.js");
+  const saved = globalThis.fetch;
+  globalThis.fetch = async (url) => ({ ok: true, json: async () => ({ 5: { 12: ["甲", "乙"] }, 6: null }) });
+  try {
+    lang.setOwn(["rows.json"], "zh");
+    const s = { name: "x", ops: [], rows: { 3: ["あ"] } };
+    assert.deepEqual((await lang.ownRows(s, 5)).rows, { 12: ["甲", "乙"] });
+    assert.equal((await lang.ownRows(s, 6)).rows, undefined, "null: the script shows each line's own rows");
+    assert.equal(await lang.ownRows(s, 7), s, "a script the table does not name is as it is");
+    assert.deepEqual(s.rows, { 3: ["あ"] }, "the script read is not changed");
+    lang.setOwn([]);
+    assert.equal(await lang.ownRows(s, 5), s, "not in Chinese");
+  } finally { globalThis.fetch = saved; lang.setOwn([]); }
+});
+
+test("the prologue's subtitles: the line at a frame, none between lines, and only where the language has them", async () => {
+  const { lineAt, subsFor } = await import("../../web/app/js/subs.js");
+  const subs = [{ start: 43, end: 177, text: "a" }, { start: 265, end: 315, text: "b" }, { start: 325, end: 385, text: "c" }];
+  assert.equal(lineAt(subs, 42), null);
+  assert.equal(lineAt(subs, 43).text, "a");
+  assert.equal(lineAt(subs, 176).text, "a");
+  assert.equal(lineAt(subs, 177), null, "end is the first frame it is gone");
+  assert.equal(lineAt(subs, 300).text, "b");
+  assert.equal(lineAt(subs, 384).text, "c");
+  assert.equal(lineAt(subs, 9999), null);
+  assert.equal(await subsFor("prologue"), null, "English has none");
+  const { pictureLevel } = await import("../../web/app/js/subs.js");
+  const p = { start: 100, full: 110, out: 200, end: 210 };
+  assert.deepEqual([pictureLevel(p, 99), pictureLevel(p, 109) > 0.9, pictureLevel(p, 150), pictureLevel(p, 205) < 0.5, pictureLevel(p, 210)], [0, true, 1, true, 0]);
+  assert.equal(pictureLevel({ start: 0, full: 10, out: null, end: 50 }, 49), 1, "cut, not faded");
+  const main = readFileSync(new URL("../../web/app/js/main.js", import.meta.url), "utf8");
+  assert.match(main, /subsFor\(name\)\.then\(\(data\) => \{ if \(data && !over\) stopSubs = showSubs\(v, data, movieSubs\(\)\); \}\);/, "every movie asks (the story's and the gallery's)");
+  if (there("zh/subs/prologue.json")) {
+    const d = read("zh/subs/prologue.json");
+    assert.equal(d.fps, 30);
+    assert.ok(d.subs.length > 50, String(d.subs.length));
+    d.subs.forEach((s, i) => { assert.ok(s.start < s.end && (!i || d.subs[i - 1].end <= s.start), `subtitle ${i} in order`); assert.ok(s.text.trim(), `subtitle ${i}`); });
+    assert.ok(d.subs.at(-1).end <= 11529, "within the original's movie (11,529 frames)");
+    assert.equal(d.inPicture.length, 10, "and the lines the patch set beside the movie's own words, in three scenes");
+    assert.ok(!read("zh/index.json").files.includes("movie/prologue.mp4"), "the original's movie, not the patch's");
+  }
+});
+
+test("the Controls page has a Chinese word for each of its own words, and keeps the English in the other languages", async () => {
+  const { CONTROLS_ZH, say } = await import("../../web/app/js/words.js");
+  const { ACTIONS, MENU_KEYS, MOUSE, keyLabel } = await import("../../web/app/js/keys.js");
+  const { TOUCH_CONTROLS } = await import("../../web/app/js/touch.js");
+  const words = ["Keyboard", "Click a key to change it.  Esc cancels, Backspace clears.", "Menus", "Mouse", "Touch", "Press a key", "key", "Space",
+    ...ACTIONS.map((a) => a.label), ...MENU_KEYS.map(([l]) => l), ...MOUSE.flat(), ...TOUCH_CONTROLS.flat()];
+  for (const w of words) assert.ok(CONTROLS_ZH[w] && /[一-鿿]/.test(CONTROLS_ZH[w]), w);
+  assert.equal(say("Advance text"), "Advance text", "English here (the tests run in English)");
+  assert.equal(say(keyLabel("Space")), "Space");
+  const ui = readFileSync(new URL("../../web/app/js/ui.js", import.meta.url), "utf8");
+  for (const s of ['head(say("Keyboard")', 'line(say(a.label)', 'cap(say(what)', 'say(keyLabel(k))', 'say("Press a key")', 'say(how)', 'say("Touch")'])
+    assert.ok(ui.includes(s), s);
 });

@@ -13,9 +13,10 @@ import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
 import { welcomeDue, markWelcomed } from "./welcome.js";
 import { openHome, homeDue, showNoGl } from "./home.js";
-import { JA } from "./lang.js";
+import { LANG, ORIG } from "./lang.js";
 import { savesReplaced } from "./savefile.js";
-import { Preloader, RANK, movieUrl } from "./preload.js";
+import { Preloader, RANK, movieUrl, fontsFor } from "./preload.js";
+import { subsFor, showSubs } from "./subs.js";
 import { REWIND_FIXED, ROUTE_FLAGS, fvar } from "./flowchart-model.js";
 import { CLICK_MARK, STORY_MOVIES, TITLE_MOVIE_LOOP, movieLook, movieQuestion, nextTitleStage, titleMusic as titleTrack, titleVariant } from "./uifx.js";
 
@@ -221,8 +222,19 @@ const titleNext = () => nextTitleStage(ui.titleStageNow(), vm.flow.started);
 let moviesDone = null;
 function movieCover() {
   let c = $("movie-cover");
-  if (!c) { c = document.createElement("div"); c.id = "movie-cover"; (moviePic || $("movie")).after(c); }
+  if (!c) { c = document.createElement("div"); c.id = "movie-cover"; ($("movie-subs") || moviePic || $("movie")).after(c); }
   return c;
+}
+// Where a movie's subtitles are set (subs.js): over the movie and its painted copy, under the cover that fades it, as the patch's burned-in lines were.
+function movieSubs() {
+  let s = $("movie-subs");
+  if (!s) {
+    s = document.createElement("div");
+    s.id = "movie-subs";
+    const c = $("movie-cover");
+    if (c) c.before(s); else (moviePic || $("movie")).after(s);
+  }
+  return s;
 }
 // opts.story: a TOMP movie, opts.number its number, opts.seen whether it has been seen before (G005).
 // opts.music: { at, n } plays music n once the movie has run `at` seconds (the gallery's prologue: 2 at 360 s, 0x19040).
@@ -234,6 +246,9 @@ function playMovie(name, opts = {}) {
     const v = movieElement(name);
     v.style.display = "block";
     if (paintsMovies) paintMovie(v);
+    // Chinese: the lines the patch burned into its own copy of the prologue, set over the original's (subs.js)
+    let stopSubs = null, over = false;
+    subsFor(name).then((data) => { if (data && !over) stopSubs = showSubs(v, data, movieSubs()); });
     v.loop = false;
     v.titleLoop = false;
     v.volume = audio.vol.bgmMute ? 0 : Math.max(0, Math.min(1, audio.vol.bgm));   // movies play at the music volume
@@ -254,6 +269,8 @@ function playMovie(name, opts = {}) {
     const listen = () => { if (cue && v.currentTime >= cue.at) { v.removeEventListener("timeupdate", listen); audio.playBGM(cue.n, {}); } };
     if (cue) v.addEventListener("timeupdate", listen);
     const finish = () => {
+      over = true;
+      stopSubs?.();
       v.removeEventListener("timeupdate", listen);
       v.pause();
       v.removeAttribute("src");
@@ -1237,14 +1254,14 @@ async function loadingScreen() {
   // drawn again: where the system has none of a stack's fonts, its bundled backup (style.css) is fetched first. A system that has them asks for
   // nothing; 3 s at most, then the canvases draw with what there is.
   const wanted = CANVAS_FONTS.filter((f) => !f.system.some(installedFont)).map((f) => f.backup);
-  // Japanese: the game's own faces (style.css html.ja), fetched before the first line is set so that no letter is drawn in another
-  if (JA) wanted.push('45.6px "TsukuMin"');
+  // Japanese and Chinese: the game's own text face (style.css html.ja, html.zh), fetched before the first line is set so that no letter is drawn in another
+  if (ORIG) wanted.push(fontsFor(LANG).story[0]);
   await Promise.race([Promise.all(wanted.map((f) => document.fonts?.load?.(f)?.catch(() => {}))), new Promise((r) => setTimeout(r, 3000))]);
   // The quick bar's art is made here, on the black before the first screen, so that its first opening looks like every other.
   ui.buildPanel();
   // the System page's words at one size (confart.js), ready before the config is first opened: the translation's art only (the original's pictures keep
   // their words as they were drawn)
-  if (!JA) relettered().then((art) => { ui.confArt = art; });
+  if (!ORIG) relettered().then((art) => { ui.confArt = art; });
   await ui.panel.ready;
   const q = new URLSearchParams(location.search);
   const firstVisit = welcomeDue(q);   // (marked as made once the first screens have loaded, below)

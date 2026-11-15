@@ -80,19 +80,22 @@ test("the apps open on the opening page: ABOUT, GITHUB, SAVE DATA and PLAY, with
   assert.match(read("web/app/touch.css"), /html\.touch:not\(\.upright\) \.hm-row1 \.hm-scroll \{ top: 150px; height: 930px; \}/, "and the page begins under it");
 });
 
-test("an app is English whatever was kept or asked for, and both are built without Japanese's files", () => {
-  const ja = store({ "tsuki.lang": "ja" });
+test("an app is English whatever was kept or asked for, and both are built without Japanese's and Chinese's files", () => {
+  const ja = store({ "tsuki.lang": "ja" }), zh = store({ "tsuki.lang": "zh" });
   assert.equal(langOf("", ja, null), "ja", "(the site: the kept choice)");
+  assert.equal(langOf("", zh, null), "zh");
   for (const app of ["android", "desktop"]) {
     assert.equal(langOf("", ja, app), "en");
     assert.equal(langOf("?lang=ja", store(), app), "en");
     assert.equal(langOf("?lang=ja", ja, app), "en");
+    assert.equal(langOf("", zh, app), "en");
+    assert.equal(langOf("?lang=zh", store(), app), "en");
   }
   assert.match(read("web/app/js/lang.js"), /export function langOf\(search = "", storage = globalThis\.localStorage, app = APP\) \{\n  if \(app\) return "en";/);
-  assert.match(read("web-dev/android/build_apk.sh"), /case "\$\(basename "\$f"\)" in voice\|se\|ja\) ;;/);
+  assert.match(read("web-dev/android/build_apk.sh"), /case "\$\(basename "\$f"\)" in voice\|se\|ja\|zh\) ;;/);
   const pack = JSON.parse(read("web-dev/desktop/package.json")).build;
-  assert.deepEqual(pack.extraResources[1].filter, ["**/*", "!voice/**", "!se/**", "!ja/**", "!**/.*"]);
-  assert.match(read("web-dev/tools/app_manifest.py"), /WITHOUT = \("ja", "voice", "se"\)/, "and the list the updates compare leaves them out too");
+  assert.deepEqual(pack.extraResources[1].filter, ["**/*", "!voice/**", "!se/**", "!ja/**", "!zh/**", "!**/.*"]);
+  assert.match(read("web-dev/tools/app_manifest.py"), /WITHOUT = \("ja", "zh", "voice", "se"\)/, "and the list the updates compare leaves them out too");
 });
 
 test("what the page asks of an app goes through one object: the desktop's promises, the Android app's numbered answers", async () => {

@@ -28,8 +28,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 FORMAT = 1
-# What the apps are built without: Japanese's own files, and the loose voices and sound effects.
-WITHOUT = ("ja", "voice", "se")
+# What the apps are built without: Japanese's and Chinese's own files, and the loose voices and sound effects.
+WITHOUT = ("ja", "zh", "voice", "se")
 
 
 def shell(app=ROOT / "web/app"):

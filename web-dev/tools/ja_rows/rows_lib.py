@@ -62,6 +62,7 @@ def engine_items(buf):
 def same(a, b):
     if a == b: return True
     if a in DASH and b == "―": return True
+    if a in DASH and b in "Œœ": return True     # a dash by itself: the engine writes the face's dash letter, not a run (the Chinese patch's lines)
     if a == " " and b == " ": return True
     return False
 

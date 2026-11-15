@@ -60,13 +60,13 @@ javac -nowarn --release 11 -cp "$jar" -d "$work/classes" \
 [ -n "$(find "$work/classes" -name '*.class')" ] || { echo "javac failed" >&2; exit 1; }
 "$bt/d8" --release --min-api 26 --lib "$jar" --output "$work" $(find "$work/classes" -name '*.class')
 
-# The game: assets/www = web/app, assets/www/assets = web/assets without voice/ and se/ (in the packs) and ja/ (the
-# app is English only). Linked, not copied; zip follows the links. Stored, not compressed, so the app can seek in them
+# The game: assets/www = web/app, assets/www/assets = web/assets without voice/ and se/ (in the packs) and ja/ and zh/
+# (the app is English only). Linked, not copied; zip follows the links. Stored, not compressed, so the app can seek in them
 # (the files are compressed already). With them goes the description of what was packed, bundled.json and
 # bundled-assets.txt, which the app's updates are worked out from (web-dev/tools/app_manifest.py).
 for f in "$web/app"/*; do ln -s "$f" "$work/stage/assets/www/"; done
 for f in "$web/assets"/*; do
-    case "$(basename "$f")" in voice|se|ja) ;; *) ln -s "$f" "$work/stage/assets/www/assets/" ;; esac
+    case "$(basename "$f")" in voice|se|ja|zh) ;; *) ln -s "$f" "$work/stage/assets/www/assets/" ;; esac
 done
 python3 "$here/../tools/app_manifest.py" --bundle "$work/stage/assets/www"
 cp "$work/base.apk" "$work/unsigned.apk"

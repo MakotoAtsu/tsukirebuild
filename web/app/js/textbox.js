@@ -1,5 +1,5 @@
 // textbox.js - dialogue shown a line at a time over the picture, on a full page that clears when the page ends.
-import { JA, asset } from "./lang.js";
+import { ORIG, ZH, asset } from "./lang.js";
 const el = () => document.getElementById("text");
 const panel = () => document.getElementById("panel");
 // Italics: U+E000 plus the ASCII code (the game font's slanted letters at U+E021-E07E). Written as escapes: the raw
@@ -97,8 +97,10 @@ export function setDashJoin(node) {
   node.style.setProperty("--dash-join", `-${v}px`);
   node.style.setProperty("--dash-end", `${v}px`);
 }
-const RUN = /([―—─]{2,}|■{2,})/;
-// The text split into plain pieces and runs of two or more dashes or blocks.
+// Chinese: a dash by itself is the same line one cell long (the engine writes the face's dash letter for it, and draws that as it draws a run: a native
+// frame of the patch's lines, 2026-11-14), where the patch's own face has no U+2015 at all.
+const RUN = ZH ? /([―—─]+|■{2,})/ : /([―—─]{2,}|■{2,})/;
+// The text split into plain pieces and runs of two or more dashes or blocks (Chinese: one or more dashes).
 export function dashRuns(text) {
   return text.split(RUN).filter((s) => s);
 }
@@ -216,7 +218,7 @@ export function parseMarkup(s) {
     // That index counts the patch's raw line breaks before the mark, which are no letters on screen: `lf`.
     if (c === "@" && s[i + 1] === "t") { flush(); out.push({ split: true, lf }); i += 2; continue; }
     // (the slant is the translation's: in the original the mark shows no change of face on a native frame, so Japanese sets none)
-    if (c === "@" && s[i + 1] === "g") { flush(); gface = !JA; i += 2; continue; }
+    if (c === "@" && s[i + 1] === "g") { flush(); gface = !ORIG; i += 2; continue; }
     // @b (four lines of the original, each with @g): the line is set from the row's right end, its letters in order leftwards (native frames)
     if (c === "@" && s[i + 1] === "b") { flush(); out.push({ back: true }); i += 2; continue; }
     if (c === "@" && s[i + 1] === "k") { i += 2; continue; }
@@ -403,10 +405,12 @@ export function fillSegment(seg, markup) {
       }
       // a space is a letter the front passes like any other (it takes its interval), outside a flipped word; a pair of spaces is
       // one U+3000 in the game's text (0xab59c-0xab5ec) and so one letter (N2-117)
+      // (the original engine, Japanese and Chinese, has no such pairs: each space is a narrow letter, half a cell, as the Chinese patch's lines show on
+      // native frames)
       if (ch === " ") {
         const sp = document.createElement("span");
-        sp.className = "ch";
-        if (letters[n + 1] === " ") { sp.textContent = "  "; n++; } else sp.textContent = ch;
+        sp.className = ORIG ? "ch hw" : "ch";
+        if (letters[n + 1] === " " && !ORIG) { sp.textContent = "  "; n++; } else sp.textContent = ch;
         parent.appendChild(sp);
         chars.push(sp);
         word = null;
@@ -414,7 +418,7 @@ export function fillSegment(seg, markup) {
       }
       const s = document.createElement("span");
       // Japanese: a letter below U+0100 is half a cell (0xbf0f8 counts two of them a cell; "10" and "!?" share one: native frames)
-      s.className = flip ? `ch ${flip}` : JA && ch.charCodeAt(0) < 0x100 ? "ch hw" : "ch";
+      s.className = flip ? `ch ${flip}` : ORIG && ch.charCodeAt(0) < 0x100 ? "ch hw" : "ch";
       s.textContent = ch;
       if (flip) {
         if (!word) { word = document.createElement("span"); word.className = "mirror-word"; parent.appendChild(word); }
@@ -524,7 +528,7 @@ export function renderLogPage(box, records, wrap = null) {
 // (the game dims it with its line, 0x391a0).
 const BLINK = typeof navigator !== "undefined" && /Chrome\//.test(navigator.userAgent || "");
 function dimReadings(seg, v) {
-  if (!BLINK || JA) return;   // (Japanese readings are placed by the port, inside their line: style.css html.ja rt)
+  if (!BLINK || ORIG) return;   // (Japanese readings are placed by the port, inside their line: style.css html.ja rt)
   for (const rt of seg.querySelectorAll("rt")) rt.style.opacity = v;
 }
 
@@ -675,7 +679,7 @@ export class TextBox {
     this.second = this.first && st2 && st2[0] && w.style2 >= 3 ? { ...origin(st2, off("x", w.x2), off("y", w.y2)), width: st[5] * 3 } : null;
     if (!p || !box) return;
     this.balloon = !!(st && st[0] && w.style >= 3);
-    if (this.balloon) document.fonts?.load?.(JA ? '45.6px "SeuratProJa"' : '42px "SeuratPro"');   // the balloon's face (N2-21), fetched before its first letter is typed
+    if (this.balloon) document.fonts?.load?.(ZH ? '45.6px "SeuratProZh"' : ORIG ? '45.6px "SeuratProJa"' : '42px "SeuratPro"');   // the balloon's face (N2-21), fetched before its first letter is typed
     if (!this.balloon) {
       const file = (w.style >= 0 && w.style <= 2 && st?.[0]) || "txtwindow01-1920";
       p.style.background = `url("${asset(`/assets/ui/DISP_PARTS_JA/${file}.webp`)}") 0 0 / 100% 100% no-repeat`;

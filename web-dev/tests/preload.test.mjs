@@ -244,6 +244,16 @@ test("the faces are the language's own: in Japanese the original's text face wit
     const family = f.match(/"([^"]+)"/)?.[1];
     if (family) assert.match(css, new RegExp(`@font-face \\{ font-family: "${family}"; src: url\\("/assets/${family === "SeuratPro" ? "fonts" : "ja/fonts"}/`), family);
   }
+  // Chinese: the patch's own three, from zh/fonts, under names of their own (the Japanese ones are the original's)
+  const zh = fontsFor("zh");
+  assert.deepEqual(zh.story, ['45.6px "TsukuMinZh"', "16px Inter"]);
+  assert.deepEqual(zh.menus, ['45.6px "SeuratProZh"', '24px "TsukuGoZh"']);
+  for (const f of [...zh.story, ...zh.menus]) {
+    const family = f.match(/"([^"]+)"/)?.[1];
+    if (family) assert.match(css, new RegExp(`@font-face \\{ font-family: "${family}"; src: url\\("/assets/zh/fonts/`), family);
+  }
+  assert.deepEqual(fontsFor("ja"), ja);
+  assert.deepEqual(fontsFor("en"), fontsFor(false));
   const { pre, page } = world({ lanes: 1, fonts: ja });
   pre.startup({ firstLaunch: false, stage: 0, scene: true });
   await settle(pre);

@@ -7,7 +7,7 @@
 // a stray tap starts nothing. Not where the address asks for a scene (?script, for tests and the scene links in ABOUT's Extras).
 // The Android and desktop apps (web-dev/android, web-dev/desktop) open on it too, with four tabs (tabsFor): ABOUT, GITHUB, SAVE DATA and PLAY, the
 // site's PLAY ONLINE under the app's name for it. There is no DOWNLOAD there (it is the download) and no language to choose (the apps are built
-// without the Japanese files, lang.js); PLAY's page has the app's updates instead (update.js). What a browser does for the page the app does
+// without the Japanese and Chinese files, lang.js); PLAY's page has the app's updates instead (update.js). What a browser does for the page the app does
 // through apphost.js: Export's file goes where the player chooses, and a link opens in the system's browser.
 import { sprite, quickBarArt, panelBack } from "./ui.js";
 import { TOUCH } from "./touch.js";
@@ -36,7 +36,7 @@ export function homeDue(query) {
 }
 
 // The tabs: a plate, and the sections its page shows, each a heading and blocks as welcome.js draws them, plus ["link", text, address, file name if a
-// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, ["lang"], the language's two plates, ["update"], the app's updates,
+// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, ["lang"], the language's three plates, ["update"], the app's updates,
 // and ["press"], the prompt that starts the game.
 const SITE_TABS = [
   { plate: "ABOUT", sections: SECTIONS.map(({ head, blocks }) => ({ head, blocks })) },
@@ -184,10 +184,11 @@ export function glAccel() {
   } catch { return "unsure"; }
 }
 export const ABOUT = 0, PLAY = TABS.length - 1, SAVE = PLAY - 1, NONE = -1;
-// The language, chosen on PLAY ONLINE above its prompt (lang.js): two of the panel's plates, the one in use lit as a chosen tab is. English is the translation
-// the port was made from; Japanese is the original game's own text, set as its engine sets it. Saves and progress are the same ones in both.
-export const LANG_PLATES = [{ lang: "en", plate: "ENGLISH" }, { lang: "ja", plate: "日本語" }];
-export const LANG_LINE = { head: "Language", note: "English is the fan translation. 日本語 is the original game's text.\nYour saves and progress carry over between them. (L changes it.)" };
+// The language, chosen on PLAY ONLINE above its prompt (lang.js): three of the panel's plates, the one in use lit as a chosen tab is. English is the
+// translation the port was made from; Japanese is the original game's own text, set as its engine sets it; Chinese is the Chinese fan translation of the
+// original game, set the same way. Saves and progress are the same ones in all three.
+export const LANG_PLATES = [{ lang: "en", plate: "ENGLISH" }, { lang: "ja", plate: "日本語" }, { lang: "zh", plate: "中文" }];
+export const LANG_LINE = { head: "Language", note: "English is the fan translation. 日本語 is the original game's text. 中文 is the Chinese fan translation.\nYour saves and progress carry over between them. (L changes it.)" };
 const REOPEN = "tsuki.home.tab";   // (kept for one reload: the page a change of language comes back to)
 // Export, Import and Remove, on SAVE DATA's page (savefile.js): three of the panel's plates under the list of what the browser holds now. The file is the
 // Nintendo Switch game's own save, savedata000 (gamesave.js), so a save goes between the game and this page both ways. Import loads such a file's settings

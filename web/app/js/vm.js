@@ -9,7 +9,7 @@ import { blurName, pivotOf, sizeClass, wrapRotation } from "./transform.js";
 import { splitSample, startLines, startSplit, stopLines, stopSplit } from "./screenfx.js";
 import { reflow, wrapContext, choiceText } from "./reflow.js";
 import { colourMarks, plain, SOFT, ROW } from "./textbox.js";
-import { JA, LANG, asset, has, langReady } from "./lang.js";
+import { ORIG, LANG, asset, overlays, ownRows, langReady } from "./lang.js";
 import { carryPoint, noteLine } from "./langsave.js";
 
 // A global variable is its number, however a script writes it: "G70" (13_01_02_CIEL13_7B) is G070. Kept under the three-digit name, which is also
@@ -269,12 +269,13 @@ export class VM {
     // The tables are asked for together, and read below in their old order: nothing can start before the last of them is in.
     // In Japanese the lines, the gallery's and the flowchart's words are the original game's own files (lang.js asset); the system tables and the pictures'
     // table are the shared ones with what differs laid over them (ja/system.json, ja/images.json: never in their place, or every picture but those few
-    // loses its size, pivot and blurred copies, and a blurred background is not drawn at all).
+    // loses its size, pivot and blurred copies, and a blurred background is not drawn at all). In Chinese the same, with Chinese's over Japanese's
+    // (zh/system.json over ja/system.json: lang.js overlays, lowest first).
     await langReady;
     const shared = new Set(["system", "images"]);
     const asked = Object.fromEntries(["scripts/index", "text", "audio_tables", "images", "effects", "system", "animations", "gallery", "flowchart"]
       .map((n) => [n, fetch(shared.has(n) ? `/assets/${n}.json` : asset(`/assets/${n}.json`))]));
-    const systemOver = has("system.json") ? fetch("/assets/ja/system.json").then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
+    const systemOver = Promise.all(overlays("system.json").map((u) => fetch(u).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
     for (const p of Object.values(asked)) p.catch(() => {});   // each is awaited where it is read
     this.index = await (await asked["scripts/index"]).json();
     this.lines = await (await asked.text).json();
@@ -282,14 +283,14 @@ export class VM {
     this.movies = this.audio.table.movies || {};
     this.gfx.images = await (await asked.images).json();
     // (pictures the translation made on another canvas have the original's own sizes: ja/images.json)
-    if (has("images.json")) Object.assign(this.gfx.images, await fetch("/assets/ja/images.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
+    for (const u of overlays("images.json")) Object.assign(this.gfx.images, await fetch(u).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
     const effects = await asked.effects;
     if (effects.ok) { const e = await effects.json(); this.gfx.effects = e.presets; this.gfx.focusLines = e.focusLines; this.gfx.hazeTable = e.haze || null; }
     else console.warn("Colour effects missing: run web/tools/build_effects.py from the port root");
     const system = await asked.system.catch(() => null);
     if (system?.ok) {
       this.system = await system.json();
-      Object.assign(this.system, (await systemOver) || {});
+      for (const over of await systemOver) Object.assign(this.system, over || {});
       this.audio.seLoops = this.system.seLoops || {};
       this.audio.musicLoops = this.system.musicLoops || {};
       this.text.windows = this.system.windows || null;
@@ -432,11 +433,12 @@ export class VM {
     } catch { return s.note || ""; }
   }
 
-  // The script as the language `lang` has it (the other language's, for a record made in it).
+  // The script as the language `lang` has it (another language's, for a record made in it). Chinese's commands are Japanese's (its own rows only show the
+  // text), so a record made in Chinese is carried from Japanese's script.
   async scriptIn(lang, i) {
     if (lang === LANG) return this.getScript(i);
     const get = (url) => fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    return (lang === "ja" ? await get(`/assets/ja/scripts/${i}.json`) : null) || get(`/assets/scripts/${i}.json`);
+    return (lang === "ja" || lang === "zh" ? await get(`/assets/ja/scripts/${i}.json`) : null) || get(`/assets/scripts/${i}.json`);
   }
   async carry(s) {
     try {
@@ -449,7 +451,7 @@ export class VM {
   async getScript(i) {
     let p = this.scripts.get(i);
     if (!p) {
-      p = fetch(asset(`/assets/scripts/${i}.json`)).then((r) => r.json());
+      p = fetch(asset(`/assets/scripts/${i}.json`)).then((r) => r.json()).then((s) => ownRows(s, i));   // (Chinese: Japanese's script with its own rows)
       this.scripts.set(i, p);
       p.catch(() => { if (this.scripts.get(i) === p) this.scripts.delete(i); });   // one that failed (read ahead, say) is asked for again when it is wanted
     }
@@ -1324,11 +1326,12 @@ export class VM {
   }
   // A story line as the port shows it: without the breaks the English patch's injector put in to wrap its 55-cell
   // rows (reflow.js), which needs where the line started on its row, worked out once per script.
-  // Japanese: the original's lines have the engine's own row breaks written in (ROW, build_ja.py), for a line set by itself; a message laid out together
-  // with others (a glued line, text an MSAD adds) has its rows with its script (`rows`: op -> the text of each line it names, in order: `nth`).
+  // Japanese and Chinese: the original's lines have the engine's own row breaks written in (ROW, build_ja.py, build_zh.py), for a line set by itself; a
+  // message laid out together with others (a glued line, text an MSAD adds) has its rows with its script (`rows`: op -> the text of each line it names,
+  // in order: `nth`).
   lineText(id, nth = 0) {
     const t = this.lines?.[id] ?? "";
-    if (JA) return this.script?.rows?.[this.pc - 1]?.[nth] ?? t;
+    if (ORIG) return this.script?.rows?.[this.pc - 1]?.[nth] ?? t;
     if (!t.includes("\n")) return t;
     const s = this.script;
     // The Q&A corners were broken by hand for their balloons, and the game shows those rows as they are: their breaks stay.

@@ -1698,3 +1698,66 @@ graphics' restore (`renderer.js restore()`) uploading every picture at once on r
 
 Tests: `touch.test.mjs` (four new: `playedTo` and what `node()` keeps, `renew` moving music, effects, a voice and its wait, the gallery's
 player moving its track, the Home Screen tag; the main.js wiring added to the hiding test). 609 of 611 pass, 2 skipped as before.
+
+## A Chinese language option: the Chinese fan patch of the original game, 2026-11-14
+
+The user, with the patch (月姬REMAKE汉化补丁 v2.13, by Letdo1945, a romfs mod for the Switch game 01001DC01486A000, version 1.0.2): "prologue just
+adds a subtitle in chinese, just read it and add it to the jp movie as sub to save storage. leave op/ed as it is (use the english one thats currently
+being used by jp). and yea go ahead build it".
+
+**What the patch is.** Six of the original's files and nothing of its code: `script_text.mrg` (43,960 lines, the original's line for line, every
+line's control codes the same but for furigana on 1,251), `allui.mrg` (the title, menu, save, config, help-bar and gallery sheets, and SYSMES_TEXT.DAT,
+1,419 of its 1,473 messages), `parts.mrg` (the start-up notices), the three faces (`ja/TT_TsukuMin-D.ttf` is a Founder Jinling face, `ja2/TT_TsukuGo-D.ttf`
+Microsoft YaHei with Yu Gothic, `ja3/FOT-SeuratPro-M.otf` a Founder face), and five movies: the prologue (the original's frames with a line burned in
+at the bottom), both openings, and two of the 27 chapter titles (あらずの日, 果てずの石; the others read the same in Chinese). Since it changes no code,
+the game runs it as it runs Japanese: the scripts, the story's pictures and the text layout are the original's.
+
+**How it is built.** `mods/japan/_zh_v213` is the update's romfs (linked) with the patch's files on top (`_`: the native build skips it).
+`web-dev/tools/build_zh.py` makes `web/assets/zh`, laid over Japanese: only what the patch shows that Japanese does not. `lang.js` asks for a file under
+`zh/`, then `ja/`, then where it always was; `system.json` is the shared one with `ja/system.json` and then `zh/system.json` laid over it (`overlays`).
+`zh/` holds the lines (with the engine's rows), `system.json` (help, messages, saves), `gallery.json`, `flowchart.json`, `rows.json`, 30 pictures of
+interface art, the two chapter titles (0.5 and 0.6 MB), the faces and the prologue's subtitles: 9.3 MB in all.
+
+- **Rows.** The patch turns nothing off, so the original engine wraps Chinese as it wraps Japanese. The hooked build of the unpatched main from
+  2026-11-11 (its scratchpad still had it) laid every Chinese line out in a sandbox with the patch's layer and faces (the engine measures through the
+  font): `web-dev/tools/ja_rows/run_rows.py` and `make_rows.py`, which write down the steps that made `ja_rows.json` (checked: they remake it exactly).
+  Two things Japanese never had: a dash by itself comes back as the face's dash letter, and a plain space where the engine ends a row is left out (one
+  that did not fit a full row starts the next and stays). `web-dev/data/zh_rows.json`: 7,985 lines with rows, 229 commands with their own.
+- **Scripts.** Chinese's are Japanese's but for the rows of the messages laid out together (which hold the text): `zh/rows.json` (24 KB, by script
+  number; null takes Japanese's away) is put in place of a script's `rows` as it is read (`lang.js ownRows`, `vm.js getScript`), not 154 copies of
+  scripts (11 MB). A record made in Chinese is carried from Japanese's script (`scriptIn`).
+- **Faces.** `TsukuMinZh`, `TsukuGoZh`, `SeuratProZh` (style.css `html.zh`, with `html.ja` for the layout; `lang` is `zh-Hans`). The story's face
+  lacks 104 letters the lines use (♪, ・, ー, some traditional forms): a native frame shows them from the gothic face, so `--ja-font` falls back to it.
+  Cut down to the letters of Chinese's files and the punctuation and symbol blocks, as WOFF2 (fontTools): 18.5 MB to 2.3 MB.
+- **Native frames.** A scene of chosen lines on the original engine with the patch's files against the port: rows, letters and punctuation in place;
+  dash runs one line, and a dash by itself one cell of line (so the port draws it as a run, `textbox.js` RUN in Chinese); each plain space half a cell
+  (the original has no pairs of spaces as one letter: that is the English patch's, so in Japanese and Chinese every space is now `ch hw`). Real lines
+  that wrap (3815, 2877, 8202, 4651) break where the game breaks them, the half-cell space at the start of a row included.
+- **Two faults of the patch's files.** Its SYSMES_TEXT.DAT, stored plain, records 38 sectors and 49 in its two sizes, and its last 22 messages lie past
+  the 38th: `native_flowchart._messages` reads the larger (the same in the other two, where both sizes agree). Its DISP_PARTS_JA sheet has the
+  Shift-JIS texture names rewritten as UTF-8 under their old lengths, with every pointer to a name left at its old offset (the game finds textures by
+  number): `tex.py` reads such a pool name by name and works the old offsets out again, so the names are the original's.
+- **The prologue.** The patch's movie (323 MB) is the original's frame for frame (11,529 frames), with its translation burned in: 77 lines at the
+  bottom, each cut in and out on one frame (43 to 11408), and in three scenes 10 lines set into the picture beside the movie's own written words
+  (fading in, two scenes fading out). They were read off the patch's frames against the original's (a helper, every character checked at 2x and
+  against a rendered face; then each line read again here from a sheet of all 77), into `web-dev/data/zh_prologue_subs.json` (`zh/subs/prologue.json`).
+  Chinese plays Japanese's prologue (`ja/movie/prologue.mp4`) and `subs.js` sets the lines over it by the movie's own frames (`requestVideoFrameCallback`),
+  in `#movie-subs` between the movie (or Firefox's painted copy) and the cover that fades it; the gallery's replay too. The look is near the patch's,
+  not measured to it, at the user's word ("dont have to match the look for subtitle just content"). The openings and endings are the translation's,
+  as in Japanese.
+- **The opening page** has three language plates, ENGLISH, 日本語 and 中文 (`?lang=zh`); the hint bar's words are the patch's (`HINTS_ZH`, read off its
+  help-label sheet). The apps stay English: `zh/` is left out of both builds and of the list the updates compare.
+- **Left as it is.** The pictures with writing (signs, letters) are Japanese's, as in the patched game; so are the labels it did not redraw (the dialog
+  buttons, "このデータのルート" on an unknown route's save). The config's controls picture (redrawn smaller by the patch) is not shown: that page is the
+  port's own key list. One line uses █, which the game draws narrower than the port.
+
+**The Controls page in Chinese** (the user, the same day: "translate the eng parts in config menu the controls section"). The config's third page
+is the port's own key list, so its words were English in every language. In Chinese they are now Chinese (`app/js/words.js`: `CONTROLS_ZH`, `say`):
+the headings and the note, every action, the menus' keys, the mouse, a key's name that is a word (Space: 空格; the names printed on keys stay), the
+"Press a key" prompt, and the touch page. The terms are the patch's own where it has one (its system messages and help bar). `build_zh.py` reads
+words.js for the faces' letters. The hint bar's key names (Click, Right click, Wheel) and the touch layer's Back button stay English; Japanese's
+Controls page stays English.
+
+Tests: `lang.test.mjs` (Chinese laid over Japanese, its generated files, its rows with Japanese's scripts, `ownRows`, the subtitles, the Controls page's
+words), `preload.test.mjs` (Chinese's faces), `app-update.test.mjs` (the apps without zh/), `assets.test.mjs`, `redesign.test.mjs`. 615 of 617 pass,
+2 skipped as before. Not pushed.

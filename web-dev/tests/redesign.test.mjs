@@ -119,7 +119,8 @@ test("Firefox paints every movie on a canvas of its own (white flashes in its ow
   assert.match(main, /const paintsMovies = CSS\.supports\("-moz-appearance", "none"\) && "requestVideoFrameCallback" in HTMLVideoElement\.prototype;/);
   assert.equal(main.match(/if \(paintsMovies\) paintMovie\(v\);/g).length, 2, "the title's movie and playMovie's");
   assert.equal(main.match(/^\s+stopPaintingMovie\(v\);/gm).length, 3, "at the end of each, and before a new one");
-  assert.match(main, /\(moviePic \|\| \$\("movie"\)\)\.after\(c\)/, "a story movie's cover stays over the picture");
+  assert.match(main, /\(\$\("movie-subs"\) \|\| moviePic \|\| \$\("movie"\)\)\.after\(c\)/, "a story movie's cover stays over the picture (and its subtitles: subs.js)");
+  assert.match(main, /if \(c\) c\.before\(s\); else \(moviePic \|\| \$\("movie"\)\)\.after\(s\);/, "the subtitles go under the cover, over the picture");
   assert.doesNotMatch(main, /flashtest/, "the test page is gone");
 });
 
@@ -355,8 +356,8 @@ test("Chapter titles are written out, one line each, from what the two picture s
   for (let i = 0; i < 38; i++) assert.equal(system.saves.saveTitleCells[i][2] - system.saves.saveTitleCells[i][0] > 1, !!menuChapter(cells[i]), `entry ${i}`);
   const ui = source("js/ui.js");
   assert.match(ui, /chapter = menuChapter\(T\.phaseCells\[Math\.max\(0, Math\.min\(37, f23\(rec\)\)\)\]\);/);
-  // (Japanese keeps the game's own pictures of the chapters, which need no fitting: lang.js. Those lines are the ones that name JA.)
-  const english = (text) => text.split("\n").filter((l) => !/\bJA\b/.test(l)).join("\n");
+  // (Japanese and Chinese keep the game's own pictures of the chapters, which need no fitting: lang.js. Those lines are the ones that name JA or ORIG.)
+  const english = (text) => text.split("\n").filter((l) => !/\b(JA|ORIG)\b/.test(l)).join("\n");
   assert.doesNotMatch(english(ui), /SAVE_TITLES|saveTitleCells/);
   assert.doesNotMatch(source("style.css"), /savetitle\.webp/);
   // drawn as text: no cell of either picture any more

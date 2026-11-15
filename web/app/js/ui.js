@@ -10,7 +10,8 @@ import { LogoDust, LogoShards, MenuCursor, MENU_COLUMN, MENU_FADE, drawTitlePart
 import { ACTIONS, MENU_KEYS, MOUSE, SLOTS, canBind, keyLabel, keyName } from "./keys.js";
 import { chapterNamed, menuChapter } from "./chapters.js";
 import { TOUCH, TOUCH_CONTROLS, TOUCH_HINTS, barPlace } from "./touch.js";
-import { JA, LANG, asset } from "./lang.js";
+import { JA, ZH, ORIG, LANG, asset } from "./lang.js";
+import { say } from "./words.js";
 const PHASES = {
   // script prefix -> [column, row] in system_phasetitle_ja. The route of each is inferred from the script names.
   "00": [2, 7], "01": [0, 1], "02": [0, 2], "03": [0, 3], "04": [0, 4], "05_00": [2, 8], "05_01": [0, 5],
@@ -278,6 +279,10 @@ export const HINTS = {
 // has no word for (the port's own: Fill, the flowchart's plate) stays as it is.
 export const HINTS_JA = { Start: "決定", Back: "戻る", Choose: "決定", Move: "移動", "Cursor movement": "カーソル移動", "Change page": "ページ変更", Scroll: "スクロール",
   "Quick jump": "クイックジャンプ", "Replay voice": "ボイス再生", Picture: "画像の切替", Zoom: "拡大・縮小", Reset: "初期化", "Change key": "変更" };
+// Chinese: the same, as the Chinese patch's picture of the labels has them.
+export const HINTS_ZH = { Start: "确定", Back: "返回", Choose: "确定", Move: "移动", "Cursor movement": "光标移动", "Change page": "页面变更", Scroll: "滚动",
+  "Quick jump": "快速跳转", "Replay voice": "语音播放", Picture: "图像的切换", Zoom: "扩大・缩小", Reset: "初始化", "Change key": "变更" };
+const HINT_WORDS = JA ? HINTS_JA : ZH ? HINTS_ZH : {};
 // The system menu background's sparkles, one set for the whole session (menuBackground; 0xb34bc8), drawn on one canvas
 // that the newest background takes.
 export const menuSparkles = { set: null, star: null, owner: null, canvas: null, render: null };
@@ -692,7 +697,7 @@ export class UI {
       const keys = this.touch ? TOUCH_HINTS[label] : own ? own : label === "Replay voice" ? [this.keys?.label("voice") || "V", ...HINTS[label].slice(1)] : HINTS[label] || [];
       if (!keys) continue;
       for (const key of keys) hint.append(Object.assign(document.createElement("kbd"), { textContent: key }));
-      hint.append(Object.assign(document.createElement("span"), { className: "hint-label", textContent: (JA && HINTS_JA[label]) || label }));
+      hint.append(Object.assign(document.createElement("span"), { className: "hint-label", textContent: HINT_WORDS[label] || label }));
       bar.append(hint);
     }
     page.appendChild(bar);
@@ -1162,9 +1167,9 @@ export class UI {
       chapter = chapterNamed(PHASE_NAMES[c][r]);
       s.textContent = PHASE_NAMES[c][r] || "";
     }
-    // Japanese: the game's own picture of the chapter, its cell of the sheet (the names are written out only because the translation's did not fit)
-    const cell = JA && T ? T.phaseCells[f23 >= 0 && f23 < 38 ? f23 : 0] : null;
-    if (JA && cell) { if (cell[2] - cell[0] > 1) page.append(sprite("MENU_PARTS_JA", "system_phasetitle_ja", 8, 0, cell[2] - cell[0], cell[3] - cell[1], cell[0], cell[1], "chapter-art")); }
+    // Japanese and Chinese: the game's own picture of the chapter, its cell of the sheet (the names are written out only because the translation's did not fit)
+    const cell = ORIG && T ? T.phaseCells[f23 >= 0 && f23 < 38 ? f23 : 0] : null;
+    if (ORIG && cell) { if (cell[2] - cell[0] > 1) page.append(sprite("MENU_PARTS_JA", "system_phasetitle_ja", 8, 0, cell[2] - cell[0], cell[3] - cell[1], cell[0], cell[1], "chapter-art")); }
     else this.chapterTitle(page, chapter);
     page.append(s);
     this.nowPlaying(page, s);
@@ -1767,9 +1772,9 @@ export class UI {
           const [c, rr] = phaseOf(rec.name);
           chapter = chapterNamed(PHASE_NAMES[c][rr]);
         }
-        // Japanese: the row's own picture of the chapter (SAVE_PARTS_JA/savetitle, its cell by F023: 0x4f240)
-        const art = JA && T ? T.saveTitleCells?.[Math.max(0, Math.min(37, f23(rec)))] : null;
-        if (JA && art) { if (art[2] - art[0] > 1) r.append(sprite("SAVE_PARTS_JA", "savetitle", 359, 121, art[2] - art[0], art[3] - art[1], art[0], art[1], "slottitle-art")); }
+        // Japanese and Chinese: the row's own picture of the chapter (SAVE_PARTS_JA/savetitle, its cell by F023: 0x4f240)
+        const art = ORIG && T ? T.saveTitleCells?.[Math.max(0, Math.min(37, f23(rec)))] : null;
+        if (ORIG && art) { if (art[2] - art[0] > 1) r.append(sprite("SAVE_PARTS_JA", "savetitle", 359, 121, art[2] - art[0], art[3] - art[1], art[0], art[1], "slottitle-art")); }
         else if (chapter) {
           const t = document.createElement("div");
           t.className = "slottitle";
@@ -2806,7 +2811,7 @@ export class UI {
   // The Controls page: the keyboard map (keys.js) with a button for each key, then the menus' fixed keys and the mouse.
   // (The game's page was a picture of the controller, conf_manual0_ja.) A click or Enter on a key waits for the next
   // key pressed and gives it to that action, taking it from any other; Esc leaves it as it was, Backspace or Delete
-  // empties it. "Reset to defaults" puts the game's settings and these keys back.
+  // empties it. "Reset to defaults" puts the game's settings and these keys back. Its words are in Chinese in Chinese (words.js say).
   buildControlsPage(pageBox) {
     const C = this.conf, M = this.confMem, K = this.keys;
     const L = KEYPAGE, rowsY = L.top + L.head;
@@ -2818,17 +2823,17 @@ export class UI {
     const head = (text, x, y, w) => page.under.append(div("keyhead", text, `left:${x}px;top:${y}px;width:${w}px;height:${L.head}px;line-height:${L.head}px;`));
     const line = (text, x, y, w) => page.under.append(div("keyrow", text, `left:${x}px;top:${y}px;width:${w}px;height:${L.row}px;line-height:${L.row}px;`));
     const cap = (text, x, y) => page.over.append(div("keycap", text, `left:${x}px;top:${y + (L.row - L.slot[1]) / 2}px;height:${L.slot[1]}px;line-height:${L.slot[1]}px;`));
-    head("Keyboard", L.x, L.top, L.w);
-    page.under.append(div("keynote", "Click a key to change it.  Esc cancels, Backspace clears.", `left:${L.x}px;top:${L.top}px;width:${L.w - 24}px;height:${L.head}px;line-height:${L.head}px;`));
+    head(say("Keyboard"), L.x, L.top, L.w);
+    page.under.append(div("keynote", say("Click a key to change it.  Esc cancels, Backspace clears."), `left:${L.x}px;top:${L.top}px;width:${L.w - 24}px;height:${L.head}px;line-height:${L.head}px;`));
     const slots = [];
-    const refresh = () => { for (const s of slots) { const k = K?.keys(s.id)[s.slot]; s.el.textContent = k ? keyLabel(k) : "—"; s.el.classList.toggle("none", !k); } };
+    const refresh = () => { for (const s of slots) { const k = K?.keys(s.id)[s.slot]; s.el.textContent = k ? say(keyLabel(k)) : "—"; s.el.classList.toggle("none", !k); } };
     // The next key pressed is the slot's; a press of the mouse anywhere leaves it.
     const bind = (s) => {
       if (!K || this.binding) return;
       const keep = this.keyFn;
       this.binding = true;
       s.el.classList.add("wait");
-      s.el.textContent = "Press a key";
+      s.el.textContent = say("Press a key");
       const end = (sound) => {
         this.binding = false;
         this.keyFn = keep;
@@ -2850,12 +2855,12 @@ export class UI {
     };
     ACTIONS.forEach((a, row) => {
       const y = rowsY + row * L.row;
-      line(a.label, L.x, y, L.w);
+      line(say(a.label), L.x, y, L.w);
       for (let slot = 0; slot < SLOTS; slot++) {
         const b = document.createElement("button");
         b.className = "keyslot";
         b.style.cssText = `left:${L.slotX[slot]}px;top:${y + (L.row - L.slot[1]) / 2}px;width:${L.slot[0]}px;height:${L.slot[1]}px;`;
-        b.setAttribute("aria-label", `${a.label}, key ${slot + 1}`);
+        b.setAttribute("aria-label", `${say(a.label)}, ${say("key")} ${slot + 1}`);
         b.setSelected = (on) => b.classList.toggle("sel", on);
         b.placeY = y;
         const s = { id: a.id, slot, el: b };
@@ -2866,17 +2871,17 @@ export class UI {
     refresh();
     // the keys that are the same on every menu, and the mouse, side by side
     const half = (L.w - L.gap) / 2, x2 = L.x + half + L.gap;
-    head("Menus", L.x, menuTop, half);
-    head("Mouse", x2, menuTop, half);
+    head(say("Menus"), L.x, menuTop, half);
+    head(say("Mouse"), x2, menuTop, half);
     MENU_KEYS.forEach(([label, keys], k) => {
       const y = menuTop + L.head + k * L.row;
-      line(label, L.x, y, half);
-      cap(keys.map(keyLabel).join(" / "), L.x + 300, y);
+      line(say(label), L.x, y, half);
+      cap(keys.map((n) => say(keyLabel(n))).join(" / "), L.x + 300, y);
     });
     MOUSE.forEach(([label, what], k) => {
       const y = menuTop + L.head + k * L.row;
-      line(label, x2, y, half);
-      cap(what, x2 + 360, y);
+      line(say(label), x2, y, half);
+      cap(say(what), x2 + 360, y);
     });
     page.order();
   }
@@ -2888,11 +2893,11 @@ export class UI {
     const page = this.configScroll(pageBox, Math.max(0, height - TOUCH.config.height), M?.scroll[2] ?? 0);
     C.scroll = page.scroll;
     const div = (cls, text, css) => { const d = document.createElement("div"); d.className = cls; d.textContent = text; d.style.cssText = css; return d; };
-    page.under.append(div("keyhead", "Touch", `left:${L.x}px;top:${L.top}px;width:${L.w}px;height:${L.head}px;line-height:${L.head}px;`));
+    page.under.append(div("keyhead", say("Touch"), `left:${L.x}px;top:${L.top}px;width:${L.w}px;height:${L.head}px;line-height:${L.head}px;`));
     TOUCH_CONTROLS.forEach(([label, how], k) => {
       const y = rowsY + k * L.row;
-      page.under.append(div("keyrow", label, `left:${L.x}px;top:${y}px;width:${L.w}px;height:${L.row}px;line-height:${L.row}px;`));
-      page.over.append(div("keycap", how, `left:${L.x + 520}px;top:${y + (L.row - L.slot[1]) / 2}px;height:${L.slot[1]}px;line-height:${L.slot[1]}px;`));
+      page.under.append(div("keyrow", say(label), `left:${L.x}px;top:${y}px;width:${L.w}px;height:${L.row}px;line-height:${L.row}px;`));
+      page.over.append(div("keycap", say(how), `left:${L.x + 520}px;top:${y + (L.row - L.slot[1]) / 2}px;height:${L.slot[1]}px;line-height:${L.slot[1]}px;`));
     });
     page.order();
   }

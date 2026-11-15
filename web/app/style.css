@@ -25,6 +25,15 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 #movie-pic { position: absolute; inset: 0; width: 1920px; height: 1080px; display: none; }
 /* A story movie's cover (native 0x40940): black, or white for op1_arc and ed03_ciel, over the picture as it comes and goes. */
 #movie-cover { position: absolute; inset: 0; width: 1920px; height: 1080px; display: none; pointer-events: none; }
+/* A movie's subtitles (subs.js; Chinese: the prologue's), one line centred at the bottom, white with a black edge, where the patch drew its lines into
+   its movie (the words and frames are the patch's; the look is near its own, not measured to it: the user, 2026-11-14). */
+#movie-subs { position: absolute; inset: 0; width: 1920px; height: 1080px; display: none; pointer-events: none; }
+#movie-subs .sub { position: absolute; left: 0; right: 0; top: var(--sub-top); text-align: center; white-space: pre; color: #fff;
+  font: var(--sub-weight) var(--sub-size)/1 "TsukuGoZh", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  letter-spacing: 2px; -webkit-text-stroke: calc(2 * var(--sub-stroke)) #000; paint-order: stroke fill; -webkit-font-smoothing: antialiased; }
+/* the lines the patch set into the picture beside the movie's own words: white, the story's face, a soft shadow */
+#movie-subs .pic { position: absolute; white-space: pre; color: #fff; font: 400 48px/1 "TsukuMinZh", "TsukuGoZh", "Noto Serif SC", serif;
+  text-shadow: 3px 3px 6px rgba(0, 0, 0, .75); -webkit-font-smoothing: antialiased; }
 #panel { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: url("/assets/ui/DISP_PARTS_JA/txtwindow01-1920.webp") 0 0 / 100% 100% no-repeat; }
 /* The row pitch is the game's, measured on a native page (rows 77.5 px apart: 0x39180 reads the patched cell layout), and the box's top keeps the first row where it was. */
 #text, .logpage { position: absolute; left: 265px; top: 146px; width: 1390px; bottom: 0; font-family: var(--story-font); font-size: var(--story-size); font-weight: 400; line-height: 77.5px; white-space: pre-wrap; pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.45); }
@@ -468,3 +477,15 @@ html.ja :is(#text, .logpage) .glyph { width: calc(var(--n) * var(--cell) - var(-
 html.ja :is(#text, .logpage) .seg.back { display: inline-block; width: 100%; direction: rtl; unicode-bidi: bidi-override; }
 html.ja .choice { font-family: var(--ja-font); font-size: var(--ja-size); letter-spacing: var(--gap); font-kerning: none; -webkit-font-smoothing: antialiased; }
 html.ja .confsample { font-family: var(--ja-font); }
+
+/* ---- Chinese (lang.js: html.zh, with html.ja) -----------------------------------------------------------------------------------------------------------
+   The Chinese patch changes the original game's files and none of its code, so its text is set as html.ja sets it, in the patch's own faces (zh/fonts:
+   it put them under the original's file names; its TsukuMin is a Founder Jinling face, its TsukuGo Microsoft YaHei with Yu Gothic, its SeuratPro a
+   Founder face; here cut down to the letters Chinese's files use, build_zh.py). The story's face lacks a few letters the lines use (♪, ・, ー, some
+   traditional forms): those come from the patch's gothic face, as they do in the game (a native frame of the patch's lines). */
+@font-face { font-family: "TsukuMinZh"; src: url("/assets/zh/fonts/TsukuMin.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "TsukuGoZh"; src: url("/assets/zh/fonts/TsukuGo.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "SeuratProZh"; src: url("/assets/zh/fonts/SeuratPro.woff2") format("woff2"); font-display: block; }
+html.zh { --ja-font: "TsukuMinZh", "TsukuGoZh", "PingFang SC", "Microsoft YaHei", "Noto Serif SC", serif;
+  --flow-font: Helvetica, Arial, "Arimo Bundled", "TsukuGoZh", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; --gallery-font: Inter, "TsukuGoZh", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; }
+html.zh #text.balloon { font-family: "SeuratProZh", var(--ja-font); }

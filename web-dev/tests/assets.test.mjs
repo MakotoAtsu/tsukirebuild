@@ -10,7 +10,7 @@ const read = (name) => readFileSync(at(name), "utf8");
 const lines = read("web-dev/assets-manifest.txt").split("\n").filter(Boolean).map((l) => { const [md5, size, ...rest] = l.split(" "); return { md5, size: Number(size), path: rest.join(" ") }; });
 
 test("the manifest lists every asset the site serves: an MD5, a size and a path each, in order, the loose voices and sounds left out", () => {
-  assert.equal(lines.length, 10974);   // 10,517 the translation's, 457 Japanese's own (ja/)
+  assert.equal(lines.length, 11016);   // 10,517 the translation's, 457 Japanese's own (ja/), 42 Chinese's own (zh/)
   for (const l of lines) {
     assert.match(l.md5, /^[0-9a-f]{32}$/, l.path);
     assert.ok(Number.isInteger(l.size) && l.size > 0, l.path);
@@ -21,8 +21,9 @@ test("the manifest lists every asset the site serves: an MD5, a size and a path 
   assert.equal(new Set(paths).size, paths.length);
   assert.ok(!paths.some((p) => p.startsWith("voice/") || p.startsWith("se/")), "the site plays those from the packs");
   for (const p of ["text.json", "system.json", "scripts/index.json", "pack/index.json", "gallery.json", "flowchart.json"]) assert.ok(paths.includes(p), p);
-  assert.equal(lines.reduce((n, l) => n + l.size, 0), 2901539839, "2.9 GB");
+  assert.equal(lines.reduce((n, l) => n + l.size, 0), 2910720472, "2.9 GB");
   assert.ok(paths.includes("ja/index.json") && paths.filter((p) => p.startsWith("ja/")).length === 457, "Japanese's own, under ja/");
+  assert.ok(paths.includes("zh/index.json") && paths.filter((p) => p.startsWith("zh/")).length === 42, "Chinese's own, under zh/");
 });
 
 test("fetch_assets.py reads that list, fetches from the site, and can take the scripts and tables alone", () => {
@@ -30,9 +31,9 @@ test("fetch_assets.py reads that list, fetches from the site, and can take the s
   assert.match(tool, /MANIFEST = ROOT \/ "web-dev\/assets-manifest\.txt"/);
   assert.match(tool, /SITE = "https:\/\/arcueid\.date\/assets\/"/);
   assert.match(tool, /MEDIA = \("img\/", "ui\/", "bgm\/", "movie\/", "pack\/", "sys\/", "fonts\/"\)/);
-  assert.match(tool, /return path\.removeprefix\("ja\/"\)\.startswith\(MEDIA\)/, "Japanese's own media are media too");
+  assert.match(tool, /return path\.removeprefix\("ja\/"\)\.removeprefix\("zh\/"\)\.startswith\(MEDIA\)/, "Japanese's and Chinese's own media are media too");
   const media = ["img/", "ui/", "bgm/", "movie/", "pack/", "sys/", "fonts/"];
-  const tables = lines.filter((l) => !media.some((m) => l.path.replace(/^ja\//, "").startsWith(m)));
+  const tables = lines.filter((l) => !media.some((m) => l.path.replace(/^(ja|zh)\//, "").startsWith(m)));
   assert.ok(tables.every((l) => l.path.endsWith(".json")), "everything else is a script or a table");
   assert.ok(tables.reduce((n, l) => n + l.size, 0) < 70e6, "small enough to fetch for the tests");
   assert.match(tool, /part\.stat\(\)\.st_size != size or digest\.hexdigest\(\) != md5/, "a download is checked against the list before it is kept");

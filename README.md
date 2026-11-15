@@ -24,7 +24,7 @@ Open **[arcueid.date](https://arcueid.date/)** in Chrome or Firefox, on a comput
 
 The site opens on a page with five tabs: **ABOUT** (what this is and how it was made), **GITHUB**, **DOWNLOAD** (the apps below), **SAVE DATA** (your saves to and from the game's own save file), and **PLAY ONLINE**, whose PRESS ANY BUTTON starts the game.
 
-It plays in **English** (the fan translation) or in **Japanese** (the original game's own text): two plates on PLAY ONLINE, above the prompt, choose. See [Language](#language).
+It plays in **English** (the fan translation), in **Japanese** (the original game's own text) or in **Chinese** (a Chinese fan translation of the original): three plates on PLAY ONLINE, above the prompt, choose. See [Language](#language).
 
 **It does not work in Safari.** The movies are AV1 video, which Safari plays only on Apple's newest hardware (it has no decoder of its own), and the game has not been tried there.
 
@@ -156,13 +156,14 @@ It opens with no tab chosen, showing the game's logo and a line naming the plate
 
 ### Language
 
-PLAY ONLINE has two plates over its prompt, ENGLISH and 日本語 (the L key changes it too). The choice is kept in the browser; choosing the other one loads the page again in it, back on PLAY ONLINE. `?lang=ja` or `?lang=en` in the address chooses it for one visit. The Android and desktop apps are English only: they are built without `web/assets/ja`, and neither a kept choice nor the address can ask for Japanese there.
+PLAY ONLINE has three plates over its prompt, ENGLISH, 日本語 and 中文 (the L key goes through them too). The choice is kept in the browser; choosing another one loads the page again in it, back on PLAY ONLINE. `?lang=ja`, `?lang=zh` or `?lang=en` in the address chooses it for one visit. The Android and desktop apps are English only: they are built without `web/assets/ja` and `web/assets/zh`, and neither a kept choice nor the address can ask for another language there.
 
 - **English** is the Tsukihimates translation, which the port's files are made from.
 - **Japanese** is the original game: its dialogue, its scripts where the translation rewrote them (241 of the 549), its system messages, scene names, flowchart notes and music titles, its interface art, the pictures with writing on them, and its movies with writing on them (the prologue and the chapter titles; the openings and endings stay the translation's). Only what differs is kept, under `assets/ja/`, listed in `assets/ja/index.json` (`app/js/lang.js`); the picture and system tables are the shared ones with Japanese's few differing entries laid over them.
-- **The text is set as the original engine sets it**: the game's own mincho face, 28 cells to a row, rows 81 px apart, furigana centred over their words. Where each row breaks is the engine's own decision, taken from a build of the unpatched executable and written into the Japanese text (`web-dev/tools/ja_rows/README.md`); rows, letters and furigana fall within a pixel of the game's frames.
-- **Saves and progress are the same ones in both.** A save made in one language loads in the other at the same line, which is written again in the language in use (`app/js/langsave.js`), and the Load screen shows its note in the language in use; what has been read, the flowchart and the gallery do not depend on the language.
-- The port's own words (the hint bar's keys, the quick bar's captions, the Controls page, the opening page) stay English, except the hint bar's labels, which take the game's own Japanese ones.
+- **Chinese** is the Chinese fan patch of the original game (月姬REMAKE汉化补丁 v2.13, by Letdo1945). The patch changes the original's files and none of its code, so the game runs it as it runs Japanese, and here it is laid over Japanese: `assets/zh/` holds only what the patch shows that Japanese does not (its lines, with the original engine's own rows for them; its system messages, scene names, flowchart notes and music titles; the interface art it redrew; two chapter titles; its three fonts, cut down to the letters it uses), and a file is looked for there first, then under `assets/ja/`, then in the shared files. The pictures with writing on them stay the original's, as in the patched game. The prologue is the original's movie with the patch's Chinese lines set over it as subtitles, at the frames the patch shows them (the patch's own copy of the movie is not used); the openings and endings are the translation's, as in Japanese. Made by `web-dev/tools/build_zh.py`.
+- **Japanese and Chinese text is set as the original engine sets it**: the game's own face (Chinese: the patch's), 28 cells to a row, rows 81 px apart, furigana centred over their words. Where each row breaks is the engine's own decision, taken from a build of the unpatched executable and written into the text (`web-dev/tools/ja_rows/README.md`); rows, letters and furigana fall within a pixel of the game's frames.
+- **Saves and progress are the same ones in all three.** A save made in one language loads in the other at the same line, which is written again in the language in use (`app/js/langsave.js`), and the Load screen shows its note in the language in use; what has been read, the flowchart and the gallery do not depend on the language.
+- The port's own words (the hint bar's keys, the quick bar's captions, the Controls page, the opening page) stay English, except the hint bar's labels, which take the game's own Japanese or Chinese ones, and in Chinese the Controls page (`app/js/words.js`).
 
 ### Saves
 
@@ -349,6 +350,7 @@ Each object is stored with its lifetime: 30 days for the game's media (`assets/v
 
 - **The game.** The Tsukihime remake, *Tsukihime -A piece of blue glass moon-*, and all of its story, art, music and voices belong to TYPE-MOON, Aniplex and the other rights holders. This project is unofficial and non-commercial, and is not affiliated with or endorsed by them. Please support the official release.
 - **English text.** The English script comes from the Tsukihimates fan translation patch.
+- **Chinese text.** The Chinese script, interface art, fonts and prologue subtitles come from the Chinese fan translation patch 月姬REMAKE汉化补丁 (v2.13), by Letdo1945 and its translators.
 - **Built on.** The native port this grew from is based on the SuperMarioWonderRecomp recompilation framework by BelmanteGu. Ryujinx's shader translator was used offline; Ghidra for decompilation; FFmpeg, SVT-AV1 and Pillow for the conversions.
 - **Fonts.** Inter, Gelasio, Arimo and PT Sans Narrow under the SIL Open Font License; Ubuntu and Ubuntu Condensed under the Ubuntu Font Licence; TeX Gyre Chorus and Pagella under the GUST Font License. Each licence is beside its font in `web/app/fonts/`.
 - **How it was written.** Built with Claude, Anthropic's AI model, under human direction: the goals, the decisions and the playing and judging of every result were human, and most of the code was written by the AI.

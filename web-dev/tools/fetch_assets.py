@@ -26,11 +26,11 @@ MANIFEST = ROOT / "web-dev/assets-manifest.txt"
 ASSETS = ROOT / "web/assets"
 SITE = "https://arcueid.date/assets/"
 # The media, by their folder: everything else is a script or a table.
-MEDIA = ("img/", "ui/", "bgm/", "movie/", "pack/", "sys/", "fonts/")   # (and the same under ja/, the original game's own: is_media)
+MEDIA = ("img/", "ui/", "bgm/", "movie/", "pack/", "sys/", "fonts/")   # (and the same under ja/ and zh/, the languages' own: is_media)
 
 
 def is_media(path):
-    return path.removeprefix("ja/").startswith(MEDIA)
+    return path.removeprefix("ja/").removeprefix("zh/").startswith(MEDIA)
 
 
 def manifest(path=MANIFEST):

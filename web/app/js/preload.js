@@ -6,7 +6,7 @@
 import { streamOf } from "./audio.js";
 import { grainSample } from "./screenfx.js";
 import { titleMusic, titleVariant } from "./uifx.js";
-import { JA, asset } from "./lang.js";
+import { LANG, asset } from "./lang.js";
 
 // What a job is for, most pressing first: the screen that comes next; the story's own screen; the menus over it; the gallery.
 export const RANK = { next: 0, story: 1, menus: 2, extras: 3 };
@@ -62,7 +62,9 @@ export const GL_ART = {
 // gallery's Inter, with the story's screen. Japanese (style.css html.ja): the original's text face TsukuMin with the story's screen, for its first line;
 // with the menus, its balloon face (SeuratProJa: only the Ciel-sensei corners have balloons) and TsukuGo, which sets the Japanese in the notes, the
 // flowchart and the gallery. All three hide their words until they are in (font-display: block), and the translation's SeuratPro is not used there.
-export const fontsFor = (ja) => (ja ? { story: ['45.6px "TsukuMin"', "16px Inter"], menus: ['45.6px "SeuratProJa"', '24px "TsukuGo"'] }
+// Chinese (html.zh): the same three, the Chinese patch's own (TsukuMinZh, SeuratProZh, TsukuGoZh, from zh/fonts). lang: "en", "ja", "zh" (true: "ja").
+export const fontsFor = (lang) => (lang === "zh" ? { story: ['45.6px "TsukuMinZh"', "16px Inter"], menus: ['45.6px "SeuratProZh"', '24px "TsukuGoZh"'] }
+  : lang === "ja" || lang === true ? { story: ['45.6px "TsukuMin"', "16px Inter"], menus: ['45.6px "SeuratProJa"', '24px "TsukuGo"'] }
   : { story: ['40px "SeuratPro"', "16px Inter"], menus: [] });
 const SYS_SOUNDS = 9;
 
@@ -74,7 +76,7 @@ function unload(v) {
 
 export class Preloader {
   // page: the document (none outside a browser); Picture: its Image.
-  constructor({ vm, gfx, audio, page = globalThis.document, Picture = globalThis.Image, lanes = LANES, fonts = fontsFor(JA) }) {
+  constructor({ vm, gfx, audio, page = globalThis.document, Picture = globalThis.Image, lanes = LANES, fonts = fontsFor(LANG) }) {
     Object.assign(this, { vm, gfx, audio, page, Picture, lanes, fonts });
     this.jobs = new Map();     // key -> { rank, n, start, running }: waiting or being read
     this.count = 0;

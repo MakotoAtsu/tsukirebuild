@@ -57,3 +57,20 @@ Balloon pages (the Ciel-sensei corners) need no wrapping in the original (no row
 
 Five commands of the original scripts are mistyped (`build_ja.py` `mend`). A scene with `_STGS(3,,0,800,0)#);` on the unpatched build fades its
 picture as the command written correctly does, so the four with stray letters after the bracket run; the one with no opening bracket was not run.
+
+## Chinese (2026-11-14)
+
+`web-dev/data/zh_rows.json` is the same table for the Chinese fan patch (月姬REMAKE汉化补丁 v2.13), which changes the original's files and none of its
+code, so the original engine wraps its lines as it wraps Japanese. It was read the same way, now written down as two tools:
+
+- `run_rows.py <text.json> <work> <runbatch.sh> <out.json>`: every line by itself, then the messages laid out together (`web-dev/data/rows_units.json`,
+  the list of them made on 2026-11-11 from the scripts, which are the original's in both languages), then the glued ones in passes, then `make_rows.py`.
+  `runbatch.sh <tsv> <out>` runs the hooked build in a sandbox whose mods folder has one layer: for Chinese, `mods/japan/_zh_v213/romfs` copied in under
+  a name without `_` (the patch's faces must be there: the engine measures a row through the font).
+- `make_rows.py`: the engine's buffers back onto the lines (`--check ja_rows.json` remakes the Japanese table from the 2026-11-11 runs exactly: 12,102
+  lines, 277 commands). What Chinese brought that Japanese never had: a dash by itself comes back as the face's dash letter (`Œ`), not a run; and a
+  plain space where the engine ended a row is left out of its buffer (one that did not fit a full row starts the next row and stays). Such a space
+  stays at the end of the row above in the table. 7,985 lines have rows, 229 commands their own.
+
+A native frame of the patch's lines (the original engine, its files) shows what the port then copies: a dash by itself drawn as a run one cell long, the
+letters the story face lacks (♪ ・ ー, some traditional forms) from the patch's gothic face, and Latin letters and spaces half a cell each.

@@ -60,21 +60,24 @@ def main():
         fixed |= {m[0] for m in re.finditer(r"""/assets/[^"'`()\s$]+\.[a-z0-9]+(?=["'`)])""", text)}
         if "/rom/" in text:
             outside.add(os.path.basename(f))
-    gone = sorted(p for p in fixed if not os.path.isfile(os.path.join(A, p[8:])))
+    # (an address lang.js asset resolves in a language's own folder only, such as Chinese's rows.json, is there when that folder has it)
+    gone = sorted(p for p in fixed if not any(os.path.isfile(os.path.join(A, *where, p[8:])) for where in ((), ("ja",), ("zh",))))
     if gone:
         missing["fixed addresses in the code"] = gone
     if outside:
         missing["code asking the server for the game's own files"] = sorted(outside)
-    # Japanese (build_ja.py): what the original game has of its own is the list in ja/index.json, no more and no less.
-    ja = os.path.join(A, "ja")
-    if os.path.isdir(ja):
-        listed = set(json.load(open(os.path.join(ja, "index.json")))["files"]) if os.path.isfile(os.path.join(ja, "index.json")) else set()
-        there = {os.path.relpath(os.path.join(d, f), ja) for d, _, fs in os.walk(ja) for f in fs if f != "index.json" and not f.startswith(".")}
-        counts["Japanese's own files"] = len(listed)
+    # Japanese (build_ja.py) and Chinese (build_zh.py): what each has of its own is the list in its index.json, no more and no less.
+    for folder, name, tool in (("ja", "Japanese", "build_ja.py"), ("zh", "Chinese", "build_zh.py")):
+        own = os.path.join(A, folder)
+        if not os.path.isdir(own):
+            continue
+        listed = set(json.load(open(os.path.join(own, "index.json")))["files"]) if os.path.isfile(os.path.join(own, "index.json")) else set()
+        there = {os.path.relpath(os.path.join(d, f), own) for d, _, fs in os.walk(own) for f in fs if f != "index.json" and not f.startswith(".")}
+        counts[f"{name}'s own files"] = len(listed)
         if listed - there or not listed:
-            missing["Japanese files (run build_ja.py)"] = sorted(listed - there) or ["ja/index.json"]
+            missing[f"{name} files (run {tool})"] = sorted(listed - there) or [f"{folder}/index.json"]
         if there - listed:
-            extra["Japanese files not on its list"] = sorted(there - listed)
+            extra[f"{name} files not on its list"] = sorted(there - listed)
     # The sound packs (build_packs.py), where there are any: they must be the ones the loose files make, or the game would play an old copy of a sound.
     packs = ""
     if os.path.isdir(os.path.join(A, "pack")):

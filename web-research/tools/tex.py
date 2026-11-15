@@ -13,7 +13,51 @@ import bntx as B
 
 
 def textures(raw):
-    return B.parse_bntx(raw)
+    out = B.parse_bntx(raw)
+    at = _name_offsets(raw, len(out))
+    if any(not _whole(raw, a) for a in at):
+        _rename(raw, out, at)
+    return out
+
+
+def _name_offsets(raw, count):
+    """Where each texture's name record is (its BRTI's pointer at +0x60)."""
+    import struct
+    infos = struct.unpack_from("<Q", raw, 0x28)[0]
+    return [struct.unpack_from("<Q", raw, struct.unpack_from("<Q", raw, infos + 8 * k)[0] + 0x60)[0] for k in range(count)]
+
+
+def _whole(raw, at):
+    """Whether a name record is whole: a length, that many letters, a NUL."""
+    import struct
+    n = struct.unpack_from("<H", raw, at)[0]
+    return n < 128 and at + 2 + n < len(raw) and raw[at + 2 + n] == 0
+
+
+def _rename(raw, out, at):
+    """The Chinese patch's DISP_PARTS_JA: its repacker wrote the name pool again with the Shift-JIS names (the balloons' "twフキダシ...") in UTF-8,
+    which are longer, but kept each name's old length before it and left every pointer to a name (the textures', the dictionary's) at its old
+    offset. The game finds these textures by number and never reads the names; the port's tools look them up by name. So the pool is read name by
+    name to each NUL, and the old offsets are worked out again from the old lengths (u16 length, the letters, a NUL, to an even offset)."""
+    import struct
+    data = bytes(raw)
+    s = data.find(b"_STR")
+    count = struct.unpack_from("<i", raw, s + 0x10)[0]
+    p = q = s + 0x14
+    old = {}
+    for _ in range(count + 1):
+        n = struct.unpack_from("<H", raw, p)[0]
+        end = data.index(b"\0", p + 2)
+        # (named as the original's own record reads, its Shift-JIS taken for UTF-8 as containers.binstr does, so the files keep the shared names)
+        old[q] = data[p + 2:end].decode("utf-8").encode("cp932").decode("utf-8", "replace")
+        p = end + 1
+        p += p & 1
+        q += 3 + n
+        q += q & 1
+    for t, a in zip(out, at):
+        if a not in old:
+            raise ValueError(f"a texture name at {a:#x} matches no name of the pool")
+        t.name = old[a]
 
 
 def decode(t, raw, level=0):

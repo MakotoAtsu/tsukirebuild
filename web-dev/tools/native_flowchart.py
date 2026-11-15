@@ -102,7 +102,9 @@ def _pack_tools(root: Path):
 def _messages(rom, packs) -> tuple[list[list[str]], str]:
     entry = next(row for row in packs.entries(rom, "allui")
                  if row[1].upper() == "SYSMES_TEXT.DAT")
-    _, data, _, _ = packs.unwrap(rom.read("allui.mrg", entry[2], entry[3]))
+    # (the larger of the entry's two sizes: they are the same in the game and the translation, but the Chinese patch's table, stored plain, records 38
+    # sectors and 49, and its last 22 messages lie past the 38th)
+    _, data, _, _ = packs.unwrap(rom.read("allui.mrg", entry[2], max(entry[3], entry[4])))
     count, strings = struct.unpack_from("<II", data)
     if not 0 < count <= 32 or not 1408 <= strings <= 100000:
         raise ValueError("Unsupported SYSMES_TEXT.DAT table")
