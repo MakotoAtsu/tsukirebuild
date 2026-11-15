@@ -1577,7 +1577,9 @@ export class UI {
   // pressed: called for a press that does not close it (a held notice: the opening page's update stops its download so, home.js)
   // passive: the port's own "Loading" over a story waiting for its pictures (main.js). It takes no keys or clicks and leaves any other
   // notice alone, since it can come at any moment, over any screen.
-  notify(text, { hold = NOTICE.hold, held = false, live = null, pressed = null, passive = false } = {}) {
+  // centred: the port's own notices (home.js: updates, languages) have their lines centred on the window as a whole; the game's own keep its
+  // first line where the game draws a notice's line, the others below it (style.css .dialog.notice).
+  notify(text, { hold = NOTICE.hold, held = false, live = null, pressed = null, passive = false, centred = false } = {}) {
     const fx = new NoticeFx(hold, held);
     // A notice still up goes as this one comes (0x4abe0: the other slot's state is set to 3, the lock cleared)
     if (!passive) { this.noticeFx?.close(); this.noticeFx = fx; }
@@ -1592,6 +1594,12 @@ export class UI {
       q.textContent = text.replace("^", "\n");
       box.append(win, q);
       this.overlay().prepend(box);
+      const centre = () => {
+        if (!centred) return;
+        const row = parseFloat(getComputedStyle(q).lineHeight) || 64, rows = Math.max(1, Math.round(q.offsetHeight / row));
+        q.style.transform = rows > 1 ? `translateY(${(-(rows - 1) * row) / 2}px)` : "";
+      };
+      centre();
       const keep = this.keyFn;
       const keys = (e) => {
         if (e.key === "Enter" || e.key === " " || e.key === "Escape" || e.key === "Backspace") { if (!fx.press() && !e.repeat) pressed?.(); }
@@ -1615,7 +1623,7 @@ export class UI {
         win.style.opacity = String(fx.t);
         win.style.transform = `scale(${fx.scale})`;
         q.style.visibility = fx.t === 1 ? "visible" : "hidden";
-        if (live) { const now = live(); if (now !== q.textContent) q.textContent = now; }
+        if (live) { const now = live(); if (now !== q.textContent) { q.textContent = now; centre(); } }
       };
       set();
       // (0x49750 also runs in the frame that opened it: frameLoop's first dt of 0 counts as that frame)

@@ -6,13 +6,16 @@ site has that they were not built with. For that each side says what it holds, i
 
     {"format": 1, "time": <when it was made, seconds>, "shell": <the app the page needs, apphost.js SHELL>, "version": "<12 hex>",
      "app": [["js/main.js", <size>, "<sha256>"], ...],            every file of web/app
-     "assets": {"md5": "<of the list>", "size": <of the list>, "path": "update/assets-<12 hex>.txt"}}
+     "assets": {"md5": "<of the list>", "size": <of the list>, "path": "update/assets-<12 hex>.txt"},
+     "langs": {"ja": {"md5", "size", "path": "update/lang-ja-<12 hex>.txt"}, "zh": {...}}}           the site's only
 
 and the list is the apps' part of the game's files, "md5 size path" a line as web-dev/assets-manifest.txt has them: everything but
-web/assets/ja (the apps are English only) and the loose voices and sound effects (the packs carry them).
+the languages' own folders, web/assets/ja and zh, and the loose voices and sound effects (the packs carry them). The apps are built in
+English; Japanese and Chinese are downloaded when their plate is first chosen (update.js langPlan), from one list a folder ("langs":
+Chinese is laid over Japanese, so it needs both).
 
-  the site   tools/cloudflare/deploy.py stores update/app.json and the list with every deployment (site_description, below), from the
-             repository's web/app and web-dev/assets-manifest.txt
+  the site   tools/cloudflare/deploy.py stores update/app.json and the lists with every deployment (site_description, below), from
+             the repository's web/app and web-dev/assets-manifest.txt
   an app     this script, run by web-dev/android/build_apk.sh and web-dev/desktop/build.sh, writes OUT/bundled.json and
              OUT/bundled-assets.txt from the files being packed, web/app and web/assets as they are on this computer
 
@@ -28,8 +31,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 FORMAT = 1
-# What the apps are built without: Japanese's and Chinese's own files, and the loose voices and sound effects.
-WITHOUT = ("ja", "zh", "voice", "se")
+# What the apps are built without: Japanese's and Chinese's own files (LANG_DIRS: downloaded when chosen), and the loose voices and sound effects.
+LANG_DIRS = ("ja", "zh")
+WITHOUT = (*LANG_DIRS, "voice", "se")
 
 
 def shell(app=ROOT / "web/app"):
@@ -63,20 +67,42 @@ def apps_list(lines):
     return ("\n".join(row for _, row in sorted(rows)) + "\n").encode()
 
 
+def lang_lists(lines):
+    """Each language folder's files, as a list in the apps' form ("md5 size path" lines, paths under web/assets): {folder: bytes}."""
+    rows = {folder: [] for folder in LANG_DIRS}
+    for line in lines:
+        md5, size, path = line.split(" ", 2) if isinstance(line, str) else line
+        if path.split("/")[0] in rows:
+            rows[path.split("/")[0]].append((path, f"{md5} {int(size)} {path}"))
+    return {folder: ("\n".join(row for _, row in sorted(found)) + "\n").encode() for folder, found in rows.items() if found}
+
+
+def listed(listing, path=None):
+    """What a description says of a list: its MD5 and size, and where the site has it."""
+    named = {"md5": hashlib.md5(listing).hexdigest(), "size": len(listing)}
+    if path:
+        named["path"] = path
+    return named
+
+
 def describe(root, files, listing, made=None, path=None):
     """The description of the app files `files` under `root` and the list `listing` (bytes, from apps_list)."""
-    assets = {"md5": hashlib.md5(listing).hexdigest(), "size": len(listing)}
-    if path:
-        assets["path"] = path
     return {"format": FORMAT, "time": int(time.time() if made is None else made), "shell": shell(root), "version": app_version(root, files),
-            "app": app_entries(root, files), "assets": assets}
+            "app": app_entries(root, files), "assets": listed(listing, path)}
 
 
 def site_description(root, files, manifest, made=None):
-    """For a deployment: (update/app.json's bytes, the list's key, the list's bytes). files: web/app's files, as paths under root."""
-    listing = apps_list(line for line in manifest.read_text(encoding="utf-8").splitlines() if line.strip())
-    key = f"update/assets-{hashlib.md5(listing).hexdigest()[:12]}.txt"
-    return json.dumps(describe(root, files, listing, made, key), separators=(",", ":")).encode(), key, listing
+    """For a deployment: (update/app.json's bytes, [(key, bytes)] of the lists it names: the apps' list, then each language folder's).
+    files: web/app's files, as paths under root."""
+    lines = [line for line in manifest.read_text(encoding="utf-8").splitlines() if line.strip()]
+    listing = apps_list(lines)
+    lists = [(f"update/assets-{hashlib.md5(listing).hexdigest()[:12]}.txt", listing)]
+    description = describe(root, files, listing, made, lists[0][0])
+    description["langs"] = {}
+    for folder, found in lang_lists(lines).items():
+        lists.append((f"update/lang-{folder}-{hashlib.md5(found).hexdigest()[:12]}.txt", found))
+        description["langs"][folder] = listed(found, lists[-1][0])
+    return json.dumps(description, separators=(",", ":")).encode(), lists
 
 
 def md5_of(path):

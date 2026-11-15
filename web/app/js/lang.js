@@ -13,8 +13,9 @@
 //
 // The language is chosen on the opening page (home.js, PLAY ONLINE) and kept in this browser. It is read once, as the page loads: every table is fetched in
 // that language from the start, so changing it loads the page again. `?lang=ja` (or en) in the address chooses it for that visit.
-// The Android and desktop apps are English only: they are built without web/assets/ja and zh, so there neither a kept choice nor the address can ask for
-// another language (langOf), and their opening page has no language plates.
+// The Android and desktop apps are built in English, without web/assets/ja and zh: a language's folders are downloaded into the app when its plate is
+// first chosen there (home.js, update.js langPlan), and the choice is kept only once they are in. Should they be gone after all (an update the app
+// took out again), the app goes back to English (langReady).
 import { APP } from "./apphost.js";
 
 export const LANGS = ["en", "ja", "zh"];
@@ -24,7 +25,7 @@ export function storedLang(storage = globalThis.localStorage) {
   try { const v = storage?.getItem(KEY); return LANGS.includes(v) ? v : "en"; } catch { return "en"; }
 }
 export function langOf(search = "", storage = globalThis.localStorage, app = APP) {
-  if (app) return "en";   // (the apps have no Japanese or Chinese files)
+  if (app) return storedLang(storage);   // (in the apps only what was chosen once its files were in)
   const asked = new URLSearchParams(search).get("lang");
   return LANGS.includes(asked) ? asked : storedLang(storage);
 }
@@ -86,6 +87,12 @@ export function asset(url) {
 export const langReady = (async () => {
   if (!ORIG || typeof fetch !== "function") return;
   const lists = await Promise.all(LAYERS.map((layer) => fetch(`/assets/${layer}/index.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
+  if (APP && lists.some((list) => !list) && typeof location !== "undefined") {
+    // an app without the language's files: back to English, before anything is drawn
+    chooseLang("en");
+    location.reload();
+    await new Promise(() => {});
+  }
   lists.forEach((list, k) => addOwn(list?.files, LAYERS[k]));
   if (typeof document !== "undefined") {
     // html.ja: the original's way of setting text (style.css), in both; html.zh: Chinese's faces over it

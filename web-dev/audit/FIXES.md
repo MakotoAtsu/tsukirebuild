@@ -1761,3 +1761,34 @@ Controls page stays English.
 Tests: `lang.test.mjs` (Chinese laid over Japanese, its generated files, its rows with Japanese's scripts, `ownRows`, the subtitles, the Controls page's
 words), `preload.test.mjs` (Chinese's faces), `app-update.test.mjs` (the apps without zh/), `assets.test.mjs`, `redesign.test.mjs`. 615 of 617 pass,
 2 skipped as before. Not pushed.
+
+## Japanese and Chinese in the apps, downloaded when chosen (2026-11-14)
+
+The user asked for the Chinese option on the apps' PLAY "like it is on the website", then: "make them download those files only when the click on jp
+or cn button (in a popup asking for update) and yes add jp too". So the apps keep being built in English, without `web/assets/ja` and `zh` (no
+rebuild of the APK or the Windows zip is needed), and PLAY has the site's three plates, ENGLISH, 日本語 and 中文.
+
+- **The site** (`app_manifest.py` `site_description`, `deploy.py` `update_objects`): besides the apps' list, each deployment stores one list per
+  language folder, `update/lang-ja-<md5>.txt` (457 files, 104 MB) and `update/lang-zh-<md5>.txt` (42 files, 9.2 MB), named in `update/app.json`
+  under `langs`. The apps' own list is unchanged (same MD5 as live), so apps on the old page ignore the languages and take only the page (1 MB).
+- **The page** (`update.js`): `LANG_DIRS` (Chinese needs `ja` and `zh`: it is laid over Japanese), `heldDirs` (a folder is held when the update in
+  use has its `index.json`: the app is told nothing of languages, so neither wrapper changed and `SHELL` stays 1), `langPlan` (`checkUpdate` with a
+  language to add, forced): the language's folders over what the app runs now, or with the site's newer version where there is one (`newer`: more
+  than languages' files to download). Every later update keeps the held folders, downloading only what changed in them. The id stays
+  `<12 hex>-<8 hex>` (both wrappers check it): the old form without languages, an FNV-1a of the lists' MD5s with them.
+- **PLAY** (`home.js`): a plate whose language the app has not got asks in the game's Yes / No window ("Japanese needs a download (104 MB).",
+  three lines when the latest update comes with it), downloads under the notice window ("Downloading Japanese 32% / Press to stop"), then keeps
+  the choice and loads the page again in it on PLAY. No connection: "Japanese needs a download. / No connection to arcueid.date." The L key goes
+  through the three. `lang.js`: an app plays the kept language (never an address's); if its files are missing after all (an update taken out
+  again), it goes back to English before anything is drawn.
+- **User corrections while watching the desktop app:** the first question ("Japanese is downloaded from arcueid.date (104 MB).") wrapped into No /
+  Yes, and the first no-connection notice ran edge to edge ("this isnt fitted properly either"): lines kept to 36 letters (test). "make this
+  centers": the port's own notices (updates, languages) centre their lines on the window (`ui.notify` `centred`); the game's own keep its placement.
+- **Checked** in the unpackaged desktop app (`--www` = the app as built from bd716b3e, `--update-origin` = `deploy.py --stage` of this work):
+  the old app offered 1.0 MB and took it; 日本語 asked 104 MB and fetched its 457 files; 中文 then asked 9.2 MB and fetched only zh's 42; ENGLISH,
+  L, L switched at once with no request; the game started in Chinese (the prologue with its subtitles); a restart kept Chinese; a later update was
+  17 KB and kept both; on a fresh profile 中文 asked 114 MB with "with the latest update" and came up in Chinese. Android not run (same page,
+  `Updates.java` unchanged, its MIME table covers avif / json / mp4 / otf / ttf / webp / woff2).
+
+Tests: `app-update.test.mjs` (three plates on PLAY, the language plans, a language through the desktop updater, the site's lists, the
+question's line lengths), `packs.test.mjs` (notify). 613 of 620 pass, 7 skipped (in the repository checkout). Pushed 2026-11-14 at the user's word.

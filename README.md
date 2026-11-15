@@ -30,7 +30,7 @@ It plays in **English** (the fan translation), in **Japanese** (the original gam
 
 ### On Android
 
-**[Download Tsukihime.apk](https://arcueid.date/android/tsukihime.apk)** (2.8 GB). It is the whole game in one app, in English: every picture, voice, song and movie is inside it, so it needs no connection to play. Its one permission is the internet, which it uses only to look for and download its own updates from arcueid.date.
+**[Download Tsukihime.apk](https://arcueid.date/android/tsukihime.apk)** (2.8 GB). It is the whole game in one app, in English, with Japanese and Chinese a download inside it (below): every picture, voice, song and movie is inside it, so it needs no connection to play. Its one permission is the internet, which it uses only to look for and download its own updates from arcueid.date.
 
 1. Download it on the phone itself. It is large, so Wi-Fi is best.
 2. Open it from the browser's downloads. Android asks whether that browser may install apps: allow it.
@@ -40,7 +40,7 @@ It needs Android 8 or newer and plays in landscape, by touch, as the site does o
 
 ### On Windows, macOS and Linux
 
-The whole game as a desktop app, in English, with every picture, voice, song and movie inside it and no connection needed to play. It is the same web port in a window of its own (Electron), opening on the site's opening page with four plates: ABOUT, GITHUB, SAVE DATA and PLAY. SAVE DATA's Export and Import use the system's own file dialogs. Closing the window makes the automatic save. Saves are kept in the app's own data folder, apart from the website's, and stay when a newer version replaces the app. **It updates itself:** when it opens with a connection it looks on arcueid.date for a newer version, asks, and downloads only the files that changed; the saves stay.
+The whole game as a desktop app, in English (Japanese and Chinese are downloaded inside it when first chosen), with every picture, voice, song and movie inside it and no connection needed to play. It is the same web port in a window of its own (Electron), opening on the site's opening page with four plates: ABOUT, GITHUB, SAVE DATA and PLAY. SAVE DATA's Export and Import use the system's own file dialogs. Closing the window makes the automatic save. Saves are kept in the app's own data folder, apart from the website's, and stay when a newer version replaces the app. **It updates itself:** when it opens with a connection it looks on arcueid.date for a newer version, asks, and downloads only the files that changed; the saves stay.
 
 **Windows** (10 or newer, 64-bit): **[download Tsukihime-win-x64.zip](https://arcueid.date/desktop/Tsukihime-win-x64.zip)** (2.9 GB).
 
@@ -152,11 +152,11 @@ The game opens on the same page every time, for everyone (`app/js/home.js`). It 
 
 It opens with no tab chosen, showing the game's logo and a line naming the plates, so a stray tap starts nothing. It is skipped only for an address that opens a scene (`?script=...`). An address ending in `#download` opens it on DOWNLOAD.
 
-**In the Android and desktop apps** the same page has four plates: ABOUT, GITHUB, SAVE DATA and PLAY (the site's PLAY ONLINE under the app's name for it). There is no DOWNLOAD and no language to choose. PLAY's page has the app's updates under its prompt: where things stand, the version in use, and a plate that looks again (`app/js/update.js`; how an update is fetched and kept is in [web-dev/android/README.md](web-dev/android/README.md) and [web-dev/desktop/README.md](web-dev/desktop/README.md)). What a browser does for the page the app does itself (`app/js/apphost.js`): Export's file goes where the player chooses, Import opens the system's file picker, and a link opens in the system's browser. By touch the four plates are in one row.
+**In the Android and desktop apps** the same page has four plates: ABOUT, GITHUB, SAVE DATA and PLAY (the site's PLAY ONLINE under the app's name for it). There is no DOWNLOAD. PLAY has the site's three language plates over its prompt, and the app's updates under it: where things stand, the version in use, and a plate that looks again (`app/js/update.js`; how an update is fetched and kept is in [web-dev/android/README.md](web-dev/android/README.md) and [web-dev/desktop/README.md](web-dev/desktop/README.md)). What a browser does for the page the app does itself (`app/js/apphost.js`): Export's file goes where the player chooses, Import opens the system's file picker, and a link opens in the system's browser. By touch the four plates are in one row.
 
 ### Language
 
-PLAY ONLINE has three plates over its prompt, ENGLISH, 日本語 and 中文 (the L key goes through them too). The choice is kept in the browser; choosing another one loads the page again in it, back on PLAY ONLINE. `?lang=ja`, `?lang=zh` or `?lang=en` in the address chooses it for one visit. The Android and desktop apps are English only: they are built without `web/assets/ja` and `web/assets/zh`, and neither a kept choice nor the address can ask for another language there.
+PLAY ONLINE has three plates over its prompt, ENGLISH, 日本語 and 中文 (the L key goes through them too). The choice is kept in the browser; choosing another one loads the page again in it, back on PLAY ONLINE. `?lang=ja`, `?lang=zh` or `?lang=en` in the address chooses it for one visit. The Android and desktop apps are built in English, without `web/assets/ja` and `web/assets/zh`, and have the same three plates on PLAY: the first time 日本語 or 中文 is chosen there, the app asks, with the size, and downloads that language's files from arcueid.date as it downloads an update (Japanese about 104 MB; Chinese, laid over Japanese, 9 MB more). Later updates keep them. An address cannot ask for a language there.
 
 - **English** is the Tsukihimates translation, which the port's files are made from.
 - **Japanese** is the original game: its dialogue, its scripts where the translation rewrote them (241 of the 549), its system messages, scene names, flowchart notes and music titles, its interface art, the pictures with writing on them, and its movies with writing on them (the prologue and the chapter titles; the openings and endings stay the translation's). Only what differs is kept, under `assets/ja/`, listed in `assets/ja/index.json` (`app/js/lang.js`); the picture and system tables are the shared ones with Japanese's few differing entries laid over them.

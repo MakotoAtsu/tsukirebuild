@@ -6,9 +6,10 @@
 // It opens on every visit, for everyone, with no tab chosen and no plate lit: the column holds only the game's logo and a line naming the plates, so
 // a stray tap starts nothing. Not where the address asks for a scene (?script, for tests and the scene links in ABOUT's Extras).
 // The Android and desktop apps (web-dev/android, web-dev/desktop) open on it too, with four tabs (tabsFor): ABOUT, GITHUB, SAVE DATA and PLAY, the
-// site's PLAY ONLINE under the app's name for it. There is no DOWNLOAD there (it is the download) and no language to choose (the apps are built
-// without the Japanese and Chinese files, lang.js); PLAY's page has the app's updates instead (update.js). What a browser does for the page the app does
-// through apphost.js: Export's file goes where the player chooses, and a link opens in the system's browser.
+// site's PLAY ONLINE under the app's name for it. There is no DOWNLOAD there (it is the download). PLAY has the site's three language plates, but the
+// apps are built in English: Japanese's and Chinese's files are downloaded the first time one is chosen, after asking (update.js langPlan); and PLAY's
+// page has the app's updates (update.js). What a browser does for the page the app does through apphost.js: Export's file goes where the player
+// chooses, and a link opens in the system's browser.
 import { sprite, quickBarArt, panelBack } from "./ui.js";
 import { TOUCH } from "./touch.js";
 import { ButtonState, pressPulse } from "./uifx.js";
@@ -18,7 +19,7 @@ import { FILE_NAME, NOTE, dropBase, exportSaves, hasImported, importSaves, keepB
 import { GAME } from "./gamesave.js";
 import { fullSaveFile } from "./fullsave.js";
 import { APP, HOST, toBase64 } from "./apphost.js";
-import { DOWNLOAD_PAGE, UPDATED, UPDATE_TEXT, checkUpdate, runUpdate } from "./update.js";
+import { DOWNLOAD_PAGE, LANG_DIRS, LANG_NAMES, UPDATED, UPDATE_TEXT, checkUpdate, hasLang, langPlan, runUpdate } from "./update.js";
 
 export const GITHUB = "https://github.com/waifwu/TsukiREbuild";
 // The downloads: the whole game as an app that needs no connection (web-dev/android, web-dev/desktop), with the size each system shows for its file.
@@ -60,7 +61,7 @@ const SITE_TABS = [
       ["note", "Downloaded the app before 13 November 2026? Please download it again: those first versions cannot update themselves. They open straight on the game's title, not on a page with ABOUT, GITHUB, SAVE DATA and PLAY. On Android, install the new one over the old one; on Windows, extract it and play from the new folder. Your saves stay."],
       "The whole game as an app that needs no connection: every picture, voice, song and movie is inside it, and nothing is fetched while you play. Windows and Android have a download here; for macOS and Linux the same app is built from the source, below.",
       ["facts", [[DESKTOP.size, "Windows"], [APK.size, "Android"], ["0", "connections needed"]]],
-      "It is this site's game in a window of its own, in English only, opening on this page's ABOUT, GITHUB, SAVE DATA and PLAY. Saves are kept in the app, apart from this site's, and stay when a newer version replaces it; SAVE DATA moves progress between the app and this site as a file. Leaving the app makes the automatic save, so you come back to where you were.",
+      "It is this site's game in a window of its own, opening on this page's ABOUT, GITHUB, SAVE DATA and PLAY. It is in English; 日本語 and 中文 are downloaded inside it the first time they are chosen on PLAY (about 100 MB). Saves are kept in the app, apart from this site's, and stay when a newer version replaces it; SAVE DATA moves progress between the app and this site as a file. Leaving the app makes the automatic save, so you come back to where you were.",
       "The app keeps itself up to date: when it opens with a connection it looks here for a newer version, asks, and downloads only the files that changed, so a fix is not this download again.",
     ] },
     { head: "Windows", blocks: [
@@ -114,8 +115,8 @@ const SITE_TABS = [
   ] }] },
 ];
 // In the apps: ABOUT without its first notice (which browsers the site works in), GITHUB as it is, SAVE DATA saying where the app keeps things, and
-// PLAY: everything is in the app, so its page has no notice about the browser's graphics setting, no language plates, and under the prompt the
-// app's updates (["update"], update.js).
+// PLAY: everything is in the app, so its page has no notice about the browser's graphics setting; the language plates over the prompt, as on the
+// site, and under it the app's updates (["update"], update.js).
 const APP_TABS = [
   { plate: "ABOUT", sections: SITE_TABS[0].sections.map((s, n) => (n ? s : { head: s.head, blocks: s.blocks.filter((b) => b[0] !== "note") })) },
   SITE_TABS[1],
@@ -127,6 +128,7 @@ const APP_TABS = [
   { plate: "PLAY", sections: [
     { head: "Play", blocks: [
       "Everything the game plays is inside this app: no connection is needed, and nothing is fetched while you play. Saves, settings and progress are kept in the app; SAVE DATA saves them as a file.",
+      ["lang"],
       ["press"],
     ] },
     { head: UPDATE_TEXT.head, blocks: [UPDATE_TEXT.what, ["update"]] },
@@ -186,9 +188,12 @@ export function glAccel() {
 export const ABOUT = 0, PLAY = TABS.length - 1, SAVE = PLAY - 1, NONE = -1;
 // The language, chosen on PLAY ONLINE above its prompt (lang.js): three of the panel's plates, the one in use lit as a chosen tab is. English is the
 // translation the port was made from; Japanese is the original game's own text, set as its engine sets it; Chinese is the Chinese fan translation of the
-// original game, set the same way. Saves and progress are the same ones in all three.
+// original game, set the same way. Saves and progress are the same ones in all three. In the apps 日本語 and 中文 are downloaded when first chosen.
 export const LANG_PLATES = [{ lang: "en", plate: "ENGLISH" }, { lang: "ja", plate: "日本語" }, { lang: "zh", plate: "中文" }];
-export const LANG_LINE = { head: "Language", note: "English is the fan translation. 日本語 is the original game's text. 中文 is the Chinese fan translation.\nYour saves and progress carry over between them. (L changes it.)" };
+const LANG_WHAT = "English is the fan translation. 日本語 is the original game's text. 中文 is the Chinese fan translation.";
+export const langLineFor = (app) => ({ head: "Language", note: app ? `${LANG_WHAT}\n日本語 and 中文 are downloaded the first time they are chosen.\nYour saves and progress carry over between them. (L changes it.)`
+  : `${LANG_WHAT}\nYour saves and progress carry over between them. (L changes it.)` });
+export const LANG_LINE = langLineFor(APP);
 const REOPEN = "tsuki.home.tab";   // (kept for one reload: the page a change of language comes back to)
 // Export, Import and Remove, on SAVE DATA's page (savefile.js): three of the panel's plates under the list of what the browser holds now. The file is the
 // Nintendo Switch game's own save, savedata000 (gamesave.js), so a save goes between the game and this page both ways. Import loads such a file's settings
@@ -375,29 +380,53 @@ export async function openHome(ui, { started = null } = {}) {
       updBusy = false;
       updSay();
     };
-    const updGet = async () => {
-      if (leaving || updBusy || upd.state !== "update") return;
+    // plan: the update, or a language's (lang: its files are what is downloaded, and the page comes back in it)
+    const updGet = async (plan = upd, lang = null) => {
+      if (leaving || updBusy || plan.state !== "update") return;
       updBusy = true;
-      let got = { done: 0, total: upd.bytes }, stopped = false;
-      const note = ui.notify(U.loading(0, upd.bytes), { held: true, live: () => U.loading(got.done, got.total),
+      const name = LANG_NAMES[lang], loading = (done, total) => (lang ? U.langLoading(name, done, total) : U.loading(done, total));
+      let got = { done: 0, total: plan.bytes }, stopped = false;
+      const note = ui.notify(loading(0, plan.bytes), { held: true, centred: true, live: () => loading(got.done, got.total),
         pressed: () => { if (!stopped) { stopped = true; HOST.call("cancel").catch(() => {}); } } });
       try {
-        await runUpdate(HOST, upd, (p) => { got = p; });
+        await runUpdate(HOST, plan, (p) => { got = p; });
       } catch {
         note.close();
         updBusy = false;
+        if (lang) { ui.notify(stopped ? U.langStopped(name) : U.langFailed(name), { centred: true }); return; }
         upd = { ...upd, state: stopped ? "stopped" : "failed" };
         updSay();
-        ui.notify(stopped ? U.stopped : U.failed);
+        ui.notify(stopped ? U.stopped : U.failed, { centred: true });
         return;
       }
-      // it is in: the page again, in the new version
+      // it is in: the page again, in the new version, or in the language on PLAY
       leaving = true;
       note.close();
       ui.sound(6);
-      try { sessionStorage.setItem(UPDATED, "1"); } catch { /* it opens on its first page */ }
+      try {
+        if (!lang || plan.newer) sessionStorage.setItem(UPDATED, "1");
+        if (lang) { chooseLang(lang); sessionStorage.setItem(REOPEN, "play"); }
+      } catch { /* it opens on its first page */ }
       ui.fadeBlack(black, 1, FADE.out * 2, () => location.reload());
     };
+    // A language the app has not got (in the app, 日本語 or 中文 the first time): what it needs is looked up on the site, and asked about in the
+    // game's Yes / No window with its size; Yes downloads it as an update is downloaded, and the page comes back in that language.
+    const getLang = async (lang) => {
+      if (leaving || updBusy) return;
+      ui.sound(1);
+      const name = LANG_NAMES[lang];
+      updBusy = true;
+      let plan;
+      try { plan = await langPlan(HOST, lang); } catch { plan = { state: "offline" }; }
+      updBusy = false;
+      if (leaving || ui.items !== own) return;
+      const no = (back) => { back(); ui.sel = NONE; };
+      if (plan.state === "shell") ui.dialog(U.askShell, (back) => { back(); HOST.call("open", { url: DOWNLOAD_PAGE }).catch(() => {}); }, no);
+      else if (plan.state !== "update") ui.notify(U.langOffline(name), { centred: true });
+      else ui.dialog(U.askLang(name, plan.bytes, plan.newer), (back) => { back(); updGet(plan, lang); }, no, plan.newer ? { three: true } : {});
+    };
+    // whether the app has a language's files (asked of the app each time: an update may have brought them)
+    const langIn = async (lang) => { try { return hasLang((await HOST.call("info")).update?.current, lang); } catch { return false; } };
     // The question, where there is something to ask and nothing else is being asked.
     const updAsk = () => {
       if (leaving || updBusy || ui.items !== own) return;
@@ -467,10 +496,11 @@ export async function openHome(ui, { started = null } = {}) {
       return box;
     };
     // Another language: kept, and the page loaded again in it (every table is read in one language from the start), coming back to PLAY ONLINE.
-    const setLang = (lang) => {
-      if (leaving) return;
+    const setLang = async (lang) => {
+      if (leaving || updBusy) return;
       ui.audio.start();
-      if (!chooseLang(lang)) { ui.sound(1); return; }
+      if (HOST && lang !== LANG && LANG_DIRS[lang] && !(await langIn(lang))) { getLang(lang); return; }
+      if (leaving || !chooseLang(lang)) { ui.sound(1); return; }
       leaving = true;
       ui.sound(6);
       try { sessionStorage.setItem(REOPEN, "play"); } catch { /* opens on its first page */ }
@@ -651,7 +681,7 @@ export async function openHome(ui, { started = null } = {}) {
       }
       else if ((k === "e" || k === "E") && tab === SAVE && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) exportNow(); }
       else if ((k === "i" || k === "I") && tab === SAVE && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) importPick(); }
-      else if ((k === "l" || k === "L") && tab === PLAY && !APP && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) setLang(LANG_PLATES[(LANG_PLATES.findIndex((l) => l.lang === LANG) + 1) % LANG_PLATES.length].lang); }
+      else if ((k === "l" || k === "L") && tab === PLAY && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) setLang(LANG_PLATES[(LANG_PLATES.findIndex((l) => l.lang === LANG) + 1) % LANG_PLATES.length].lang); }
       else if (k === "ArrowUp") list.scrollTop -= 120;
       else if (k === "ArrowDown") list.scrollTop += 120;
       else if (k === "PageUp") list.scrollTop -= 760;

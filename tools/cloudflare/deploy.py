@@ -137,11 +137,12 @@ def site_objects(files):
 
 def update_objects(files):
     """What the Android and desktop apps read to bring themselves up to date (web/app/js/update.js): the list of the game's files they
-    carry, under a name made from its content, and update/app.json, which names that list and every app file with its hash. The second is
-    stored after everything else but the page: an app that reads it finds all of it there."""
+    carry and one list for each language folder they download when it is chosen, each under a name made from its content, and
+    update/app.json, which names those lists and every app file with its hash. The last is stored after everything else but the page: an
+    app that reads it finds all of it there. Returns (the lists, app.json)."""
     app = [path.relative_to("web/app") for path in files if path.is_relative_to("web/app")]
-    description, key, listing = app_manifest.site_description(ROOT / "web/app", app, ROOT / "web-dev/assets-manifest.txt")
-    return (key, Path(key), listing), ("update/app.json", Path("update/app.json"), description)
+    description, lists = app_manifest.site_description(ROOT / "web/app", app, ROOT / "web-dev/assets-manifest.txt")
+    return [(key, Path(key), data) for key, data in lists], ("update/app.json", Path("update/app.json"), description)
 
 
 def tracked_files(directory):
@@ -299,8 +300,8 @@ def sync_assets(client, bucket, assets=None):
 
     # Retain previous objects for open browser sessions and deployment rollbacks.
     objects, index, version = site_objects(tracked_files("web/app"))
-    listing, description = update_objects(tracked_files("web/app"))
-    objects.append(listing)
+    lists, description = update_objects(tracked_files("web/app"))
+    objects += lists
     with ThreadPoolExecutor(max_workers=8) as pool:
         uploaded = sum(pool.map(upload, objects))
         if restamp:
@@ -400,11 +401,13 @@ def stage(directory):
     out.mkdir(parents=True, exist_ok=True)
     if not (out / "assets").exists():
         (out / "assets").symlink_to(ROOT / "web/assets")
-    for key, path, data in objects + list(update_objects(tracked_files("web/app"))) + [index]:
+    lists, description = update_objects(tracked_files("web/app"))
+    objects += [*lists, description]
+    for key, path, data in objects + [index]:
         target = out / key
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / path).read_bytes() if data is None else data)
-    print(f"Staged {len(objects) + 3} objects in {out}; the page loads the app from v/{version}/ ({cache_control('v/' + version + '/js/main.js')})")
+    print(f"Staged {len(objects) + 1} objects in {out}; the page loads the app from v/{version}/ ({cache_control('v/' + version + '/js/main.js')})")
 
 
 def main():

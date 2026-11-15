@@ -1,4 +1,4 @@
-// The Android and desktop apps (web-dev/android, web-dev/desktop): the opening page they show (four tabs, English only, the save tools through the app),
+// The Android and desktop apps (web-dev/android, web-dev/desktop): the opening page they show (four tabs, Japanese and Chinese downloaded when chosen, the save tools through the app),
 // and how they bring themselves up to date from the site: what is decided in the page (web/app/js/update.js), what the app does (web-dev/desktop/updater.js,
 // run here against a small server; the Android app's Updates.java is the same logic, checked on a device), and what both builds and the deployment say
 // they hold (web-dev/tools/app_manifest.py).
@@ -16,9 +16,9 @@ const at = (rel) => new URL(`../../${rel}`, import.meta.url);
 const read = (rel) => readFileSync(at(rel), "utf8");
 const { APP_HOSTS, SHELL, appKind, connect, toBase64 } = await import("../../web/app/js/apphost.js");
 const { langOf } = await import("../../web/app/js/lang.js");
-const { tabsFor, TABS, noneLine, homeDue, UPDATE_PLATE } = await import("../../web/app/js/home.js");
+const { tabsFor, TABS, noneLine, homeDue, UPDATE_PLATE, LANG_PLATES, langLineFor } = await import("../../web/app/js/home.js");
 const { TOUCH } = await import("../../web/app/js/touch.js");
-const { DOWNLOAD_PAGE, FORMAT, MANIFEST, SAFE_PATH, SEEN, UPDATED, UPDATE_TEXT, appFiles, assetFiles, checkUpdate, parseList, readManifest, runUpdate, sizeText, updateId, versionText } = await import("../../web/app/js/update.js");
+const { DOWNLOAD_PAGE, FORMAT, LANG_DIRS, LANG_NAMES, MANIFEST, SAFE_PATH, SEEN, UPDATED, UPDATE_TEXT, appFiles, assetFiles, checkUpdate, hasLang, heldDirs, idOf, langPlan, parseList, readManifest, runUpdate, sizeText, updateId, versionText } = await import("../../web/app/js/update.js");
 const { LOCAL } = await import("../../web/app/js/savefile.js");
 const { Updater } = createRequire(import.meta.url)("../desktop/updater.js");
 
@@ -36,7 +36,7 @@ test("the apps are told by their own addresses, and nothing else is one", () => 
   assert.match(read("web-dev/desktop/main.js"), /const HOST = "tsukihime\.desktop";/);
 });
 
-test("the apps open on the opening page: ABOUT, GITHUB, SAVE DATA and PLAY, with no DOWNLOAD and no language to choose", () => {
+test("the apps open on the opening page: ABOUT, GITHUB, SAVE DATA and PLAY, with no DOWNLOAD, and the three languages on PLAY", () => {
   assert.equal(homeDue(new URLSearchParams("")), true);
   const app = tabsFor("android"), site = tabsFor(null);
   assert.equal(TABS, site, "(these tests run as the site)");
@@ -45,10 +45,9 @@ test("the apps open on the opening page: ABOUT, GITHUB, SAVE DATA and PLAY, with
   assert.deepEqual(site.map((t) => t.plate), ["ABOUT", "GITHUB", "DOWNLOAD", "SAVE DATA", "PLAY ONLINE"], "the site keeps its five");
   const kinds = (t) => t.sections.flatMap((s) => s.blocks).filter((b) => Array.isArray(b)).map((b) => b[0]);
   const all = app.flatMap(kinds);
-  assert.ok(!all.includes("lang"), "no language plates");
+  assert.deepEqual(all.filter((k) => k === "lang"), ["lang"], "the language plates, once");
   assert.ok(!all.includes("gpu"), "no notice about a browser's graphics setting");
   assert.ok(!JSON.stringify(app).includes(".apk") && !JSON.stringify(app).includes("Tsukihime-win-x64.zip"), "no downloads");
-  assert.ok(!JSON.stringify(app).includes("日本語"));
   // ABOUT: the site's, but for the notice of which browsers the site works in; GITHUB as it is
   assert.equal(app[0].sections.length, site[0].sections.length);
   assert.deepEqual(app[0].sections[0].blocks, site[0].sections[0].blocks.filter((b) => b[0] !== "note"));
@@ -59,15 +58,20 @@ test("the apps open on the opening page: ABOUT, GITHUB, SAVE DATA and PLAY, with
   assert.deepEqual(app[2].sections[0].blocks.slice(2), site[3].sections[0].blocks.slice(2), "what is held, the four plates, and what each does");
   assert.match(app[2].sections[0].blocks[0], /kept in this app/);
   assert.ok(!JSON.stringify(app[2]).includes("this browser"));
-  // PLAY: the prompt that starts the game, then the updates
+  // PLAY: the language plates over the prompt that starts the game, as on the site's PLAY ONLINE, then the updates; the same three plates (the
+  // user, 2026-11-14: "yes add jp too"), with a line saying Japanese and Chinese are downloaded when first chosen
   assert.deepEqual(app[3].sections.map((s) => s.head), ["Play", "Updates"]);
-  assert.deepEqual(kinds(app[3]), ["press", "update"]);
+  assert.deepEqual(kinds(app[3]), ["lang", "press", "update"]);
+  assert.deepEqual(kinds(site[4]), ["gpu", "lang", "press"]);
+  assert.deepEqual(LANG_PLATES.map((l) => l.plate), ["ENGLISH", "日本語", "中文"]);
+  assert.equal(langLineFor(null).note, "English is the fan translation. 日本語 is the original game's text. 中文 is the Chinese fan translation.\nYour saves and progress carry over between them. (L changes it.)");
+  assert.equal(langLineFor("android").note, "English is the fan translation. 日本語 is the original game's text. 中文 is the Chinese fan translation.\n日本語 and 中文 are downloaded the first time they are chosen.\nYour saves and progress carry over between them. (L changes it.)");
   assert.equal(noneLine(app), "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, GITHUB, SAVE DATA, or PLAY to start the game.");
   assert.match(noneLine(site), /ABOUT, GITHUB, DOWNLOAD, SAVE DATA, or PLAY ONLINE to start the game\.$/);
   const home = read("web/app/js/home.js");
   assert.match(home, /export const TABS = tabsFor\(APP\);/);
   assert.match(home, /const HERE = APP \? "app" : "browser";/);
-  assert.match(home, /tab === PLAY && !APP && !e\.ctrlKey/, "L changes no language in the apps");
+  assert.match(home, /\(k === "l" \|\| k === "L"\) && tab === PLAY && !e\.ctrlKey && !e\.metaKey && !e\.altKey\)/, "L goes through them in the apps too");
   assert.match(home, /const blocks = T && k === PLAY && n === 0 \?/, "how to play by touch once, under the prompt, not again under Updates");
   assert.equal(UPDATE_PLATE.plate, "CHECK FOR UPDATES");
   // by touch the four are in one row along the top (the user, 2026-11-13); the site's five stay three over two
@@ -80,22 +84,26 @@ test("the apps open on the opening page: ABOUT, GITHUB, SAVE DATA and PLAY, with
   assert.match(read("web/app/touch.css"), /html\.touch:not\(\.upright\) \.hm-row1 \.hm-scroll \{ top: 150px; height: 930px; \}/, "and the page begins under it");
 });
 
-test("an app is English whatever was kept or asked for, and both are built without Japanese's and Chinese's files", () => {
+test("an app plays the language kept once its files were in, never one an address asks for; both are built in English, without Japanese's and Chinese's files", () => {
   const ja = store({ "tsuki.lang": "ja" }), zh = store({ "tsuki.lang": "zh" });
   assert.equal(langOf("", ja, null), "ja", "(the site: the kept choice)");
   assert.equal(langOf("", zh, null), "zh");
+  assert.equal(langOf("?lang=ja", store(), null), "ja", "(and the address)");
   for (const app of ["android", "desktop"]) {
-    assert.equal(langOf("", ja, app), "en");
-    assert.equal(langOf("?lang=ja", store(), app), "en");
-    assert.equal(langOf("?lang=ja", ja, app), "en");
-    assert.equal(langOf("", zh, app), "en");
-    assert.equal(langOf("?lang=zh", store(), app), "en");
+    assert.equal(langOf("", store(), app), "en");
+    assert.equal(langOf("", ja, app), "ja", "kept by the page only once Japanese's files were in (home.js updGet)");
+    assert.equal(langOf("", zh, app), "zh");
+    assert.equal(langOf("?lang=ja", store(), app), "en", "an address cannot ask for files the app may not have");
+    assert.equal(langOf("?lang=en", zh, app), "zh");
   }
-  assert.match(read("web/app/js/lang.js"), /export function langOf\(search = "", storage = globalThis\.localStorage, app = APP\) \{\n  if \(app\) return "en";/);
+  const lang = read("web/app/js/lang.js");
+  assert.match(lang, /if \(app\) return storedLang\(storage\);/);
+  // files that are not there after all (an update the app took out again): back to English before anything is drawn
+  assert.match(lang, /if \(APP && lists\.some\(\(list\) => !list\) && typeof location !== "undefined"\) \{\n    \/\/ [^\n]*\n    chooseLang\("en"\);\n    location\.reload\(\);/);
   assert.match(read("web-dev/android/build_apk.sh"), /case "\$\(basename "\$f"\)" in voice\|se\|ja\|zh\) ;;/);
   const pack = JSON.parse(read("web-dev/desktop/package.json")).build;
   assert.deepEqual(pack.extraResources[1].filter, ["**/*", "!voice/**", "!se/**", "!ja/**", "!zh/**", "!**/.*"]);
-  assert.match(read("web-dev/tools/app_manifest.py"), /WITHOUT = \("ja", "zh", "voice", "se"\)/, "and the list the updates compare leaves them out too");
+  assert.match(read("web-dev/tools/app_manifest.py"), /LANG_DIRS = \("ja", "zh"\)\nWITHOUT = \(\*LANG_DIRS, "voice", "se"\)/, "and the list the updates compare leaves them out too");
 });
 
 test("what the page asks of an app goes through one object: the desktop's promises, the Android app's numbered answers", async () => {
@@ -163,9 +171,19 @@ test("in an app Export's file goes where the player chooses, Import has a file c
 const V = { a: "aaaaaaaaaaaa", b: "bbbbbbbbbbbb" };
 const listOf = (files) => Object.entries(files).sort().map(([p, body]) => `${md5(body)} ${body.length} ${p}`).join("\n") + "\n";
 // A description as app_manifest.py writes it, of app files { path: body } and the game's files { path: body }.
-const describe = (version, time, app, assets, shell = 1) => {
-  const list = listOf(assets);
-  return { m: { format: 1, time, shell, version, app: Object.entries(app).sort().map(([p, body]) => [p, body.length, sha(body)]), assets: { md5: md5(list), size: list.length, path: `update/assets-${md5(list).slice(0, 12)}.txt` } }, list };
+// langs: { folder: { path under the folder: body } }, the languages' own folders, listed apart (paths under assets/, as the site lists them).
+const describe = (version, time, app, assets, shell = 1, langs = null) => {
+  const list = listOf(assets), named = (l, key) => ({ md5: md5(l), size: l.length, path: key });
+  const m = { format: 1, time, shell, version, app: Object.entries(app).sort().map(([p, body]) => [p, body.length, sha(body)]), assets: named(list, `update/assets-${md5(list).slice(0, 12)}.txt`) };
+  const lists = {};
+  if (langs) {
+    m.langs = {};
+    for (const [d, files] of Object.entries(langs)) {
+      lists[d] = listOf(Object.fromEntries(Object.entries(files).map(([p, body]) => [`${d}/${p}`, body])));
+      m.langs[d] = named(lists[d], `update/lang-${d}-${md5(lists[d]).slice(0, 12)}.txt`);
+    }
+  }
+  return { m, list, lists };
 };
 const APP1 = { "index.html": "<html>1", "js/main.js": "main 1", "js/vm.js": "vm 1", "style.css": "css" };
 const ASSETS1 = { "img/A.avif": "picture a", "img/B.avif": "picture b", "text.json": "{}" };
@@ -179,6 +197,7 @@ function world({ built = describe(V.a, 1000, APP1, ASSETS1), site = null, curren
       if (down || !site) throw Error("no connection");
       if (args.path === MANIFEST) return JSON.stringify(site.m);
       if (args.path === `${site.m.assets.path}?h=${site.m.assets.md5.slice(0, 12)}`) { assert.equal(args.hash, site.m.assets.md5, "the list is checked against its hash"); return site.list; }
+      for (const [d, l] of Object.entries(site.m.langs || {})) if (args.path === `${l.path}?h=${l.md5.slice(0, 12)}`) { assert.equal(args.hash, l.md5); return site.lists[d]; }
       throw Error(`404 ${args.path}`);
     }
     throw Error(`unexpected ${name}`);
@@ -204,6 +223,15 @@ test("a description is read only in the form both sides write it", () => {
   bad((c) => { c.app[0][1] = -1; }, "a size");
   bad((c) => { c.assets.md5 = "x"; }, "the list's hash");
   bad((c) => { c.assets.path = "update/../../x"; }, "the list's path");
+  const withLangs = describe(V.a, 1000, APP1, ASSETS1, 1, { ja: { "index.json": "{}" } }).m;
+  assert.equal(readManifest(withLangs), withLangs, "a description that lists the languages' folders");
+  const badLang = (change, why) => { const c = structuredClone(withLangs); change(c); assert.throws(() => readManifest(c), /not an update description/, why); };
+  badLang((c) => { c.langs = 5; }, "langs");
+  badLang((c) => { c.langs.ja.md5 = "x"; }, "a language list's hash");
+  badLang((c) => { c.langs.ja.path = "../x"; }, "a language list's path");
+  const later = structuredClone(withLangs);
+  later.langs.ko = { what: "a folder this page does not know" };
+  assert.equal(readManifest(later), later, "a folder of a later page's is no reason to refuse the rest");
   for (const p of ["js/main.js", "assets/img/IMG0316.avif", "fonts/Inter-Regular.woff2", "v_1/a-b.c"]) assert.ok(SAFE_PATH.test(p), p);
   for (const p of ["", "/a", "a/", "a//b", "..", "a/../b", "a/.b", "a b", "a?b", "a\\b", "http://x/y"]) assert.ok(!SAFE_PATH.test(p), p);
   // the list of the game's files
@@ -321,6 +349,122 @@ test("an update that did not come up here is not offered again by itself; asking
   assert.equal((await checkUpdate(w.host, { ...w, force: true })).state, "update");
 });
 
+// ---- languages: downloaded when first chosen (update.js langPlan, home.js getLang) --------------------------------------------------------------
+const JA1 = { "index.json": '{"files":["text.json","fonts/T.ttf"]}', "text.json": "ja text", "fonts/T.ttf": "a face" };
+const ZH1 = { "index.json": '{"files":["text.json"]}', "text.json": "zh text!" };
+const size = (files) => Object.values(files).reduce((n, b) => n + b.length, 0);
+const inside = (d, files) => Object.keys(files).map((p) => `assets/${d}/${p}`).sort();
+
+test("a language is downloaded when it is first chosen, as an update over the version in use; Chinese brings Japanese's folder too", async () => {
+  const built = describe(V.a, 1000, APP1, ASSETS1), site = describe(V.a, 2000, APP1, ASSETS1, 1, { ja: JA1, zh: ZH1 });
+  assert.deepEqual(LANG_DIRS, { ja: ["ja"], zh: ["ja", "zh"] }, "Chinese is laid over Japanese (lang.js LAYERS)");
+  assert.deepEqual(LANG_NAMES, { en: "English", ja: "Japanese", zh: "Chinese" });
+  // the site lists the languages, the app has none of them: nothing is offered by itself, and their lists are not even fetched
+  let w = world({ site });
+  assert.deepEqual(await checkUpdate(w.host, w), { state: "current", version: V.a, time: 1000 });
+  assert.deepEqual(w.asked, ["info", MANIFEST]);
+  // 日本語 chosen: its folder, over the app as it is (the site's page is the app's own: nothing else to download, so newer is false)
+  w = world({ site });
+  const ja = await langPlan(w.host, "ja", w);
+  assert.equal(ja.state, "update");
+  assert.equal(ja.newer, false);
+  assert.deepEqual(ja.files.map((f) => f.path).sort(), inside("ja", JA1));
+  assert.deepEqual([ja.bytes, ja.count], [size(JA1), 3]);
+  assert.deepEqual(ja.files.find((f) => f.path === "assets/ja/text.json"), { path: "assets/ja/text.json", size: 7, hash: md5("ja text"), from: `assets/ja/text.json?h=${md5("ja text").slice(0, 12)}` });
+  assert.match(ja.id, /^[0-9a-f]{12}-[0-9a-f]{8}$/, "a name both apps take (updater.js and Updates.java ID)");
+  assert.equal(ja.id, idOf(V.a, built.m.assets.md5, [`ja:${site.m.langs.ja.md5}`]));
+  assert.notEqual(ja.id, idOf(V.a, built.m.assets.md5), "another update than the version alone");
+  assert.deepEqual({ ...ja.meta, files: null }, { id: ja.id, time: 2000, version: V.a, assets: built.m.assets.md5, files: null }, "the site's version, which is the app's");
+  assert.deepEqual(w.asked, ["info", MANIFEST, `${site.m.langs.ja.path}?h=${site.m.langs.ja.md5.slice(0, 12)}`], "the folder's list, checked against its hash");
+  // what the app then holds: Japanese, not Chinese
+  assert.deepEqual(heldDirs(ja.meta), ["ja"]);
+  assert.deepEqual([hasLang(ja.meta, "ja"), hasLang(ja.meta, "zh"), hasLang(null, "ja"), hasLang(null, "en")], [true, false, false, true]);
+  // with it in: nothing is offered by itself; 中文 then needs zh/ alone
+  w = world({ site, current: ja.meta });
+  assert.equal((await checkUpdate(w.host, w)).state, "current");
+  const zh = await langPlan(w.host, "zh", w);
+  assert.deepEqual(zh.files.map((f) => f.path).sort(), [...inside("ja", JA1), ...inside("zh", ZH1)].sort());
+  assert.deepEqual([zh.bytes, zh.count], [size(ZH1), 2], "Japanese's files are held, so not downloaded again");
+  assert.deepEqual(heldDirs(zh.meta), ["ja", "zh"]);
+  // 中文 first: both folders
+  w = world({ site });
+  const zh0 = await langPlan(w.host, "zh", w);
+  assert.deepEqual([zh0.bytes, zh0.count], [size(JA1) + size(ZH1), 5]);
+  assert.equal(zh0.id, zh.id, "the same files, the same update");
+  // no connection, or a site that lists no languages: nothing to take
+  w = world({ down: true });
+  assert.equal((await langPlan(w.host, "ja", w)).state, "offline");
+  w = world({ site: describe(V.a, 2000, APP1, ASSETS1) });
+  assert.equal((await langPlan(w.host, "zh", w)).state, "offline");
+  // an update the app has already: kept as it is, the language's folder added to it (its own files are taken from it, not fetched)
+  const site2 = describe(V.b, 2000, { ...APP1, "js/main.js": "main 2" }, ASSETS1, 1, { ja: JA1, zh: ZH1 });
+  w = world({ site: site2 });
+  const first = await checkUpdate(w.host, w);
+  w = world({ site: site2, current: first.meta });
+  const over = await langPlan(w.host, "ja", w);
+  assert.equal(over.newer, false);
+  assert.deepEqual(over.files.find((f) => f.path === "js/main.js"), { path: "js/main.js", size: 6, hash: sha("main 2"), from: `v/${V.b}/js/main.js?h=${sha("main 2").slice(0, 12)}` });
+  assert.equal(over.bytes, size(JA1));
+  assert.deepEqual([over.meta.version, over.meta.time, over.meta.assets], [V.b, 2000, first.meta.assets]);
+});
+
+test("a language chosen while the site has a newer version comes with it; every later update keeps the languages held, brought up to date", async () => {
+  const site = describe(V.a, 2000, APP1, ASSETS1, 1, { ja: JA1, zh: ZH1 });
+  let w = world({ site });
+  const ja = await langPlan(w.host, "ja", w);
+  // the site moves on: a changed script, a corrected Japanese line, a new Chinese file
+  const JA2 = { ...JA1, "text.json": "ja text, corrected" }, site2 = describe(V.b, 3000, { ...APP1, "js/main.js": "main 2" }, ASSETS1, 1, { ja: JA2, zh: { ...ZH1, "x.json": "x" } });
+  w = world({ site: site2, current: ja.meta });
+  const u = await checkUpdate(w.host, w);
+  assert.equal(u.state, "update");
+  assert.equal(u.newer, true);
+  assert.deepEqual(u.files.map((f) => f.path), ["js/main.js", ...inside("ja", JA2)], "the update, with the Japanese the app holds and no Chinese");
+  assert.deepEqual([u.bytes, u.count], [6 + JA2["text.json"].length, 2], "of Japanese, only the corrected file");
+  assert.equal(u.id, updateId(site2.m, ["ja"]));
+  assert.deepEqual([u.meta.version, u.meta.time], [V.b, 3000]);
+  assert.ok(w.asked.includes(`${site2.m.langs.ja.path}?h=${site2.m.langs.ja.md5.slice(0, 12)}`) && !w.asked.some((a) => a.startsWith("update/lang-zh")));
+  // once taken: current, and remembered as such
+  w = world({ site: site2, current: u.meta });
+  assert.equal((await checkUpdate(w.host, w)).state, "current");
+  // 中文 chosen on an app as built while the site is newer: the newer version and both folders, and the question says so
+  w = world({ site: site2 });
+  const both = await langPlan(w.host, "zh", w);
+  assert.equal(both.newer, true);
+  assert.ok(both.files.some((f) => f.path === "js/main.js") && both.files.some((f) => f.path === "assets/zh/x.json"));
+  assert.deepEqual([both.meta.version, both.meta.time], [V.b, 3000]);
+  assert.equal(UPDATE_TEXT.askLang("Japanese", 1.04e8, false), "Japanese needs a download (104 MB).\nDownload it now?");
+  assert.equal(UPDATE_TEXT.askLang("Chinese", 1.13e8, true), "Chinese needs a download (113 MB),\nwith the latest update.\nDownload it now?");
+  // each line short enough for the question window (seen wrapping into No / Yes at 40 letters, 2026-11-14)
+  for (const text of [UPDATE_TEXT.askLang("Japanese", 1.04e8, true), UPDATE_TEXT.askLang("Japanese", 9.99e8, false), UPDATE_TEXT.askLang("Chinese", 9.2e6, false), UPDATE_TEXT.langOffline("Japanese")]) for (const line of text.split("\n")) assert.ok(line.length <= 36, line);
+  assert.equal(UPDATE_TEXT.langLoading("Chinese", 50, 100), "Downloading Chinese  50%\nPress to stop");
+  // the page: a language the app has not got is asked about first, downloaded as an update is, and kept only once it is in
+  const home = read("web/app/js/home.js");
+  assert.match(home, /if \(HOST && lang !== LANG && LANG_DIRS\[lang\] && !\(await langIn\(lang\)\)\) \{ getLang\(lang\); return; \}/);
+  assert.match(home, /try \{ plan = await langPlan\(HOST, lang\); \} catch \{ plan = \{ state: "offline" \}; \}/);
+  assert.match(home, /else ui\.dialog\(U\.askLang\(name, plan\.bytes, plan\.newer\), \(back\) => \{ back\(\); updGet\(plan, lang\); \}, no, plan\.newer \? \{ three: true \} : \{\}\);/);
+  assert.match(home, /if \(lang\) \{ chooseLang\(lang\); sessionStorage\.setItem\(REOPEN, "play"\); \}/, "chosen once it is in, and the page comes back on PLAY");
+});
+
+test("the app: a language's folder is downloaded into the update in use and answered from there; the version's own files are not fetched again", async (t) => {
+  const main2 = "main, version 2", text = "ja text";
+  const s = await site({ "v/bbbbbbbbbbbb/js/main.js": main2, "assets/ja/text.json": text });
+  const dir = scratch();
+  t.after(async () => { await s.close(); rmSync(dir, { recursive: true, force: true }); });
+  const u = updaterAt(dir, s.origin);
+  const v2 = [file("js/main.js", main2, `v/bbbbbbbbbbbb/js/main.js?h=${sha(main2).slice(0, 12)}`)];
+  await u.stage({ id: ID1, files: v2 });
+  u.apply({ id: ID1, meta: metaOf(ID1, v2) });
+  u.confirm();
+  s.hits.length = 0;
+  const id = idOf("bbbbbbbbbbbb", "0".repeat(32), ["ja:0123"]), withJa = [...v2, file("assets/ja/text.json", text, `assets/ja/text.json?h=${md5(text).slice(0, 12)}`)];
+  assert.deepEqual(await u.stage({ id, files: withJa }), { ok: true });
+  assert.deepEqual(s.hits, [`/assets/ja/text.json?h=${md5(text).slice(0, 12)}`], "only the language's file");
+  u.apply({ id, meta: metaOf(id, withJa) });
+  assert.equal(readFileSync(u.fileFor("assets/ja/text.json"), "utf8"), text);
+  assert.equal(readFileSync(u.fileFor("js/main.js"), "utf8"), main2);
+  assert.deepEqual(heldDirs(u.info().current), [], "(no index.json in this small one)");
+});
+
 test("taking an update: its files are brought, then it is switched to; a failure leaves it at that", async () => {
   const calls = [];
   const plan = { id: "x", files: [{ path: "js/main.js" }], meta: { id: "x" } };
@@ -332,7 +476,8 @@ test("taking an update: its files are brought, then it is switched to; a failure
   // the page: asked first, with the size; the page loads again only once the update is in
   const home = read("web/app/js/home.js");
   assert.match(home, /if \(upd\.state === "update"\) ui\.dialog\(U\.ask\(upd\.bytes\), \(back\) => \{ back\(\); updGet\(\); \}, no\);/);
-  assert.match(home, /await runUpdate\(HOST, upd, \(p\) => \{ got = p; \}\);\n      \} catch \{/);
+  assert.match(home, /const updGet = async \(plan = upd, lang = null\) => \{/);
+  assert.match(home, /await runUpdate\(HOST, plan, \(p\) => \{ got = p; \}\);\n      \} catch \{/);
   assert.match(home, /if \(leaving \|\| updBusy \|\| ui\.items !== own\) return;/, "nothing is asked once the game has been started, or over another question");
   assert.match(home, /HOST\.call\("confirm"\)\.catch\(\(\) => \{\}\);/, "the page tells the app it has come up");
   assert.equal(UPDATE_TEXT.ask(1234567), "An update is available (1.2 MB).\nDownload it now?");
@@ -559,6 +704,18 @@ d = pathlib.Path(${JSON.stringify(dir)}); app_manifest.bundle(d / "out", d / "ap
   for (const [rel, body] of [["js/apphost.js", "export const SHELL = 7;\n"], ["js/main.js", "main"], ["style.css", "css"]]) digest.update(`${rel}\0${body}\0`);
   assert.equal(m.version, digest.digest("hex").slice(0, 12));
   assert.deepEqual([...parseList(list).keys()], ["img/A.avif", "text.json"]);
+  // the site's description: the same list of the game's files, and one list for each language folder, named under "langs"
+  const manifest = path.join(dir, "assets-manifest.txt"), line = (p, body) => `${md5(body)} ${body.length} ${p}`;
+  writeFileSync(manifest, [line("text.json", "{}"), line("ja/text.json", "ja"), line("ja/index.json", "{}"), line("zh/text.json", "zh"), line("img/A.avif", "aaa"), line("voice/V.ogg", "v")].join("\n") + "\n");
+  const out = JSON.parse(execFileSync("python3", ["-c", `import sys, json, pathlib; sys.path.insert(0, ${JSON.stringify(path.dirname(at("web-dev/tools/app_manifest.py").pathname))}); import app_manifest
+d = pathlib.Path(${JSON.stringify(dir)}); desc, lists = app_manifest.site_description(d / "app", [pathlib.Path("js/main.js")], d / "assets-manifest.txt", made=5)
+print(json.dumps({"desc": json.loads(desc), "lists": [[k, v.decode()] for k, v in lists]}))`], { encoding: "utf8" }));
+  assert.deepEqual(out.lists.map(([k]) => k.replace(/-[0-9a-f]{12}\.txt$/, "")), ["update/assets", "update/lang-ja", "update/lang-zh"]);
+  assert.equal(out.lists[0][1], list, "the apps' list: what a build holds, no language");
+  assert.equal(out.lists[1][1], `${line("ja/index.json", "{}")}\n${line("ja/text.json", "ja")}\n`);
+  assert.equal(out.lists[2][1], `${line("zh/text.json", "zh")}\n`);
+  for (const [k, body] of out.lists.slice(1)) assert.deepEqual(out.desc.langs[k.slice(12, 14)], { md5: md5(body), size: body.length, path: k });
+  assert.equal(readManifest(out.desc).assets.md5, md5(list));
   // both builds pack it, and a deployment stores the site's
   assert.match(read("web-dev/android/build_apk.sh"), /python3 "\$here\/\.\.\/tools\/app_manifest\.py" --bundle "\$work\/stage\/assets\/www"/);
   assert.match(read("web-dev/desktop/build.sh"), /python3 \.\.\/tools\/app_manifest\.py --bundle out\/bundle/);
@@ -580,7 +737,8 @@ test("the Android app's one permission is the internet, for its updates; the pag
 
 test("a deployment publishes what the apps update from, after every file it names", { skip: !existsSync(at("tools/cloudflare/deploy.py")) }, () => {
   const deploy = read("tools/cloudflare/deploy.py");
-  assert.match(deploy, /return \(key, Path\(key\), listing\), \("update\/app\.json", Path\("update\/app\.json"\), description\)/);
+  assert.match(deploy, /return \[\(key, Path\(key\), data\) for key, data in lists\], \("update\/app\.json", Path\("update\/app\.json"\), description\)/, "the lists, the languages' among them, then app.json");
+  assert.match(deploy, /lists, description = update_objects\(tracked_files\("web\/app"\)\)\n    objects \+= lists/);
   assert.match(deploy, /objects\.append\(\(f"v\/\{version\}\/\{name\}", path, None\)\)\n            continue/, "the page as web/app has it, for the apps");
   assert.ok(deploy.indexOf("uploaded = sum(pool.map(upload, objects))") < deploy.indexOf("uploaded += upload(description)"));
   assert.ok(deploy.indexOf("uploaded += upload(description)") < deploy.indexOf("uploaded += upload(index)"), "then the page, last");
