@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - web/**
+      - web-dev/assets-manifest.txt
+      - web-dev/tools/app_manifest.py
       - tools/cloudflare/**
       - .github/workflows/deploy-cloudflare.yml
   workflow_dispatch:

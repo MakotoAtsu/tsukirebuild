@@ -692,6 +692,35 @@ test("the app: a download can be stopped, and stopping changes nothing", async (
 // ---- what each side says it holds (web-dev/tools/app_manifest.py) -----------------------------------------------------------------------------
 const python = (() => { try { execFileSync("python3", ["--version"], { stdio: "ignore" }); return true; } catch { return false; } })();
 
+test("the published manifest delivers Aniplex's two files through the ordinary update in both apps", { skip: !python }, async () => {
+  const generated = JSON.parse(execFileSync("python3", ["-c", `import sys, json, pathlib
+root = pathlib.Path(${JSON.stringify(at(".").pathname)})
+sys.path.insert(0, str(root / "web-dev/tools"))
+import app_manifest
+desc, lists = app_manifest.site_description(root / "web/app", app_manifest.visible(root / "web/app"), root / "web-dev/assets-manifest.txt", made=2000)
+print(json.dumps({"m": json.loads(desc), "list": lists[0][1].decode()}))`], { encoding: "utf8", maxBuffer: 4 * 1024 * 1024 }));
+  const before = generated.list.split("\n").filter((line) => line && !line.split(" ")[2].startsWith("aniplex/")).join("\n") + "\n";
+  const built = { m: { ...generated.m, time: 1000, assets: { md5: md5(before), size: before.length } }, list: before };
+  const expected = [
+    ["assets/aniplex/index.json", 23, "eb6a03f024456b50ee62bbab40dfccfc"],
+    ["assets/aniplex/text.json", 2833819, "14f1a1e9b3fd58d7b0e1f3a666941c52"],
+  ];
+  for (const kind of ["android", "desktop"]) {
+    const w = world({ built, site: generated });
+    w.host.kind = kind;
+    const plan = await checkUpdate(w.host, w);
+    assert.equal(plan.state, "update", kind);
+    assert.deepEqual(plan.files.map((f) => [f.path, f.size, f.hash]), expected, `${kind}: no unchanged app files or game media downloaded`);
+    assert.equal(plan.bytes, 2833842);
+    assert.equal(plan.count, 2);
+    assert.equal(plan.meta.version, built.m.version, "the app code version stays the same; the asset list changes");
+    for (const f of plan.files) assert.equal(f.from, `${f.path}?h=${f.hash.slice(0, 12)}`);
+    const after = world({ built, site: generated, current: plan.meta });
+    after.host.kind = kind;
+    assert.equal((await checkUpdate(after.host, after)).state, "current", `${kind}: not downloaded again after installation`);
+  }
+});
+
 test("an app build's description of itself: every app file with its hash, the game's files without Japanese's and the loose sounds, in the form the page reads", { skip: !python }, (t) => {
   const dir = scratch();
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -744,6 +773,9 @@ test("the Android app's one permission is the internet, for its updates; the pag
 });
 
 test("a deployment publishes what the apps update from, after every file it names", { skip: !existsSync(at("tools/cloudflare/deploy.py")) }, () => {
+  const workflow = read(".github/workflows/deploy-cloudflare.yml");
+  assert.match(workflow, /^      - web-dev\/assets-manifest\.txt$/m, "asset-list-only fixes trigger deployment");
+  assert.match(workflow, /^      - web-dev\/tools\/app_manifest\.py$/m, "changes to the update description trigger deployment too");
   const deploy = read("tools/cloudflare/deploy.py");
   assert.match(deploy, /return \[\(key, Path\(key\), data\) for key, data in lists\], \("update\/app\.json", Path\("update\/app\.json"\), description\)/, "the lists, the languages' among them, then app.json");
   assert.match(deploy, /lists, description = update_objects\(tracked_files\("web\/app"\)\)\n    objects \+= lists/);

@@ -1,4 +1,6 @@
 8a7a0d078a551717e71fdef4554ebe4e 6586411 animations.json
+eb6a03f024456b50ee62bbab40dfccfc 23 aniplex/index.json
+14f1a1e9b3fd58d7b0e1f3a666941c52 2833819 aniplex/text.json
 5e8d2da0e6b1099fb00f975805189a2f 3520 audio_tables.json
 82fd8c8a4ddb35d728b0f4d2977dda9a 2633148 bgm/15aEDSample.ogg
 f26334f6abe9f63dac119db8841eaf80 2606831 bgm/MOON01_BGM01.ogg
