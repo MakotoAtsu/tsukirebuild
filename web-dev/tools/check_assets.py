@@ -66,8 +66,9 @@ def main():
         missing["fixed addresses in the code"] = gone
     if outside:
         missing["code asking the server for the game's own files"] = sorted(outside)
-    # Japanese (build_ja.py) and Chinese (build_zh.py): what each has of its own is the list in its index.json, no more and no less.
-    for folder, name, tool in (("ja", "Japanese", "build_ja.py"), ("zh", "Chinese", "build_zh.py")):
+    # Japanese (build_ja.py), Chinese (build_zh.py) and the official English (build_aniplex.py): what each has of its own is the list in its index.json,
+    # no more and no less.
+    for folder, name, tool in (("ja", "Japanese", "build_ja.py"), ("zh", "Chinese", "build_zh.py"), ("aniplex", "Aniplex's English", "build_aniplex.py")):
         own = os.path.join(A, folder)
         if not os.path.isdir(own):
             continue

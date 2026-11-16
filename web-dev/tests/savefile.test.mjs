@@ -220,7 +220,7 @@ test("what the browser holds now, for SAVE DATA's page: four figures counted as 
   assert.equal(loadedData(fresh, { chart, gallery }), null);
   // side by side across the page: the page's own figures, four to a row (two on a phone held upright)
   const home = source("js/home.js");
-  assert.match(home, /box\.append\(blockEl\(\["facts", data\.facts\]\)\);/);
+  assert.match(home, /box\.append\(blockEl\(\["facts", data\.facts\.map\(\(\[n, what\]\) => \[n, tr\(what\)\]\)\]\)\);/);
   assert.match(source("style.css"), /\.wl-text \.hm-data \.wl-facts \{ grid-template-columns: repeat\(4, 1fr\);/);
   assert.match(source("touch.css"), /html\.touch\.upright \.hm-text \.hm-data \.wl-facts \{ grid-template-columns: repeat\(2, 1fr\); \}/);
 });
@@ -285,7 +285,7 @@ test("the opening page's SAVE DATA tab: the Nintendo format named, what is loade
   assert.match(touchCss, /html\.touch\.upright #sysui \.dialog > \.sp:first-child \{ transform: scaleY\(2\.6\); \}/, "its backdrop over the stage's whole height");
   const home = source("js/home.js"), css = source("style.css");
   assert.match(home, /quickBarArt\(SAVE_PLATES\.map/, "the game's own plates, relettered as the tabs are");
-  assert.match(home, /quickBarArt\(\[\{ label: FULL_PLATE\.plate \}\], \{ w: P\.w \+ FULL_PLATE\.wider, h: P\.h \}\)/);
+  assert.match(home, /quickBarArt\(\[\{ label: tr\(FULL_PLATE\.plate\) \}\], \{ w: P\.w \+ FULL_PLATE\.wider, h: P\.h \}\)/);
   assert.match(home, /SAVE_PLATES\.forEach\(\(s, i\) => row\.append\(savePlate\(s, i\)\)\);\n\s*row\.append\(savePlate\(FULL_PLATE, 0, fullSheet, P\.w \+ FULL_PLATE\.wider\)\);/, "in the row, after REMOVE DATA");
   assert.match(home, /ui\.dialog\(SAVE_TEXT\.askFull, \(back\) => \{[\s\S]{0,260}load\(sys, bytes, \{ label: SAVE_TEXT\.full, keepSettings: true, note: SAVE_TEXT\.fullLoaded \}\);\n\s*\}, \(back\) => \{ back\(\); ui\.sel = NONE; \}, \{ startNo: true, three: true \}\);/,
     "it warns and asks in the game's window, starting on No, and loads the progress alone");

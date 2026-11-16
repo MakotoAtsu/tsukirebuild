@@ -11,36 +11,79 @@
 // it redrew, two chapter titles, its faces, the prologue's subtitles); a file is asked for there first, then under ja/, then where it always was. ORIG
 // names what the two share, the original game's way of setting its text; JA and ZH what is each one's own (words, faces).
 //
-// The language is chosen on the opening page (home.js, PLAY ONLINE) and kept in this browser. It is read once, as the page loads: every table is fetched in
-// that language from the start, so changing it loads the page again. `?lang=ja` (or en) in the address chooses it for that visit.
+// The language is chosen on the opening page (home.js, LANGUAGE) and kept in this browser; until one is chosen it is the device's (deviceLang: the
+// browser's own list of languages), English where that is none of the three. It is read once, as the page loads: every table is fetched in that language
+// from the start, so changing it loads the page again. `?lang=ja` (or en) in the address chooses it for that visit. The opening page is in the same
+// language as the game (UILANG, sitewords.js).
 // The Android and desktop apps are built in English, without web/assets/ja and zh: a language's folders are downloaded into the app when its plate is
 // first chosen there (home.js, update.js langPlan), and the choice is kept only once they are in. Should they be gone after all (an update the app
-// took out again), the app goes back to English (langReady).
+// took out again), the app goes back to English (langReady). So an app plays the device's language only once it has been chosen; its opening page is in
+// the device's language from the start (UILANG).
 import { APP } from "./apphost.js";
 
 export const LANGS = ["en", "ja", "zh"];
 const KEY = "tsuki.lang";
 
-export function storedLang(storage = globalThis.localStorage) {
-  try { const v = storage?.getItem(KEY); return LANGS.includes(v) ? v : "en"; } catch { return "en"; }
+// The language chosen in this browser, or null.
+export function chosenLang(storage = globalThis.localStorage) {
+  try { const v = storage?.getItem(KEY); return LANGS.includes(v) ? v : null; } catch { return null; }
 }
-export function langOf(search = "", storage = globalThis.localStorage, app = APP) {
+export const storedLang = (storage = globalThis.localStorage) => chosenLang(storage) || "en";
+// The device's language: the first of the browser's languages, in its order of preference, that is one of the three (any Chinese: the one Chinese here
+// is the simplified patch's), else English.
+export function deviceLang(nav = globalThis.navigator) {
+  const list = nav?.languages?.length ? nav.languages : [nav?.language || ""];
+  for (const l of list) {
+    const primary = String(l || "").toLowerCase().split(/[-_]/)[0];
+    if (LANGS.includes(primary)) return primary;
+  }
+  return "en";
+}
+export function langOf(search = "", storage = globalThis.localStorage, app = APP, nav = globalThis.navigator) {
   if (app) return storedLang(storage);   // (in the apps only what was chosen once its files were in)
   const asked = new URLSearchParams(search).get("lang");
-  return LANGS.includes(asked) ? asked : storedLang(storage);
+  return LANGS.includes(asked) ? asked : chosenLang(storage) || deviceLang(nav);
 }
 export const LANG = langOf(globalThis.location?.search || "");
 export const JA = LANG === "ja";
 export const ZH = LANG === "zh";
 export const ORIG = JA || ZH;
+// The language of the opening page's own words (sitewords.js): the game's, and in an app where none has been chosen yet, the device's.
+export const uiLangOf = (lang = LANG, storage = globalThis.localStorage, app = APP, nav = globalThis.navigator) => (app && !chosenLang(storage) ? deviceLang(nav) : lang);
+export const UILANG = uiLangOf();
+
+// English has two translations: the Tsukihimates fan translation, what the port's files are made from (the default, and the one recommended on
+// PLAY), and the official one of the global edition, Aniplex's (web-dev/tools/build_aniplex.py: web/assets/aniplex holds only its lines, numbered as
+// the port's). Which one is kept apart from the language, in `tsuki.english`, so that 日本語 and back keeps it; `?english=aniplex` (or tsukihimates)
+// chooses it for one visit. `chosen` is false until the player has picked one on LANGUAGE (home.js). The folder is not published on the site (the
+// whole official script): where it is missing, the list does not come and the game plays the fan translation (langReady), and LANGUAGE offers no choice.
+export const ENGLISHES = ["tsukihimates", "aniplex"];
+const EN_KEY = "tsuki.english";
+export function storedEnglish(storage = globalThis.localStorage) {
+  try { const v = storage?.getItem(EN_KEY); return ENGLISHES.includes(v) ? { english: v, chosen: true } : { english: "tsukihimates", chosen: false }; }
+  catch { return { english: "tsukihimates", chosen: false }; }
+}
+export function englishOf(search = "", storage = globalThis.localStorage, app = APP) {
+  const asked = app ? null : new URLSearchParams(search).get("english");
+  return ENGLISHES.includes(asked) ? asked : storedEnglish(storage).english;
+}
+export const ENGLISH = englishOf(globalThis.location?.search || "");
+export const OFFICIAL = LANG === "en" && ENGLISH === "aniplex";
 // The folders laid over the shared files, lowest first.
-export const LAYERS = ZH ? ["ja", "zh"] : JA ? ["ja"] : [];
+export const LAYERS = ZH ? ["ja", "zh"] : JA ? ["ja"] : OFFICIAL ? ["aniplex"] : [];
 
 // Keeps the choice for the next load. Returns whether it is another language than the one this page was loaded in.
 export function chooseLang(lang, storage = globalThis.localStorage) {
   if (!LANGS.includes(lang)) return false;
   try { storage?.setItem(KEY, lang); } catch { /* kept for this visit only */ }
   return lang !== LANG;
+}
+// The English translation, kept the same way (and English with it). Returns whether the page must load again to show it.
+export function chooseEnglish(english, storage = globalThis.localStorage) {
+  if (!ENGLISHES.includes(english)) return false;
+  try { storage?.setItem(EN_KEY, english); } catch { /* kept for this visit only */ }
+  const langChanged = chooseLang("en", storage);
+  return langChanged || english !== ENGLISH;
 }
 
 // What each folder has of its own: path -> the folders that have it, lowest first (paths under /assets/ja/, /assets/zh/).
@@ -85,16 +128,17 @@ export function asset(url) {
 
 // Resolved once the lists are in (at once in English). A list that does not come leaves the game in the files below it.
 export const langReady = (async () => {
-  if (!ORIG || typeof fetch !== "function") return;
+  if (!LAYERS.length || typeof fetch !== "function") return;
   const lists = await Promise.all(LAYERS.map((layer) => fetch(`/assets/${layer}/index.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
   if (APP && lists.some((list) => !list) && typeof location !== "undefined") {
-    // an app without the language's files: back to English, before anything is drawn
-    chooseLang("en");
+    // an app without the language's files: back to English (an app not yet updated to have the official English: back to the fan one), before
+    // anything is drawn
+    if (OFFICIAL) chooseEnglish("tsukihimates"); else chooseLang("en");
     location.reload();
     await new Promise(() => {});
   }
   lists.forEach((list, k) => addOwn(list?.files, LAYERS[k]));
-  if (typeof document !== "undefined") {
+  if (ORIG && typeof document !== "undefined") {
     // html.ja: the original's way of setting text (style.css), in both; html.zh: Chinese's faces over it
     document.documentElement.lang = ZH ? "zh-Hans" : "ja";
     document.documentElement.classList.add("ja");

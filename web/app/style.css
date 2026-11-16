@@ -418,7 +418,18 @@ div.fc-node { pointer-events: none; cursor: default; }
 .wl-text .hm-lang h3 { margin: 0 0 16px; }
 .hm-lang-row { display: flex; justify-content: center; gap: 28px; }
 .hm-lang-row .qbtn { position: relative; flex: none; }
+.hm-en { margin: 28px 0 0; }
+/* The opening page in Japanese or Chinese (home.js, sitewords.js): Latin letters, figures and commands keep the page's own face, the rest is set in the game's
+   mincho (Japanese's, or the Chinese patch's), then the system's. html.ui-* is the page's language (lang.js UILANG), which in an app can be the device's
+   before that language's files are in: the system's faces then. */
+html.ui-ja .hm-page { --hm-cjk: "TsukuMin", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif; }
+html.ui-zh .hm-page { --hm-cjk: "TsukuMinZh", "TsukuGoZh", "Songti SC", "SimSun", "Noto Serif SC", serif; }
+html:is(.ui-ja, .ui-zh) .hm-page :is(.wl-text, .wl-text h2, .wl-text h3, .wl-what, .hm-notice h3) { font-family: Georgia, "Times New Roman", "Gelasio Bundled", var(--hm-cjk); }
+html.ui-ja .hm-page .wl-text { word-break: auto-phrase; }   /* (Japanese rows break between phrases, not inside a word such as 中文, where the browser can) */   /* English's two translations, opened under the three by ENGLISH (home.js EN_PLATES) */
 .wl-text .hm-lang-note { margin: 16px 0 0; font-size: 24px; line-height: 32px; color: #c9d8e6; white-space: pre-line; }   /* (its two sentences on rows of their own) */
+/* LANGUAGE's list of what each language is: a block centred under the plates, its rows read from the left, then the one line under it */
+.wl-text .hm-lang .wl-rows.hm-lang-rows { display: inline-grid; margin: 48px 0 0; text-align: left; }
+.wl-text .hm-lang .hm-lang-rows + .hm-lang-note { margin-top: 22px; }
 /* Export and Import on SAVE DATA (home.js savesBlock): two of the panel's own plates side by side under the page's words, their keys, and a line
    that says what was done. */
 /* The app's updates on PLAY's page (home.js updateBlock): the plate that looks for one, and under it where things stand and the version in use. */
@@ -484,9 +495,10 @@ html.ja .confsample { font-family: var(--ja-font); }
    it put them under the original's file names; its TsukuMin is a Founder Jinling face, its TsukuGo Microsoft YaHei with Yu Gothic, its SeuratPro a
    Founder face; here cut down to the letters Chinese's files use, build_zh.py). The story's face lacks a few letters the lines use (♪, ・, ー, some
    traditional forms): those come from the patch's gothic face, as they do in the game (a native frame of the patch's lines). */
-@font-face { font-family: "TsukuMinZh"; src: url("/assets/zh/fonts/TsukuMin.woff2") format("woff2"); font-display: block; }
-@font-face { font-family: "TsukuGoZh"; src: url("/assets/zh/fonts/TsukuGo.woff2") format("woff2"); font-display: block; }
-@font-face { font-family: "SeuratProZh"; src: url("/assets/zh/fonts/SeuratPro.woff2") format("woff2"); font-display: block; }
+/* (?v=2: rebuilt 2026-11-16 with the opening page's Chinese letters; the site keeps a font a month, so a new address) */
+@font-face { font-family: "TsukuMinZh"; src: url("/assets/zh/fonts/TsukuMin.woff2?v=2") format("woff2"); font-display: block; }
+@font-face { font-family: "TsukuGoZh"; src: url("/assets/zh/fonts/TsukuGo.woff2?v=2") format("woff2"); font-display: block; }
+@font-face { font-family: "SeuratProZh"; src: url("/assets/zh/fonts/SeuratPro.woff2?v=2") format("woff2"); font-display: block; }
 html.zh { --ja-font: "TsukuMinZh", "TsukuGoZh", "PingFang SC", "Microsoft YaHei", "Noto Serif SC", serif;
   --flow-font: Helvetica, Arial, "Arimo Bundled", "TsukuGoZh", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; --gallery-font: Inter, "TsukuGoZh", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; }
 html.zh #text.balloon { font-family: "SeuratProZh", var(--ja-font); }

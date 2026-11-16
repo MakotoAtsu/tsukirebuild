@@ -184,7 +184,7 @@ KEEP = [(0x20, 0x7E), (0xA0, 0xFF), (0x152, 0x153), (0x2000, 0x206F), (0x2100, 0
 
 def used_letters():
     """Every letter of Chinese's own files (the lines, the system's words, the gallery, the flowchart, the rows, the subtitles) and of the port's own
-    Chinese words (app/js/ui.js HINTS_ZH, app/js/words.js)."""
+    Chinese words (app/js/ui.js HINTS_ZH, app/js/words.js, app/js/sitewords-table.js)."""
     import re
     out = set()
     for rel in ("text.json", "system.json", "gallery.json", "flowchart.json", "rows.json", "subs/prologue.json"):
@@ -196,6 +196,7 @@ def used_letters():
     ui = open(os.path.join(HERE, "../../web/app/js/ui.js"), encoding="utf-8").read()
     out |= set(re.search(r"export const HINTS_ZH = \{([^}]*)\}", ui).group(1))
     out |= set(open(os.path.join(HERE, "../../web/app/js/words.js"), encoding="utf-8").read())     # (the Controls page's Chinese words)
+    out |= set(open(os.path.join(HERE, "../../web/app/js/sitewords-table.js"), encoding="utf-8").read())   # (the opening page's Chinese words)
     return {c for c in out if ord(c) >= 0x20}
 
 

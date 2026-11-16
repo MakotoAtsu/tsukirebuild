@@ -120,8 +120,8 @@ export const SECTIONS = [
   { tab: "CREDITS", head: "Credits", blocks: [
     ["h", "The game"],
     "The Tsukihime remake, Tsukihime -A piece of blue glass moon-, and all of its story, art, music and voices belong to TYPE-MOON, Aniplex and the other rights holders. This project is unofficial and non-commercial, and is not affiliated with or endorsed by them. Please support the official release.",
-    ["h", "English text"],
-    "The English script comes from the Tsukihimates fan translation patch.",
+    ["h", "Translations"],
+    "The English script comes from the Tsukihimates fan translation patch; the official English, chosen on LANGUAGE, is Aniplex's, from the game's global edition. 中文 is the Chinese fan translation 月姬REMAKE汉化补丁, by Letdo1945.",
     ["h", "Tools this was built on"],
     "The native port is based on the SuperMarioWonderRecomp recompilation framework by BelmanteGu. Ryujinx's shader translator was used offline. Ghidra was used for decompilation, FFmpeg, SVT-AV1 and Pillow for the conversions. Some menus are set in Inter, under the SIL Open Font License.",
     ["h", "How it was written"],

@@ -10973,9 +10973,9 @@ faeb1144aebf3a7b1fb5cab9ee1b7cc2 133582 ui/TITLE_PARTS_JA/titlemenu.webp
 bfe7a5e2b02989bf0416e2ca6221cf7e 2650 ui/TITLE_PARTS_JA/titlemenu__c_type-moon.webp
 81beb3c1ce4b00cf05e76222874bfa75 7396 ui/TITLE_PARTS_JA/titlemenu_lumi.webp
 1d6a0374a73a1ffc32f24925f1719e90 635548 zh/flowchart.json
-93454e9f3fc0b9be59e5a361613b2149 773540 zh/fonts/SeuratPro.woff2
-d61537eb868e7f25e535101e61d9e254 535864 zh/fonts/TsukuGo.woff2
-a91985bc54b9e479517fea78898420f0 1009656 zh/fonts/TsukuMin.woff2
+b1cc17c3b7de9690d92468acd2f2e3d0 777116 zh/fonts/SeuratPro.woff2
+ae72dd982d60c0720b5b9d9905bdc9d7 551020 zh/fonts/TsukuGo.woff2
+6bb36a687c3a389d246d5cd027856ff9 1010928 zh/fonts/TsukuMin.woff2
 eda8b6d293475f117a3c21a0e980bac8 246221 zh/gallery.json
 fd2b6e17e35fcc9af7516510464b351e 1370 zh/index.json
 edf83f953c87f50c07add43765ba18c9 613596 zh/movie/phasetitle_02_00.mp4

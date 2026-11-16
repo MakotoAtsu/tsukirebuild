@@ -22,38 +22,39 @@ test("only an address for a scene goes past it; the Android and desktop apps ope
   for (const s of ["script=00_02", "script=89&pc=500", "script=04_00_ARC04_3&label=LBL_008&mute"]) assert.equal(homeDue(q(s)), false, s);
 });
 
-test("five tabs: ABOUT, GITHUB, DOWNLOAD, SAVE DATA, PLAY ONLINE, each a page of its own", () => {
-  assert.deepEqual(TABS.map((t) => t.plate), ["ABOUT", "GITHUB", "DOWNLOAD", "SAVE DATA", "PLAY ONLINE"]);
+test("five tabs: ABOUT, DOWNLOAD, SAVE DATA, LANGUAGE, PLAY ONLINE, each a page of its own", () => {
+  assert.deepEqual(TABS.map((t) => t.plate), ["ABOUT", "DOWNLOAD", "SAVE DATA", "LANGUAGE", "PLAY ONLINE"]);
   assert.equal(ABOUT, 0);
-  assert.equal(SAVE, 3, "SAVE DATA is the plate left of PLAY ONLINE");
+  assert.equal(SAVE, 2);
   assert.equal(PLAY, 4);
-  assert.equal(TABS[ABOUT].sections.length, SECTIONS.length, "everything the first-visit page said");
-  for (const k of [1, SAVE, PLAY]) assert.equal(TABS[k].sections.length, 1, TABS[k].plate);
-  assert.deepEqual(TABS[2].sections.map((s) => s.head), ["Download the game", "Windows", "Android", "macOS and Linux"], "what the app is, the two downloads, then how the other two are built");
+  assert.equal(TABS[ABOUT].sections.length, SECTIONS.length + 1, "everything the first-visit page said, and the source's section (what was GITHUB, 2026-11-16)");
+  for (const k of [SAVE, 3, PLAY]) assert.equal(TABS[k].sections.length, 1, TABS[k].plate);
+  assert.deepEqual(TABS[1].sections.map((s) => s.head), ["Download the game", "Windows", "Android", "macOS and Linux"], "what the app is, the two downloads, then how the other two are built");
 });
 
-test("GitHub's page links the repository, DOWNLOAD's the four apps, PLAY ONLINE's has the prompt that starts the game", () => {
-  const link = (k) => blocks(k).find((b) => b[0] === "link");
-  assert.equal(link(1)[2], GITHUB);
+test("ABOUT's source section links the repository, DOWNLOAD's the four apps, PLAY ONLINE's has the prompt that starts the game", () => {
+  const source = TABS[ABOUT].sections.find((s) => s.head === "The source, on GitHub");
+  const repo = source.blocks.find((b) => b[0] === "link");
+  assert.equal(repo[2], GITHUB);
   assert.match(GITHUB, /^https:\/\/github\.com\/waifwu\/TsukiREbuild$/);
-  assert.equal(link(1)[3], undefined, "a page in a new tab, not a download");
+  assert.equal(repo[3], undefined, "a page in a new tab, not a download");
   // Windows and Android end in their own download, saved under the file's name; macOS and Linux have the steps to build the app, and a link to how
-  const links = TABS[2].sections.map((s) => s.blocks.filter((b) => b[0] === "link").map((b) => b.slice(2)));
+  const links = TABS[1].sections.map((s) => s.blocks.filter((b) => b[0] === "link").map((b) => b.slice(2)));
   assert.deepEqual(links, [[], [["/desktop/Tsukihime-win-x64.zip", "Tsukihime-win-x64.zip"]], [["/android/tsukihime.apk", "Tsukihime.apk"]],
     [["https://github.com/waifwu/TsukiREbuild/tree/main/web-dev/desktop"]]]);
-  for (const s of TABS[2].sections.slice(1)) {
+  for (const s of TABS[1].sections.slice(1)) {
     assert.equal(s.blocks.at(-1)[0], "link", s.head);
     const rows = s.blocks.find((b) => b[0] === "rows")[1].map((r) => r[0]);
     assert.equal(rows[0], "Needs", s.head);
     assert.equal(rows.length, 4, `${s.head}: what it needs and three steps`);
   }
-  for (const s of TABS[2].sections.slice(1, 3)) assert.match(s.blocks.at(-1)[1], / {2}·  \d\.\d GB$/, `${s.head}: the link says the size`);
-  const build = JSON.stringify(TABS[2].sections[3].blocks);
+  for (const s of TABS[1].sections.slice(1, 3)) assert.match(s.blocks.at(-1)[1], / {2}·  \d\.\d GB$/, `${s.head}: the link says the size`);
+  const build = JSON.stringify(TABS[1].sections[3].blocks);
   for (const word of ["git clone --depth 1 https://github.com/waifwu/TsukiREbuild", "web-dev/desktop/build.sh mac", "web-dev/desktop/build.sh linux", "Tsukihime-mac-universal.dmg", "Tsukihime-linux-x86_64.AppImage"]) assert.ok(build.includes(word), word);
   assert.equal(DESKTOP.size, "2.9 GB", "the 2,885,645,007-byte zip (2026-11-13)");
   assert.equal(APK.size, "2.8 GB", "the 2,801,384,376-byte APK (2026-11-13)");
   assert.ok(blocks(PLAY).some((b) => b[0] === "press"));
-  for (const k of [0, 1, 2, SAVE]) assert.ok(!blocks(k).some((b) => b[0] === "press"), `${TABS[k].plate}: only PLAY ONLINE starts the game`);
+  for (const k of [0, 1, SAVE, 3]) assert.ok(!blocks(k).some((b) => b[0] === "press"), `${TABS[k].plate}: only PLAY ONLINE starts the game`);
 });
 
 test("it opens with no tab chosen and no plate lit, so a stray tap starts nothing; on PLAY ONLINE's page a choice or a click starts the game", () => {
@@ -61,7 +62,7 @@ test("it opens with no tab chosen and no plate lit, so a stray tap starts nothin
   assert.match(main, /if \(homeDue\(q\)\) await openHome\(ui, \{ started: gameStarted \}\);/);
   assert.match(home, /show\(NONE\);\n    ui\.sel = NONE;/);
   assert.equal(NONE, -1);
-  assert.match(NONE_LINE, /ABOUT, GITHUB, DOWNLOAD, SAVE DATA, or PLAY ONLINE/);
+  assert.match(NONE_LINE, /ABOUT, DOWNLOAD, SAVE DATA, LANGUAGE, or PLAY ONLINE/);
   assert.match(home, /if \(tab === PLAY && !e\.target\.closest\("a, \.hm-lang, \.hm-update"\)\) start\(\);/, "taps start the game only on PLAY ONLINE's page");
   assert.match(home, /if \(i === PLAY && tab === PLAY\) \{ start\(\); return; \}/);
   assert.match(home, /list\.addEventListener\("click", \(e\) => \{ if \(tab === PLAY && !e\.target\.closest\("a, \.hm-lang, \.hm-update"\)\) start\(\); \}\);/);   // (not a link, nor the language's plates, nor the app's update plate)

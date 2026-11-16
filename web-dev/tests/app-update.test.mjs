@@ -36,42 +36,49 @@ test("the apps are told by their own addresses, and nothing else is one", () => 
   assert.match(read("web-dev/desktop/main.js"), /const HOST = "tsukihime\.desktop";/);
 });
 
-test("the apps open on the opening page: ABOUT, GITHUB, SAVE DATA and PLAY, with no DOWNLOAD, and the three languages on PLAY", () => {
+test("the apps open on the opening page: ABOUT, SAVE DATA, LANGUAGE and PLAY, with no DOWNLOAD, and the three languages on LANGUAGE", () => {
   assert.equal(homeDue(new URLSearchParams("")), true);
   const app = tabsFor("android"), site = tabsFor(null);
   assert.equal(TABS, site, "(these tests run as the site)");
-  assert.deepEqual(app.map((t) => t.plate), ["ABOUT", "GITHUB", "SAVE DATA", "PLAY"]);
+  assert.deepEqual(app.map((t) => t.plate), ["ABOUT", "SAVE DATA", "LANGUAGE", "PLAY"]);
   assert.deepEqual(tabsFor("desktop"), app);
-  assert.deepEqual(site.map((t) => t.plate), ["ABOUT", "GITHUB", "DOWNLOAD", "SAVE DATA", "PLAY ONLINE"], "the site keeps its five");
+  assert.deepEqual(site.map((t) => t.plate), ["ABOUT", "DOWNLOAD", "SAVE DATA", "LANGUAGE", "PLAY ONLINE"], "the site keeps five (GitHub's page in ABOUT, LANGUAGE its own: 2026-11-16)");
   const kinds = (t) => t.sections.flatMap((s) => s.blocks).filter((b) => Array.isArray(b)).map((b) => b[0]);
   const all = app.flatMap(kinds);
   assert.deepEqual(all.filter((k) => k === "lang"), ["lang"], "the language plates, once");
   assert.ok(!all.includes("gpu"), "no notice about a browser's graphics setting");
   assert.ok(!JSON.stringify(app).includes(".apk") && !JSON.stringify(app).includes("Tsukihime-win-x64.zip"), "no downloads");
-  // ABOUT: the site's, but for the notice of which browsers the site works in; GITHUB as it is
+  // ABOUT: the site's, but for the notice of which browsers the site works in (the source's section in it, as on the site)
   assert.equal(app[0].sections.length, site[0].sections.length);
   assert.deepEqual(app[0].sections[0].blocks, site[0].sections[0].blocks.filter((b) => b[0] !== "note"));
   assert.ok(site[0].sections[0].blocks.some((b) => b[0] === "note" && /Safari/.test(b[1])));
-  assert.equal(app[1], site[1]);
+  assert.deepEqual(app[0].sections.map((s) => s.head), site[0].sections.map((s) => s.head));
+  assert.equal(app[0].sections[1].head, "The source, on GitHub");
   // SAVE DATA: the same tools and list, saying where the app keeps things
-  assert.deepEqual(kinds(app[2]), ["data", "saves", "rows"]);
-  assert.deepEqual(app[2].sections[0].blocks.slice(2), site[3].sections[0].blocks.slice(2), "what is held, the four plates, and what each does");
-  assert.match(app[2].sections[0].blocks[0], /kept in this app/);
-  assert.ok(!JSON.stringify(app[2]).includes("this browser"));
-  // PLAY: the language plates over the prompt that starts the game, as on the site's PLAY ONLINE, then the updates; the same three plates (the
-  // user, 2026-11-14: "yes add jp too"), with a line saying Japanese and Chinese are downloaded when first chosen
+  assert.deepEqual(kinds(app[1]), ["data", "saves", "rows"]);
+  assert.deepEqual(app[1].sections[0].blocks.slice(2), site[2].sections[0].blocks.slice(2), "what is held, the four plates, and what each does");
+  assert.match(app[1].sections[0].blocks[0], /kept in this app/);
+  assert.ok(!JSON.stringify(app[1]).includes("this browser"));
+  // LANGUAGE: the same tab as the site's
+  assert.equal(app[2], site[3]);
+  assert.deepEqual(kinds(app[2]), ["lang"]);
+  // PLAY: the language it starts in over the prompt that starts the game, as on the site's PLAY ONLINE, then the updates; the three plates (the
+  // user, 2026-11-14: "yes add jp too") on LANGUAGE, with a line saying Japanese and Chinese are downloaded when first chosen
   assert.deepEqual(app[3].sections.map((s) => s.head), ["Play", "Updates"]);
-  assert.deepEqual(kinds(app[3]), ["lang", "press", "update"]);
-  assert.deepEqual(kinds(site[4]), ["gpu", "lang", "press"]);
+  assert.deepEqual(kinds(app[3]), ["langnow", "press", "update"]);
+  assert.deepEqual(kinds(site[4]), ["gpu", "langnow", "press"]);
   assert.deepEqual(LANG_PLATES.map((l) => l.plate), ["ENGLISH", "日本語", "中文"]);
-  assert.equal(langLineFor(null).note, "English is the fan translation. 日本語 is the original game's text. 中文 is the Chinese fan translation.\nYour saves and progress carry over between them. (L changes it.)");
-  assert.equal(langLineFor("android").note, "English is the fan translation. 日本語 is the original game's text. 中文 is the Chinese fan translation.\n日本語 and 中文 are downloaded the first time they are chosen.\nYour saves and progress carry over between them. (L changes it.)");
-  assert.equal(noneLine(app), "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, GITHUB, SAVE DATA, or PLAY to start the game.");
-  assert.match(noneLine(site), /ABOUT, GITHUB, DOWNLOAD, SAVE DATA, or PLAY ONLINE to start the game\.$/);
+  // (what each language is: a short list under the plates, a row a language, and one line under it; the user, 2026-11-16, of a long wrapped
+  // paragraph: "looks messy")
+  assert.deepEqual(langLineFor(null).rows.map((r) => r[0]), ["ENGLISH", "日本語", "中文"]);
+  assert.equal(langLineFor(null).note, "Saves and progress carry over between languages. L changes it.");
+  assert.equal(langLineFor("android").note, "日本語 and 中文 are downloaded the first time they are chosen.\nSaves and progress carry over between languages. L changes it.");
+  assert.equal(noneLine(app), "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, SAVE DATA, LANGUAGE, or PLAY to start the game.");
+  assert.match(noneLine(site), /ABOUT, DOWNLOAD, SAVE DATA, LANGUAGE, or PLAY ONLINE to start the game\.$/);
   const home = read("web/app/js/home.js");
   assert.match(home, /export const TABS = tabsFor\(APP\);/);
   assert.match(home, /const HERE = APP \? "app" : "browser";/);
-  assert.match(home, /\(k === "l" \|\| k === "L"\) && tab === PLAY && !e\.ctrlKey && !e\.metaKey && !e\.altKey\)/, "L goes through them in the apps too");
+  assert.match(home, /\(k === "l" \|\| k === "L"\) && \(tab === LANGUAGE \|\| tab === PLAY\) && !e\.ctrlKey && !e\.metaKey && !e\.altKey\)/, "L goes through them in the apps too");
   assert.match(home, /const blocks = T && k === PLAY && n === 0 \?/, "how to play by touch once, under the prompt, not again under Updates");
   assert.equal(UPDATE_PLATE.plate, "CHECK FOR UPDATES");
   // by touch the four are in one row along the top (the user, 2026-11-13); the site's five stay three over two
@@ -99,7 +106,8 @@ test("an app plays the language kept once its files were in, never one an addres
   const lang = read("web/app/js/lang.js");
   assert.match(lang, /if \(app\) return storedLang\(storage\);/);
   // files that are not there after all (an update the app took out again): back to English before anything is drawn
-  assert.match(lang, /if \(APP && lists\.some\(\(list\) => !list\) && typeof location !== "undefined"\) \{\n    \/\/ [^\n]*\n    chooseLang\("en"\);\n    location\.reload\(\);/);
+  // (and an app not yet updated to have the official English's folder: back to the fan translation)
+  assert.match(lang, /if \(APP && lists\.some\(\(list\) => !list\) && typeof location !== "undefined"\) \{\n(    \/\/ [^\n]*\n)+    if \(OFFICIAL\) chooseEnglish\("tsukihimates"\); else chooseLang\("en"\);\n    location\.reload\(\);/);
   assert.match(read("web-dev/android/build_apk.sh"), /case "\$\(basename "\$f"\)" in voice\|se\|ja\|zh\) ;;/);
   const pack = JSON.parse(read("web-dev/desktop/package.json")).build;
   assert.deepEqual(pack.extraResources[1].filter, ["**/*", "!voice/**", "!se/**", "!ja/**", "!zh/**", "!**/.*"]);
@@ -442,7 +450,7 @@ test("a language chosen while the site has a newer version comes with it; every 
   assert.match(home, /if \(HOST && lang !== LANG && LANG_DIRS\[lang\] && !\(await langIn\(lang\)\)\) \{ getLang\(lang\); return; \}/);
   assert.match(home, /try \{ plan = await langPlan\(HOST, lang\); \} catch \{ plan = \{ state: "offline" \}; \}/);
   assert.match(home, /else ui\.dialog\(U\.askLang\(name, plan\.bytes, plan\.newer\), \(back\) => \{ back\(\); updGet\(plan, lang\); \}, no, plan\.newer \? \{ three: true \} : \{\}\);/);
-  assert.match(home, /if \(lang\) \{ chooseLang\(lang\); sessionStorage\.setItem\(REOPEN, "play"\); \}/, "chosen once it is in, and the page comes back on PLAY");
+  assert.match(home, /if \(lang\) \{ chooseLang\(lang\); sessionStorage\.setItem\(REOPEN, "language"\); \}/, "chosen once it is in, and the page comes back on LANGUAGE");
 });
 
 test("the app: a language's folder is downloaded into the update in use and answered from there; the version's own files are not fetched again", async (t) => {

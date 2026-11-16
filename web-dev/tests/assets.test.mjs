@@ -21,9 +21,10 @@ test("the manifest lists every asset the site serves: an MD5, a size and a path 
   assert.equal(new Set(paths).size, paths.length);
   assert.ok(!paths.some((p) => p.startsWith("voice/") || p.startsWith("se/")), "the site plays those from the packs");
   for (const p of ["text.json", "system.json", "scripts/index.json", "pack/index.json", "gallery.json", "flowchart.json"]) assert.ok(paths.includes(p), p);
-  assert.equal(lines.reduce((n, l) => n + l.size, 0), 2910720472, "2.9 GB");
+  assert.equal(lines.reduce((n, l) => n + l.size, 0), 2910740476, "2.9 GB");
   assert.ok(paths.includes("ja/index.json") && paths.filter((p) => p.startsWith("ja/")).length === 457, "Japanese's own, under ja/");
   assert.ok(paths.includes("zh/index.json") && paths.filter((p) => p.startsWith("zh/")).length === 42, "Chinese's own, under zh/");
+  assert.ok(!paths.some((p) => p.startsWith("aniplex/")), "the official English (web/assets/aniplex) is not published: the whole official script");
 });
 
 test("fetch_assets.py reads that list, fetches from the site, and can take the scripts and tables alone", () => {
@@ -35,7 +36,7 @@ test("fetch_assets.py reads that list, fetches from the site, and can take the s
   const media = ["img/", "ui/", "bgm/", "movie/", "pack/", "sys/", "fonts/"];
   const tables = lines.filter((l) => !media.some((m) => l.path.replace(/^(ja|zh)\//, "").startsWith(m)));
   assert.ok(tables.every((l) => l.path.endsWith(".json")), "everything else is a script or a table");
-  assert.ok(tables.reduce((n, l) => n + l.size, 0) < 70e6, "small enough to fetch for the tests");
+  assert.ok(tables.reduce((n, l) => n + l.size, 0) < 75e6, "small enough to fetch for the tests");
   assert.match(tool, /part\.stat\(\)\.st_size != size or digest\.hexdigest\(\) != md5/, "a download is checked against the list before it is kept");
 });
 

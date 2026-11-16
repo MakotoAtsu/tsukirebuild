@@ -7,7 +7,7 @@ import { readFileSync, existsSync } from "node:fs";
 
 const store = (init = {}) => ({ s: { ...init }, getItem(k) { return this.s[k] ?? null; }, setItem(k, v) { this.s[k] = String(v); } });
 globalThis.localStorage = store();
-const { LANGS, langOf, storedLang, chooseLang, asset, setOwn, addOwn, has, overlays, LANG, ORIG, LAYERS } = await import("../../web/app/js/lang.js");
+const { LANGS, langOf, storedLang, chooseLang, asset, setOwn, addOwn, has, overlays, LANG, ORIG, LAYERS, ENGLISHES, ENGLISH, OFFICIAL, storedEnglish, englishOf, chooseEnglish } = await import("../../web/app/js/lang.js");
 const { mapPc, carryPoint, noteLine } = await import("../../web/app/js/langsave.js");
 const { ROW, SOFT, parseMarkup, plain } = await import("../../web/app/js/textbox.js");
 
@@ -34,6 +34,55 @@ test("the language is English unless Japanese or Chinese was chosen; the address
   assert.equal(chooseLang("en", s), false);
   assert.equal(chooseLang("de", s), false);
   assert.equal(s.s["tsuki.lang"], "en");
+});
+
+test("English is the Tsukihimates translation unless Aniplex's was chosen, kept apart from the language; not chosen until the player picks one", () => {
+  assert.deepEqual(ENGLISHES, ["tsukihimates", "aniplex"]);
+  assert.equal(ENGLISH, "tsukihimates");
+  assert.equal(OFFICIAL, false);
+  assert.deepEqual(storedEnglish(store()), { english: "tsukihimates", chosen: false });
+  assert.deepEqual(storedEnglish(store({ "tsuki.english": "aniplex" })), { english: "aniplex", chosen: true });
+  assert.deepEqual(storedEnglish(store({ "tsuki.english": "tsukihimates" })), { english: "tsukihimates", chosen: true });
+  assert.deepEqual(storedEnglish(store({ "tsuki.english": "other" })), { english: "tsukihimates", chosen: false });
+  assert.equal(englishOf("?english=aniplex", store(), null), "aniplex", "the address, for one visit");
+  assert.equal(englishOf("?english=aniplex", store(), "android"), "tsukihimates", "but not in the apps");
+  assert.equal(englishOf("", store({ "tsuki.english": "aniplex" }), "desktop"), "aniplex");
+  const s = store({ "tsuki.lang": "ja" });
+  assert.equal(chooseEnglish("aniplex", s), true, "another translation, and English again: loaded again");
+  assert.deepEqual(s.s, { "tsuki.lang": "en", "tsuki.english": "aniplex" });
+  const t = store();
+  assert.equal(chooseEnglish("tsukihimates", t), false, "the one this page shows: kept as chosen, nothing to load");
+  assert.equal(t.s["tsuki.english"], "tsukihimates");
+  assert.equal(chooseEnglish("fr", t), false);
+  const lang = readFileSync(new URL("../../web/app/js/lang.js", import.meta.url), "utf8");
+  assert.match(lang, /export const OFFICIAL = LANG === "en" && ENGLISH === "aniplex";/, "only English shows it");
+  assert.match(lang, /LAYERS = ZH \? \["ja", "zh"\] : JA \? \["ja"\] : OFFICIAL \? \["aniplex"\] : \[\];/, "laid over the shared files as a language folder is");
+  assert.match(readFileSync(new URL("../../web/app/js/savefile.js", import.meta.url), "utf8"), /"tsuki\.lang", "tsuki\.english",/, "kept by the browser, not in the save file");
+});
+
+test("LANGUAGE: English's two translations shown under the three while the game is in English, Tsukihimates recommended", () => {
+  const home = readFileSync(new URL("../../web/app/js/home.js", import.meta.url), "utf8");
+  assert.match(home, /export const EN_PLATES = \[\{ english: "tsukihimates", plate: "TSUKIHIMATES" \}, \{ english: "aniplex", plate: "ANIPLEX" \}\];/);
+  assert.match(home, /Tsukihimates \(the fan translation\) is recommended\./);
+  assert.doesNotMatch(home, /enOpen|pressEnglish/, "nothing to open: the user, 2026-11-16: \"keep this open all the time\"");
+  assert.match(home, /plateRow\(LANG_PLATES, langSheet, \(l\) => l\.lang === LANG, \(l\) => setLang\(l\.lang\)\)/, "ENGLISH plays it in the translation lit");
+  assert.match(home, /if \(LANG === "en" && official\) \{\n[^\n]*\n\s+const pick = el\("div", "hm-en"\);/, "the user, 2026-11-16: \"show it only when on english\"");
+  assert.match(home, /plateRow\(EN_PLATES, enSheet, \(l\) => l\.english === ENGLISH, \(l\) => setEnglish\(l\.english\)\)/);
+  assert.match(home, /const officialThere = fetch\("\/assets\/aniplex\/index\.json"\)\.then\(\(r\) => r\.ok\)\.catch\(\(\) => false\);/, "only where the official English's folder is (it is not published)");
+  assert.match(home, /if \(LANG === "en" && official\) \{/);
+});
+
+test("Aniplex's English has a line for every number of the port's, in markup the text box reads", { skip: !there("aniplex/index.json") }, () => {
+  assert.deepEqual(read("aniplex/index.json"), { files: ["text.json"] });
+  const lines = read("aniplex/text.json"), port = read("text.json");
+  assert.equal(lines.length, port.length);
+  assert.ok(lines.filter((l) => l.trim()).length > port.length - 100, "nearly every line has words");
+  const marks = new Set(lines.flatMap((l) => l.match(/@[a-z]|\[[a-z]+\d*\]/g) || []));
+  for (const m of marks) assert.ok(["@t", "@b", "@k", "[ber00]", "[zap00]"].includes(m), `${m}: a mark parseMarkup does not read`);
+  assert.ok(!lines.some((l) => l.includes("\n")), "no line breaks of its own: the text box wraps it");
+  const italic = lines.filter((l) => /[\uE020-\uE07E]/.test(l)).length;
+  assert.ok(italic > 1000, "its italics, as the fan translation writes them");
+  assert.ok(parseMarkup(lines.find((l) => /[\uE041-\uE05A]/.test(l))).some((p) => p.i), "read as italics");
 });
 
 test("a file Japanese has of its own is asked for under ja/, every other where it always was", () => {

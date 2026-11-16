@@ -25,7 +25,7 @@ export const KEYS = {
 // Kept by this browser and never part of a save file: the key bindings, the config's voice samples, the first visit made, the touch hint learnt, the
 // language (lang.js); and the notes the opening page leaves itself across a reload, after an import or a change of language (session storage).
 // (and, in the Android and desktop apps, the update's notes: update.js)
-export const LOCAL = ["tsuki.keys", "tsuki.voiceSamples", "tsuki.welcomed", "tsuki.touch.hint", "tsuki.lang", "tsuki.home.tab", "tsuki.update.seen", "tsuki.update.done"];
+export const LOCAL = ["tsuki.keys", "tsuki.voiceSamples", "tsuki.welcomed", "tsuki.touch.hint", "tsuki.lang", "tsuki.english", "tsuki.home.tab", "tsuki.update.seen", "tsuki.update.done"];
 export const NOTE = "tsuki.home.loaded";
 // The browser's own settings and progress while an imported file (or the 100% save) is loaded: { name: the stored value, or null where there was
 // none }, and under "label" what is loaded, for the page to say.

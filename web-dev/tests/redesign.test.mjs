@@ -138,7 +138,9 @@ test("First visit: what the first page said is the opening page's ABOUT tab, ope
   assert.equal(welcomeDue(query("?welcome")), true, "unless asked for");
   assert.equal(SECTIONS.length, 7, "About, Decompile, Rebuild, Graphics, Assets, Testing (with Extras), Credits");
   assert.ok(SECTIONS.find((s) => s.tab === "TESTING").blocks.some((b) => b[0] === "h" && b[1] === "Extras"));
-  assert.deepEqual(TABS[ABOUT].sections.map((s) => s.head), SECTIONS.map((s) => s.head), "every section, in order, on the one tab");
+  const heads = SECTIONS.map((s) => s.head);
+  heads.splice(1, 0, "The source, on GitHub");   // (what was the GITHUB tab, since 2026-11-16)
+  assert.deepEqual(TABS[ABOUT].sections.map((s) => s.head), heads, "every section, in order, on the one tab");
   for (const s of SECTIONS) assert.ok(s.blocks.length > 0, s.tab);
   const text = source("js/welcome.js"), home = source("js/home.js"), main = source("js/main.js");
   assert.doesNotMatch(text, /START is that click|This page again|You will only see this page once/, "nothing left that speaks of a page of its own");

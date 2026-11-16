@@ -1,12 +1,14 @@
-// home.js - the page the game opens on: five tabs on the game's own panel, ABOUT (what this project is and how it was made, welcome.js), GITHUB (the source),
-// DOWNLOAD (the game as an app: Windows and Android to download, macOS and Linux to build), SAVE DATA (the browser's saves to and from the game's own save
-// file, savefile.js) and PLAY ONLINE, whose PRESS ANY BUTTON starts the game; that press is also the click a browser wants before it plays sound.
+// home.js - the page the game opens on: five tabs on the game's own panel, ABOUT (what this project is and how it was made, welcome.js, and where its source
+// is), DOWNLOAD (the game as an app: Windows and Android to download, macOS and Linux to build), SAVE DATA (the browser's saves to and from the game's own
+// save file, savefile.js), LANGUAGE (the game's language, and English's two translations) and PLAY ONLINE, whose PRESS ANY BUTTON starts the game; that
+// press is also the click a browser wants before it plays sound. Its words are in the language the game is in (lang.js UILANG): English, or Japanese or
+// Chinese from sitewords.js, where the English below is looked up as it is drawn.
 // Built as the quick bar is (ui.js buildPanel), from the game's art: the mode panel's strip with five of its plates relettered, the title's picture under the
 // system menu's sky, Config's inner panel, the game's scroll bar and help band, and the title's own prompt.
 // It opens on every visit, for everyone, with no tab chosen and no plate lit: the column holds only the game's logo and a line naming the plates, so
 // a stray tap starts nothing. Not where the address asks for a scene (?script, for tests and the scene links in ABOUT's Extras).
-// The Android and desktop apps (web-dev/android, web-dev/desktop) open on it too, with four tabs (tabsFor): ABOUT, GITHUB, SAVE DATA and PLAY, the
-// site's PLAY ONLINE under the app's name for it. There is no DOWNLOAD there (it is the download). PLAY has the site's three language plates, but the
+// The Android and desktop apps (web-dev/android, web-dev/desktop) open on it too, with four tabs (tabsFor): ABOUT, SAVE DATA, LANGUAGE and PLAY, the
+// site's PLAY ONLINE under the app's name for it. There is no DOWNLOAD there (it is the download). LANGUAGE has the site's three language plates, but the
 // apps are built in English: Japanese's and Chinese's files are downloaded the first time one is chosen, after asking (update.js langPlan); and PLAY's
 // page has the app's updates (update.js). What a browser does for the page the app does through apphost.js: Export's file goes where the player
 // chooses, and a link opens in the system's browser.
@@ -14,7 +16,8 @@ import { sprite, quickBarArt, panelBack } from "./ui.js";
 import { TOUCH } from "./touch.js";
 import { ButtonState, pressPulse } from "./uifx.js";
 import { SECTIONS, TOUCH_INTRO, blockEl } from "./welcome.js";
-import { LANG, asset, chooseLang } from "./lang.js";
+import { ENGLISH, LANG, UILANG, asset, chooseEnglish, chooseLang } from "./lang.js";
+import { tr, trBlock, localize } from "./sitewords.js";
 import { FILE_NAME, NOTE, dropBase, exportSaves, hasImported, importSaves, keepBase, loadBase, loadedData, readSaves, removeImported } from "./savefile.js";
 import { GAME } from "./gamesave.js";
 import { fullSaveFile } from "./fullsave.js";
@@ -37,13 +40,12 @@ export function homeDue(query) {
 }
 
 // The tabs: a plate, and the sections its page shows, each a heading and blocks as welcome.js draws them, plus ["link", text, address, file name if a
-// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, ["lang"], the language's three plates, ["update"], the app's updates,
-// and ["press"], the prompt that starts the game.
+// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, ["lang"], the language's three plates, ["langnow"], the line on PLAY
+// naming the language the game starts in, ["update"], the app's updates, and ["press"], the prompt that starts the game.
 // The site's PLAY ONLINE only (the apps have no browser full screen to leave), and not by touch, where there is no F key.
 const FULL_KEY_LINE = "Press F to exit fullscreen.";
-const SITE_TABS = [
-  { plate: "ABOUT", sections: SECTIONS.map(({ head, blocks }) => ({ head, blocks })) },
-  { plate: "GITHUB", sections: [{ head: "The source, on GitHub", blocks: [
+// Where the source is: what was the GITHUB tab, in ABOUT since 2026-11-16 (the user: "put everything from Github Tab in About"), after its first section.
+const SOURCE = { head: "The source, on GitHub", blocks: [
     "Everything this was made with is in one repository: the engine rewritten in JavaScript and WebGL2, the tools that turned the game's files into what this page plays, the tests, and the notes on how each part was checked against the game itself.",
     ["rows", [
       ["web/app", "The game: its engine, its interface and its styles."],
@@ -55,15 +57,21 @@ const SITE_TABS = [
       ["web-dev/desktop", "The Windows, macOS and Linux app, and how it is built."],
     ]],
     ["link", "github.com/waifwu/TsukiREbuild", GITHUB],
-  ] }] },
+  ] };
+const ABOUT_SECTIONS = SECTIONS.map(({ head, blocks }) => ({ head, blocks }));
+ABOUT_SECTIONS.splice(1, 0, SOURCE);
+// LANGUAGE: the three plates, and English's two translations under them while the game is in English (langBlock).
+const LANGUAGE_TAB = { plate: "LANGUAGE", sections: [{ head: "Language", blocks: [["lang"]] }] };
+const SITE_TABS = [
+  { plate: "ABOUT", sections: ABOUT_SECTIONS },
   { plate: "DOWNLOAD", sections: [
     { head: "Download the game", blocks: [
       // the apps update themselves since 13 November 2026 (the APK and the Windows zip on R2 since 18:01 and 18:05 UTC); the earlier
       // builds opened on the game's title and have no updater, and the same app name and page address keep their saves
-      ["note", "Downloaded the app before 13 November 2026? Please download it again: those first versions cannot update themselves. They open straight on the game's title, not on a page with ABOUT, GITHUB, SAVE DATA and PLAY. On Android, install the new one over the old one; on Windows, extract it and play from the new folder. Your saves stay."],
+      ["note", "Downloaded the app before 13 November 2026? Please download it again: those first versions cannot update themselves. They open straight on the game's title, not on a page of tabs like this one. On Android, install the new one over the old one; on Windows, extract it and play from the new folder. Your saves stay."],
       "The whole game as an app that needs no connection: every picture, voice, song and movie is inside it, and nothing is fetched while you play. Windows and Android have a download here; for macOS and Linux the same app is built from the source, below.",
       ["facts", [[DESKTOP.size, "Windows"], [APK.size, "Android"], ["0", "connections needed"]]],
-      "It is this site's game in a window of its own, opening on this page's ABOUT, GITHUB, SAVE DATA and PLAY. It is in English; 日本語 and 中文 are downloaded inside it the first time they are chosen on PLAY (about 100 MB). Saves are kept in the app, apart from this site's, and stay when a newer version replaces it; SAVE DATA moves progress between the app and this site as a file. Leaving the app makes the automatic save, so you come back to where you were.",
+      "It is this site's game in a window of its own, opening on this page's ABOUT, SAVE DATA, LANGUAGE and PLAY. It is in English; 日本語 and 中文 are downloaded inside it the first time they are chosen on LANGUAGE (about 100 MB). Saves are kept in the app, apart from this site's, and stay when a newer version replaces it; SAVE DATA moves progress between the app and this site as a file. Leaving the app makes the automatic save, so you come back to where you were.",
       "The app keeps itself up to date: when it opens with a connection it looks here for a newer version, asks, and downloads only the files that changed, so a fix is not this download again.",
     ] },
     { head: "Windows", blocks: [
@@ -108,29 +116,30 @@ const SITE_TABS = [
       ["100% save", "Loads a finished game's progress, with everything open. It warns and asks first; your own progress is put aside, and your settings stay."],
     ]],
   ] }] },
+  LANGUAGE_TAB,
   { plate: "PLAY ONLINE", sections: [{ head: "Play in the browser", blocks: [
     ["gpu"],
     "Plays in Chrome or Firefox, on a computer, phone or tablet; not in Safari, which plays the AV1 movies only on Apple's newest devices. Saves and progress stay in this browser.",
     FULL_KEY_LINE,
-    ["lang"],
+    ["langnow"],
     ["press"],
   ] }] },
 ];
-// In the apps: ABOUT without its first notice (which browsers the site works in), GITHUB as it is, SAVE DATA saying where the app keeps things, and
-// PLAY: everything is in the app, so its page has no notice about the browser's graphics setting; the language plates over the prompt, as on the
-// site, and under it the app's updates (["update"], update.js).
+// In the apps: ABOUT without its first notice (which browsers the site works in), SAVE DATA saying where the app keeps things, LANGUAGE as on the site,
+// and PLAY: everything is in the app, so its page has no notice about the browser's graphics setting; the language it starts in over the prompt, as on
+// the site, and under it the app's updates (["update"], update.js).
 const APP_TABS = [
   { plate: "ABOUT", sections: SITE_TABS[0].sections.map((s, n) => (n ? s : { head: s.head, blocks: s.blocks.filter((b) => b[0] !== "note") })) },
-  SITE_TABS[1],
   { plate: "SAVE DATA", sections: [{ head: "Your save data", blocks: [
     "Saves, settings and progress are kept in this app, apart from the website's: removing the app, or clearing its data, removes them, and another device starts with none.",
     "Export and Import use the Nintendo Switch game's own save format, the file savedata000: the original game reads what Export writes, and a save from the Switch game can be loaded here. The website's SAVE DATA page reads and writes the same file, so progress goes between the two that way.",
-    ...SITE_TABS[3].sections[0].blocks.slice(2),
+    ...SITE_TABS[2].sections[0].blocks.slice(2),
   ] }] },
+  LANGUAGE_TAB,
   { plate: "PLAY", sections: [
     { head: "Play", blocks: [
       "Everything the game plays is inside this app: no connection is needed, and nothing is fetched while you play. Saves, settings and progress are kept in the app; SAVE DATA saves them as a file.",
-      ["lang"],
+      ["langnow"],
       ["press"],
     ] },
     { head: UPDATE_TEXT.head, blocks: [UPDATE_TEXT.what, ["update"]] },
@@ -165,7 +174,7 @@ export const NO_GL = {
 };
 export function showNoGl(into) {
   const page = el("div", "wl-text nogl"), box = el("div", "hm-notice");
-  box.append(el("h3", "", NO_GL.head), el("p", "hm-notice-off", NO_GL.why), blockEl(["rows", NO_GL.rows]));
+  box.append(el("h3", "", tr(NO_GL.head)), el("p", "hm-notice-off", tr(NO_GL.why)), blockEl(trBlock(["rows", NO_GL.rows])));
   page.append(box);
   into.replaceChildren(page);
   into.style.display = "block";
@@ -187,16 +196,25 @@ export function glAccel() {
     return SOFTWARE_GL.test(name) ? "off" : HIDDEN_GL.test(name) ? "unsure" : "on";
   } catch { return "unsure"; }
 }
-export const ABOUT = 0, PLAY = TABS.length - 1, SAVE = PLAY - 1, NONE = -1;
-// The language, chosen on PLAY ONLINE above its prompt (lang.js): three of the panel's plates, the one in use lit as a chosen tab is. English is the
+export const ABOUT = 0, PLAY = TABS.length - 1, SAVE = TABS.findIndex((t) => t.plate === "SAVE DATA"), LANGUAGE = TABS.findIndex((t) => t.plate === "LANGUAGE"), NONE = -1;
+// The language, chosen on LANGUAGE (lang.js): three of the panel's plates, the one in use lit as a chosen tab is. English is the
 // translation the port was made from; Japanese is the original game's own text, set as its engine sets it; Chinese is the Chinese fan translation of the
 // original game, set the same way. Saves and progress are the same ones in all three. In the apps 日本語 and 中文 are downloaded when first chosen.
 export const LANG_PLATES = [{ lang: "en", plate: "ENGLISH" }, { lang: "ja", plate: "日本語" }, { lang: "zh", plate: "中文" }];
-const LANG_WHAT = "English is the fan translation. 日本語 is the original game's text. 中文 is the Chinese fan translation.";
-export const langLineFor = (app) => ({ head: "Language", note: app ? `${LANG_WHAT}\n日本語 and 中文 are downloaded the first time they are chosen.\nYour saves and progress carry over between them. (L changes it.)`
-  : `${LANG_WHAT}\nYour saves and progress carry over between them. (L changes it.)` });
+// What each is, as a short list under the plates (a row a language, as the other tabs' lists are), and one line under that.
+export const LANG_ROWS = [["ENGLISH", "The Tsukihimates fan translation, or Aniplex's official one."], ["日本語", "The original game's text."], ["中文", "The Chinese fan translation."]];
+// English's two translations (lang.js ENGLISH): two more of the panel's plates under the three while the game is in English, the one in use lit,
+// with a line that recommends Tsukihimates.
+export const EN_PLATES = [{ english: "tsukihimates", plate: "TSUKIHIMATES" }, { english: "aniplex", plate: "ANIPLEX" }];
+export const EN_LINE = { head: "Which English translation?",
+  note: "Tsukihimates (the fan translation) is recommended. Aniplex is the official translation." };
+const CARRY = "Saves and progress carry over between languages. L changes it.";
+export const langLineFor = (app) => ({ head: "Language", rows: LANG_ROWS, note: app ? `日本語 and 中文 are downloaded the first time they are chosen.\n${CARRY}` : CARRY });
 export const LANG_LINE = langLineFor(APP);
-const REOPEN = "tsuki.home.tab";   // (kept for one reload: the page a change of language comes back to)
+const REOPEN = "tsuki.home.tab";   // (kept for one reload: the page a change of language comes back to, LANGUAGE)
+// PLAY's line naming the language the game starts in (which may be the device's, never chosen), and where it is changed.
+export const LANG_NOW = { en: "The game starts in English: the Tsukihimates translation.", aniplex: "The game starts in English: Aniplex's official translation.",
+  ja: "The game starts in 日本語, the original game's text.", zh: "The game starts in 中文, the Chinese fan translation.", change: "LANGUAGE changes it." };
 // Export, Import and Remove, on SAVE DATA's page (savefile.js): three of the panel's plates under the list of what the browser holds now. The file is the
 // Nintendo Switch game's own save, savedata000 (gamesave.js), so a save goes between the game and this page both ways. Import loads such a file's settings
 // and progress over the browser's own, which are put aside; Remove takes the file out again, after a question in the game's Yes / No window, and the
@@ -206,7 +224,7 @@ export const SAVE_PLATES = [{ act: "export", plate: "EXPORT SAVES" }, { act: "im
 // when pressed (SAVE_TEXT.askFull).
 export const FULL_PLATE = { act: "full", plate: "LOAD 100% SAVE", wider: 80 };
 const HERE = APP ? "app" : "browser";   // where the saves are kept, as the page calls it
-export const SAVE_TEXT = {
+export const SAVE_TEXT_EN = {
   keys: "Keys: E exports, I imports.",
   now: `In this ${HERE} now`,
   empty: `No save data in this ${HERE} yet.`,
@@ -222,9 +240,10 @@ export const SAVE_TEXT = {
   unsaved: "The file could not be saved there.",
   loaded: (name) => `Loaded ${name}.`,   // (what it holds is in the list above the plates)
 };
+export const SAVE_TEXT = localize(SAVE_TEXT_EN);
 // The line under the logo before a plate is chosen.
 export const noneLine = (tabs) => `An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ${tabs.slice(0, -1).map((t) => t.plate).join(", ")}, or ${tabs.at(-1).plate} to start the game.`;
-export const NONE_LINE = noneLine(TABS);
+export const NONE_LINE = tr(noneLine(TABS));
 // The app's updates, on PLAY's page (update.js): one of the panel's plates, wider for its words as the 100% save's is, that looks for an update now.
 export const UPDATE_PLATE = { act: "update", plate: "CHECK FOR UPDATES", wider: 80 };
 
@@ -234,6 +253,8 @@ function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.
 // started: called within the click or key that starts the game, while the browser still counts it as the player's (main.js asks for full screen there).
 export async function openHome(ui, { started = null } = {}) {
   const page = ui.begin("home");
+  // (the page's words in Japanese or Chinese take those faces: style.css html.ui-ja, html.ui-zh)
+  if (UILANG !== "en") document.documentElement.classList.add(`ui-${UILANG}`);
   const black = ui.blackout(page, 1);
   const T = ui.touch ? TOUCH : null, P = T ? { w: T.bar.w, h: T.bar.h } : PLATE;
   const shown = T ? P.w * T.bar.scale : P.w;
@@ -247,10 +268,14 @@ export async function openHome(ui, { started = null } = {}) {
     const L = upright() ? TOUCH.homeUpright : LAND, [row, count] = rowOf(L, i);
     return [Math.round((L.w - (L.pitch * (count - 1) + shown)) / 2) + (i % L.cols) * L.pitch, L.y + row * L.rowPitch];
   };
-  const [sheet, saveSheet, fullSheet, langSheet, updateSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: t.plate })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: t.plate })), P),
-    quickBarArt([{ label: FULL_PLATE.plate }], { w: P.w + FULL_PLATE.wider, h: P.h }), quickBarArt(LANG_PLATES.map((l) => ({ label: l.plate })), P),
-    quickBarArt([{ label: UPDATE_PLATE.plate }], { w: P.w + UPDATE_PLATE.wider, h: P.h }),
+  // (the official English is in a folder of its own, web/assets/aniplex, made from a dump of the game's global edition; it is not on the site, so its
+  // choice is shown only where that folder is: a copy of the port played from its own files)
+  const officialThere = fetch("/assets/aniplex/index.json").then((r) => r.ok).catch(() => false);
+  const [sheet, saveSheet, fullSheet, langSheet, updateSheet, enSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: tr(t.plate) })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: tr(t.plate) })), P),
+    quickBarArt([{ label: tr(FULL_PLATE.plate) }], { w: P.w + FULL_PLATE.wider, h: P.h }), quickBarArt(LANG_PLATES.map((l) => ({ label: l.plate })), P),
+    quickBarArt([{ label: tr(UPDATE_PLATE.plate) }], { w: P.w + UPDATE_PLATE.wider, h: P.h }), quickBarArt(EN_PLATES.map((l) => ({ label: l.plate })), P),
     ...ART.map((a) => { const i = new Image(); i.src = asset(`/assets/ui/${a}.webp`); return i.decode().catch(() => {}); })]);
+  const official = await officialThere;
   return new Promise((done) => {
     black.remove();
     page.classList.add("hm-page");
@@ -279,7 +304,7 @@ export async function openHome(ui, { started = null } = {}) {
     let tab = -1, shownAt = 0, leaving = false, prompt = null, pulse = { alpha: 0, up: true };
     // ---- Export and Import (savefile.js) ----
     let status = null, said = null;   // the line under the plates, and what it says (kept while the page is drawn again)
-    const say = (text, bad = false) => { said = { text, bad }; if (status) { status.textContent = text; status.classList.toggle("bad", bad); } };
+    const say = (text, bad = false) => { text = tr(text); said = { text, bad }; if (status) { status.textContent = text; status.classList.toggle("bad", bad); } };
     const exportNow = async () => {
       if (leaving) return;
       ui.audio.start();
@@ -365,7 +390,7 @@ export async function openHome(ui, { started = null } = {}) {
     // Looked for once the page is up, where there is a connection. One found is asked about in the game's Yes / No window, with its size; Yes
     // downloads it under the game's notice window, which counts the download and stops it when pressed, and then the page loads again in the new
     // version, back on PLAY. PLAY's page says where things stand, and its plate looks again. Nothing is asked once the game has been started.
-    const U = UPDATE_TEXT;
+    const U = localize(UPDATE_TEXT);
     let upd = { state: HOST ? "checking" : "none" }, updBusy = false, updLine = null, updVersion = null;
     const updSay = () => {
       if (updVersion) updVersion.textContent = upd.version ? U.version(upd) : "";
@@ -386,7 +411,7 @@ export async function openHome(ui, { started = null } = {}) {
     const updGet = async (plan = upd, lang = null) => {
       if (leaving || updBusy || plan.state !== "update") return;
       updBusy = true;
-      const name = LANG_NAMES[lang], loading = (done, total) => (lang ? U.langLoading(name, done, total) : U.loading(done, total));
+      const name = tr(LANG_NAMES[lang]), loading = (done, total) => (lang ? U.langLoading(name, done, total) : U.loading(done, total));
       let got = { done: 0, total: plan.bytes }, stopped = false;
       const note = ui.notify(loading(0, plan.bytes), { held: true, centred: true, live: () => loading(got.done, got.total),
         pressed: () => { if (!stopped) { stopped = true; HOST.call("cancel").catch(() => {}); } } });
@@ -407,7 +432,7 @@ export async function openHome(ui, { started = null } = {}) {
       ui.sound(6);
       try {
         if (!lang || plan.newer) sessionStorage.setItem(UPDATED, "1");
-        if (lang) { chooseLang(lang); sessionStorage.setItem(REOPEN, "play"); }
+        if (lang) { chooseLang(lang); sessionStorage.setItem(REOPEN, "language"); }
       } catch { /* it opens on its first page */ }
       ui.fadeBlack(black, 1, FADE.out * 2, () => location.reload());
     };
@@ -416,7 +441,7 @@ export async function openHome(ui, { started = null } = {}) {
     const getLang = async (lang) => {
       if (leaving || updBusy) return;
       ui.sound(1);
-      const name = LANG_NAMES[lang];
+      const name = tr(LANG_NAMES[lang]);
       updBusy = true;
       let plan;
       try { plan = await langPlan(HOST, lang); } catch { plan = { state: "offline" }; }
@@ -463,14 +488,14 @@ export async function openHome(ui, { started = null } = {}) {
       try { data = loadedData(localStorage, tables); } catch { /* storage refused: nothing to list */ }
       box.append(el("h3", "", SAVE_TEXT.now));
       if (!data) { box.append(el("p", "hm-data-none", SAVE_TEXT.empty)); return box; }
-      box.append(blockEl(["facts", data.facts]));
-      if (data.file) box.append(el("p", "hm-data-file", data.file));
+      box.append(blockEl(["facts", data.facts.map(([n, what]) => [n, tr(what)])]));
+      if (data.file) box.append(el("p", "hm-data-file", tr(data.file)));
       return box;
     };
     // One of the panel's plates for the page: s its act and words, i its column of the sheet `art`, w its width. In the art's rows: 1 normal, 2
     // under the pointer, 3 pressed.
     const savePlate = (s, i, art = saveSheet, w = P.w) => {
-      const b = el("button", "qbtn hm-save-plate", s.plate);
+      const b = el("button", "qbtn hm-save-plate", tr(s.plate));
       b.style.cssText = `width:${w}px;height:${P.h}px;`;
       const paint = (r) => {
         b.className = `qbtn hm-save-plate r${r}${art ? " art" : ""}${w > P.w ? " wide" : ""}`;
@@ -503,41 +528,76 @@ export async function openHome(ui, { started = null } = {}) {
       ui.audio.start();
       if (HOST && lang !== LANG && LANG_DIRS[lang] && !(await langIn(lang))) { getLang(lang); return; }
       if (leaving || !chooseLang(lang)) { ui.sound(1); return; }
+      reloadIn();
+    };
+    // the page again, in the language (and English translation) now kept, back on PLAY ONLINE
+    const reloadIn = () => {
       leaving = true;
       ui.sound(6);
-      try { sessionStorage.setItem(REOPEN, "play"); } catch { /* opens on its first page */ }
+      try { sessionStorage.setItem(REOPEN, "language"); } catch { /* opens on its first page */ }
       ui.fadeBlack(black, 1, FADE.out * 2, () => {
         const u = new URL(location.href);
-        u.searchParams.delete("lang");   // (an address that names a language would keep it)
+        u.searchParams.delete("lang");      // (an address that names a language would keep it,
+        u.searchParams.delete("english");   // or a translation)
         location.replace(u);
       });
     };
-    const langBlock = () => {
-      const box = el("div", "hm-lang");
-      box.append(el("h3", "", LANG_LINE.head));
+    // English's two translations: shown under the three whenever the game is in English (the user, 2026-11-16: "keep this open all the time", then
+    // "show it only when on english"); from 日本語 or 中文, ENGLISH comes back in the one chosen before, and they show there.
+    let langBox = null;
+    const setEnglish = (english) => {
+      if (leaving || updBusy) return;
+      ui.audio.start();
+      if (!chooseEnglish(english)) { ui.sound(1); drawLang(); return; }   // (the one in use: kept as chosen, nothing to load)
+      reloadIn();
+    };
+    // A row of the panel's plates: `list` the plates (word in `plate`), `sheet` their art, `on` whether one is the one in use, `press` what a click does.
+    const plateRow = (list, art, on, press) => {
       const row = el("div", "hm-lang-row");
-      for (const [i, l] of LANG_PLATES.entries()) {
+      for (const [i, l] of list.entries()) {
         const b = el("button", "qbtn hm-lang-plate", l.plate);
-        const on = l.lang === LANG;
+        const lit = on(l);
         b.style.cssText = `width:${P.w}px;height:${P.h}px;`;
-        b.setAttribute("aria-pressed", String(on));
-        b.lang = l.lang;
+        b.setAttribute("aria-pressed", String(lit));
         const paint = (hover) => {
-          const r = on ? 3 : hover ? 2 : 1;
-          b.className = `qbtn hm-lang-plate r${r}${langSheet ? " art" : ""}`;
-          if (langSheet) { b.style.backgroundImage = `url("${langSheet}")`; b.style.backgroundPosition = `${-i * P.w}px ${-r * P.h}px`; }
+          const r = lit ? 3 : hover ? 2 : 1;
+          b.className = `qbtn hm-lang-plate r${r}${art ? " art" : ""}`;
+          if (art) { b.style.backgroundImage = `url("${art}")`; b.style.backgroundPosition = `${-i * P.w}px ${-r * P.h}px`; }
         };
         paint(false);
         b.addEventListener("pointerenter", (e) => { if (e.pointerType !== "touch") paint(true); });
         b.addEventListener("pointerleave", () => paint(false));
-        b.addEventListener("click", (e) => { e.stopPropagation(); setLang(l.lang); });
+        b.addEventListener("click", (e) => { e.stopPropagation(); press(l); });
         row.append(b);
       }
-      box.append(row, el("p", "hm-lang-note", LANG_LINE.note));
-      return box;
+      return row;
+    };
+    const drawLang = () => {
+      if (!langBox) return;
+      const parts = [plateRow(LANG_PLATES, langSheet, (l) => l.lang === LANG, (l) => setLang(l.lang))];
+      if (LANG === "en" && official) {
+        // (the translation in use lit)
+        const pick = el("div", "hm-en");
+        pick.append(el("h3", "", tr(EN_LINE.head)), plateRow(EN_PLATES, enSheet, (l) => l.english === ENGLISH, (l) => setEnglish(l.english)),
+          el("p", "hm-lang-note", tr(EN_LINE.note)));
+        parts.push(pick);
+      }
+      const rows = blockEl(trBlock(["rows", LANG_LINE.rows]));
+      rows.classList.add("hm-rows", "hm-lang-rows");
+      parts.push(rows, el("p", "hm-lang-note", tr(LANG_LINE.note)));
+      langBox.replaceChildren(...parts);
+    };
+    const langBlock = () => {
+      langBox = el("div", "hm-lang");
+      drawLang();
+      return langBox;
     };
     const block = (b) => {
       if (b[0] === "lang") return langBlock();
+      if (b[0] === "langnow") {
+        const now = LANG === "en" ? (ENGLISH === "aniplex" ? LANG_NOW.aniplex : LANG_NOW.en) : LANG_NOW[LANG];
+        return el("p", "hm-centre hm-langnow", `${tr(now)} ${tr(LANG_NOW.change)}`);
+      }
       if (b[0] === "update") return updateBlock();
       if (b[0] === "saves") return savesBlock();
       if (b[0] === "data") return dataBlock();
@@ -550,13 +610,13 @@ export async function openHome(ui, { started = null } = {}) {
       }
       if (b[0] === "gpu") {
         const box = el("div", "hm-notice");
-        box.append(el("h3", "", GPU_NOTICE.head));
-        if (accel === "off") box.append(el("p", "hm-notice-off", GPU_NOTICE.off));
-        box.append(blockEl(["rows", GPU_NOTICE.rows]));
+        box.append(el("h3", "", tr(GPU_NOTICE.head)));
+        if (accel === "off") box.append(el("p", "hm-notice-off", tr(GPU_NOTICE.off)));
+        box.append(blockEl(trBlock(["rows", GPU_NOTICE.rows])));
         return box;
       }
       if (b[0] === "link") {
-        const a = el("a", "hm-link", b[1]);
+        const a = el("a", "hm-link", tr(b[1]));
         a.href = b[2];
         a.rel = "noopener";
         if (b[3]) a.download = b[3]; else a.target = "_blank";
@@ -567,7 +627,7 @@ export async function openHome(ui, { started = null } = {}) {
         });
         return a;
       }
-      const e = blockEl(b);
+      const e = blockEl(trBlock(b));
       if (b[0] === "facts" && b[1].length === 3) e.classList.add("hm-three");   // (three figures stay in one row, even upright)
       if (b[0] === "rows" && tab !== ABOUT) e.classList.add("hm-rows");   // (names this short need no 500 px column; About keeps the first page's)
       if (b === FULL_KEY_LINE) e.classList.add("hm-centre");
@@ -593,7 +653,7 @@ export async function openHome(ui, { started = null } = {}) {
         // pointer)
         const kept = s.blocks.filter((b) => (b[0] !== "gpu" || accel !== "on") && !(T && b === FULL_KEY_LINE));
         const blocks = T && k === PLAY && n === 0 ? [...kept, ...TOUCH_INTRO] : kept;
-        part.append(el("h2", "", s.head), ...blocks.map(block));
+        part.append(el("h2", "", tr(s.head)), ...blocks.map(block));
         return part;
       }));
       inner.style.opacity = "0";
@@ -620,7 +680,7 @@ export async function openHome(ui, { started = null } = {}) {
     // On PLAY ONLINE a click anywhere on its page is the button too; a drag that scrolls it is not a click.
     list.addEventListener("click", (e) => { if (tab === PLAY && !e.target.closest("a, .hm-lang, .hm-update")) start(); });
     const plates = TABS.map((t, i) => {
-      const b = el("button", "qbtn r1", t.plate);   // the word, where the art cannot be made
+      const b = el("button", "qbtn r1", tr(t.plate));   // the word, where the art cannot be made
       b.style.cssText = `left:${spot(i)[0]}px;top:${spot(i)[1]}px;width:${P.w}px;height:${P.h}px;`;
       const lit = el("div", "sp fx-add");
       lit.style.cssText = `left:0;top:0;width:${P.w}px;height:${P.h}px;opacity:0;`;
@@ -653,7 +713,10 @@ export async function openHome(ui, { started = null } = {}) {
       if (note) { sessionStorage.removeItem(NOTE); said = { text: note, bad: false }; show(SAVE); ui.select(SAVE); }
     } catch { /* its first page */ }
     // (after a change of language the page comes back where it was, on PLAY ONLINE)
-    try { if (sessionStorage.getItem(REOPEN)) { sessionStorage.removeItem(REOPEN); show(PLAY); ui.select(PLAY); } } catch { /* its first page */ }
+    try {
+      const back = sessionStorage.getItem(REOPEN);
+      if (back) { sessionStorage.removeItem(REOPEN); const k = back === "play" ? PLAY : LANGUAGE; show(k); ui.select(k); }
+    } catch { /* its first page */ }
     // (an address ending in #download opens on DOWNLOAD: where an app that needs a newer download sends its player, update.js DOWNLOAD_PAGE)
     const downloads = TABS.findIndex((t) => t.plate === "DOWNLOAD");
     if (downloads >= 0 && globalThis.location?.hash === "#download") { show(downloads); ui.select(downloads); }
@@ -684,7 +747,7 @@ export async function openHome(ui, { started = null } = {}) {
       }
       else if ((k === "e" || k === "E") && tab === SAVE && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) exportNow(); }
       else if ((k === "i" || k === "I") && tab === SAVE && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) importPick(); }
-      else if ((k === "l" || k === "L") && tab === PLAY && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) setLang(LANG_PLATES[(LANG_PLATES.findIndex((l) => l.lang === LANG) + 1) % LANG_PLATES.length].lang); }
+      else if ((k === "l" || k === "L") && (tab === LANGUAGE || tab === PLAY) && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) setLang(LANG_PLATES[(LANG_PLATES.findIndex((l) => l.lang === LANG) + 1) % LANG_PLATES.length].lang); }
       else if (k === "ArrowUp") list.scrollTop -= 120;
       else if (k === "ArrowDown") list.scrollTop += 120;
       else if (k === "PageUp") list.scrollTop -= 760;
