@@ -131,7 +131,7 @@ export const SECTIONS = [
 // How to play by touch: on a touch device, on the PLAY ONLINE tab (home.js).
 export const TOUCH_INTRO = [
   ["h", "Playing by touch"],
-  "Hold the device in landscape. Tap to go on. Swipe down on the picture for the controls (auto, skip, save, the menu), and up for the log. Keep a finger on the picture to fast forward, and tap with two fingers to hide the text. In the menus, tap what you want, drag a list to scroll it, and use the Back button at the bottom right to go back.",
+  "Hold the device sideways and tap to go on. Swipe down for the controls, up for the log. Hold a finger down to fast forward; tap with two fingers to hide the text. In menus, drag to scroll; the Back button is at the bottom right.",
 ];
 
 export function blockEl(b) {

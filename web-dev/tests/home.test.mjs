@@ -116,7 +116,7 @@ test("PLAY ONLINE opens on the hardware acceleration notice, with each browser's
   for (const n of ["ANGLE (Apple, ANGLE Metal Renderer: Apple M2, Unspecified Version)", "Apple GPU", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)",
     "Adreno (TM) 740"]) assert.ok(!SOFTWARE_GL.test(n) && !HIDDEN_GL.test(n), n);
   assert.match(h, /getContext\("webgl2", \{ failIfMajorPerformanceCaveat: true \}\)/);
-  assert.match(h, /s\.blocks\.filter\(\(b\) => b\[0\] !== "gpu" \|\| accel !== "on"\)/, "left out where it is on");
+  assert.match(h, /s\.blocks\.filter\(\(b\) => \(b\[0\] !== "gpu" \|\| accel !== "on"\) && !\(T && b === FULL_KEY_LINE\)\)/, "left out where it is on (and the F key's line by touch)");
   assert.match(h, /if \(accel === "off"\) box\.append/, "says it is off only where it is");
 });
 

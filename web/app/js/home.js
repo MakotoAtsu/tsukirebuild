@@ -39,6 +39,8 @@ export function homeDue(query) {
 // The tabs: a plate, and the sections its page shows, each a heading and blocks as welcome.js draws them, plus ["link", text, address, file name if a
 // download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, ["lang"], the language's three plates, ["update"], the app's updates,
 // and ["press"], the prompt that starts the game.
+// The site's PLAY ONLINE only (the apps have no browser full screen to leave), and not by touch, where there is no F key.
+const FULL_KEY_LINE = "Press F to exit fullscreen.";
 const SITE_TABS = [
   { plate: "ABOUT", sections: SECTIONS.map(({ head, blocks }) => ({ head, blocks })) },
   { plate: "GITHUB", sections: [{ head: "The source, on GitHub", blocks: [
@@ -106,10 +108,10 @@ const SITE_TABS = [
       ["100% save", "Loads a finished game's progress, with everything open. It warns and asks first; your own progress is put aside, and your settings stay."],
     ]],
   ] }] },
-  { plate: "PLAY ONLINE", sections: [{ head: "Play here, in the browser", blocks: [
+  { plate: "PLAY ONLINE", sections: [{ head: "Play in the browser", blocks: [
     ["gpu"],
-    "Nothing to install. It runs in Chrome or Firefox, on a computer, a phone or a tablet. Not in Safari, which plays the AV1 movies only on Apple's newest hardware.",
-    "The game's files arrive as you play: the first screens load while this page is open, and the rest follow. Saves, settings and progress are kept in this browser; clearing the site's data removes them. SAVE DATA saves them as a file.",
+    "Plays in Chrome or Firefox, on a computer, phone or tablet; not in Safari, which plays the AV1 movies only on Apple's newest devices. Saves and progress stay in this browser.",
+    FULL_KEY_LINE,
     ["lang"],
     ["press"],
   ] }] },
@@ -568,6 +570,7 @@ export async function openHome(ui, { started = null } = {}) {
       const e = blockEl(b);
       if (b[0] === "facts" && b[1].length === 3) e.classList.add("hm-three");   // (three figures stay in one row, even upright)
       if (b[0] === "rows" && tab !== ABOUT) e.classList.add("hm-rows");   // (names this short need no 500 px column; About keeps the first page's)
+      if (b === FULL_KEY_LINE) e.classList.add("hm-centre");
       return e;
     };
     // k: a tab, or NONE: what the page opens on, the logo and a line naming the plates
@@ -588,7 +591,7 @@ export async function openHome(ui, { started = null } = {}) {
         const part = el("div", "hm-part");
         // (on a touch device the PLAY ONLINE page also says, under its prompt, how the game is played by touch: there are no hints to find by resting a
         // pointer)
-        const kept = s.blocks.filter((b) => b[0] !== "gpu" || accel !== "on");
+        const kept = s.blocks.filter((b) => (b[0] !== "gpu" || accel !== "on") && !(T && b === FULL_KEY_LINE));
         const blocks = T && k === PLAY && n === 0 ? [...kept, ...TOUCH_INTRO] : kept;
         part.append(el("h2", "", s.head), ...blocks.map(block));
         return part;
