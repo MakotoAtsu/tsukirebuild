@@ -1076,7 +1076,7 @@ stage.addEventListener("auxclick", (e) => { if (e.button === 1) { e.preventDefau
 const WHEEL = { notch: 50, pause: 200, gap: 150, after: 400 };
 let choiceWheelSum = 0, wheelSum = 0, wheelAt = -Infinity, wheelUsed = false, wheelStepAt = -Infinity, wheelHold = -Infinity;
 stage.addEventListener("wheel", (e) => {
-  if (ui.choiceWheel && choosing()) {
+  if (ui.choiceWheel && choosing() && !ui.open) {   // (a screen over the choice has the wheel: the Load list scrolled, not the choice's cursor)
     choiceWheelSum += e.deltaY;
     if (Math.abs(choiceWheelSum) >= 50) { ui.choiceWheel(choiceWheelSum); choiceWheelSum = 0; }
     return;

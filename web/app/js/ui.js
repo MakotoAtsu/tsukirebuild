@@ -3156,7 +3156,10 @@ export class UI {
       };
       box.onclick = (e) => { e.stopPropagation(); if (fx.state === 2) press(); };
       const DIRS = { ArrowDown: "down", ArrowUp: "up", ArrowLeft: "left", ArrowRight: "right" };
+      // A screen opened over the choice (the menu, Save / Load, a Yes / No) has the keys: ui.key stops them only from going further,
+      // not from this listener on the same window, so without this a Down and Enter in the menu also moved and took the choice.
       const onKey = (e) => {
+        if (this.open) return;
         if (DIRS[e.key]) fx.key(DIRS[e.key], !e.repeat);
         else if (e.key === "Enter" || e.key === " ") press();
         else return;

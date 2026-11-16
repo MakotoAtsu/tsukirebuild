@@ -394,3 +394,11 @@ test("130: the story screen under a mouse: the wheel is one step a turn, the mid
   assert.match(main, /stage\.classList\.add\("idle"\)/);
   assert.match(source("style.css"), /#stage\.idle, #stage\.idle \* \{ cursor: none !important; \}/);
 });
+
+test("a screen opened over a choice has the keys and the wheel: Down and Enter in the menu neither move nor take the choice", () => {
+  const ui = source("js/ui.js");
+  const choices = ui.slice(ui.indexOf("  choices(list) {"), ui.indexOf("  // ---- the quick bar"));
+  // (ui.key's stopPropagation does not reach another listener on the same window, so the choice's own must step aside)
+  assert.match(choices, /const onKey = \(e\) => \{\n\s+if \(this\.open\) return;\n/);
+  assert.match(source("js/main.js"), /if \(ui\.choiceWheel && choosing\(\) && !ui\.open\) \{/);
+});
