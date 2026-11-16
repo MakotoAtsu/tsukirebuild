@@ -61,9 +61,14 @@ def breaks_of(text, items, breaks, egroups, skip=0):
                 at[m] = None
     if any(a is None for a in at):
         for k, a in enumerate(at):
-            if a is None and not (k + 1 < len(at) and at[k + 1] is not None and at[k + 1] in breaks) and not all(x is None for x in at[k:]) \
-                    and not (k > 0 and at[k - 1] is None):
-                raise ValueError("a space left out with no break after it, at %d" % k)
+            if a is None and (k == 0 or at[k - 1] is not None):
+                # a run of spaces left out (the Chinese patch v3.0 has runs of four before an opening bracket, of which the engine leaves out the
+                # last two where it ends the row): fine where the letter after the run starts a row, or nothing comes after it
+                e = k
+                while e < len(at) and at[e] is None:
+                    e += 1
+                if e < len(at) and at[e] not in breaks:
+                    raise ValueError("a space left out with no break after it, at %d" % k)
     letter = {}
     for k, a in enumerate(at):
         if a is not None:

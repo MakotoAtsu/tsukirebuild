@@ -265,29 +265,36 @@ test("every line a Japanese script shows is one the translation's script shows, 
 
 // ---- Chinese -------------------------------------------------------------------------------------------------------------------------
 test("Chinese has the patch's lines, words and rows, laid over Japanese, listed in zh/index.json", { skip: !there("zh/index.json") }, () => {
+  // (the patch is v3.0 since 2026-11-16, GitHub issue 12; nothing here quotes its words, only what they must be)
   const files = new Set(read("zh/index.json").files);
   for (const f of ["text.json", "system.json", "gallery.json", "flowchart.json", "rows.json", "fonts/TsukuMin.woff2", "fonts/TsukuGo.woff2", "fonts/SeuratPro.woff2",
-    "movie/phasetitle_02_00.mp4", "movie/phasetitle_14_01.mp4", "ui/DISP_PARTS_JA/help_txt_ja.webp"]) assert.ok(files.has(f), f);
-  // nothing the patch did not change: the scripts are Japanese's, the story's pictures too, and the openings stay the translation's
-  for (const f of files) assert.ok(!/^(scripts|img)\//.test(f) && !/^movie\/(op|ed)/.test(f), f);
+    "movie/phasetitle_02_00.mp4", "movie/phasetitle_14_01.mp4", "movie/prologue.mp4", "ui/DISP_PARTS_JA/help_txt_ja.webp"]) assert.ok(files.has(f), f);
+  // the scripts are Japanese's, the openings stay the translation's, and the prologue is the patch's own movie, with no subtitles drawn over it
+  for (const f of files) assert.ok(!/^(scripts|subs)\//.test(f) && !/^movie\/(op|ed)/.test(f), f);
+  // the story's pictures the patch redrew with Chinese writing, under the original's names; none of its pre-blurred copies (the port blurs the sharp one)
+  const img = [...files].filter((f) => f.startsWith("img/"));
+  assert.ok(img.length > 80, `${img.length} pictures`);
+  for (const f of img) assert.match(f, /^img\/IMG\d{4}\.avif$/, f);
+  const renames = JSON.parse(readFileSync(new URL("../../web-dev/data/zh_v3_pictures.json", import.meta.url), "utf8"));
+  for (const f of img) assert.ok(f.slice(4, 11) in renames, `${f}: one the patch renamed`);
   const zh = read("zh/text.json"), ja = read("ja/text.json");
   assert.equal(zh.length, ja.length, "the same lines, by the same numbers");
-  assert.equal(zh[0], "　万籁俱寂之时，在夜晚寒风的轻抚下眼睑微启。");
+  const han = (s) => /[\u4e00-\u9fff]/.test(s);
+  assert.ok(zh.filter((l) => l.trim() && han(l)).length > 42000, "Chinese words in nearly every line");   // (42,598 in v3.0: the rest are dashes, dots, sounds)
+  assert.ok(zh.filter((l, i) => l !== ja[i]).length > 43000, "not Japanese's");
   const cells = (row) => [...row.replace(/<([^|>]*)\|[^>]*>/g, "$1").replace(/\[[a-z]+\d*\]/g, "□").replace(/@[a-z]\d?/g, "")].reduce((n, c) => n + (c.charCodeAt(0) < 0x100 ? 0.5 : 1), 0);
   let rows = 0, over = 0;
   for (const line of zh) for (const part of line.split("^")) { const r = part.split(ROW); if (r.length > 1) for (const row of r.slice(0, -1)) { rows++; if (cells(row.trimEnd()) > 29) over++; } }
-  assert.ok(rows > 8000, String(rows));   // (8,750: Chinese says it in fewer letters than Japanese)
+  assert.ok(rows > 7000, String(rows));   // (v3.0: 8,000 and more; Chinese says it in fewer letters than Japanese)
   assert.ok(over <= 6, `${over} rows longer than 29 cells`);
-  // a space where the engine ended a row by it is left out of the game's rows: here it stays at the end of the row above, where it shows nothing (line 3815;
-  // a space that did not fit a full row starts the next one in the game too, line 2877)
-  assert.ok(zh[3815].includes(`不妙 ${ROW}学姐`), zh[3815]);
-  assert.ok(zh[2877].includes(`上学${ROW} 今天`), zh[2877]);
+  // a space where the engine ended a row by it is left out of the game's rows: here it stays at the end of the row above, where it shows nothing
+  assert.ok(zh.some((l) => l.includes(` ${ROW}`)), "a space kept at a row's end");
   const sys = read("zh/system.json");
   assert.deepEqual(Object.keys(sys).sort(), ["help", "messages", "saves"]);
-  assert.equal(sys.messages["178"], "要保留吗？");
+  assert.ok(han(sys.messages["178"]), "the system's questions in Chinese");
   const wanted = 1 + Math.max(...sys.help.screens.flat().filter(([kind]) => kind === 1).map(([, id]) => id));
   assert.equal(sys.help.labels.length, wanted, "the help bar's labels cut whole from the patch's picture of them");
-  assert.equal(read("zh/flowchart.json").groups[0].parts[0].title, "琉璃之月");
+  assert.ok(han(read("zh/flowchart.json").groups[0].parts[0].title), "the flowchart's titles in Chinese");
 });
 
 test("Chinese's rows go with Japanese's scripts: each names the lines of the command it is for", { skip: !there("zh/rows.json") }, () => {

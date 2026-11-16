@@ -9,7 +9,7 @@ import { blurName, pivotOf, sizeClass, wrapRotation } from "./transform.js";
 import { splitSample, startLines, startSplit, stopLines, stopSplit } from "./screenfx.js";
 import { reflow, wrapContext, choiceText } from "./reflow.js";
 import { colourMarks, plain, SOFT, ROW } from "./textbox.js";
-import { ORIG, LANG, asset, overlays, ownRows, langReady } from "./lang.js";
+import { ORIG, LANG, asset, fetchOwn, overlays, ownRows, langReady } from "./lang.js";
 import { carryPoint, noteLine } from "./langsave.js";
 
 // A global variable is its number, however a script writes it: "G70" (13_01_02_CIEL13_7B) is G070. Kept under the three-digit name, which is also
@@ -437,7 +437,7 @@ export class VM {
   // text), so a record made in Chinese is carried from Japanese's script.
   async scriptIn(lang, i) {
     if (lang === LANG) return this.getScript(i);
-    const get = (url) => fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const get = (url) => fetchOwn(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);   // (Japanese's, from its pack in the apps)
     return (lang === "ja" || lang === "zh" ? await get(`/assets/ja/scripts/${i}.json`) : null) || get(`/assets/scripts/${i}.json`);
   }
   async carry(s) {

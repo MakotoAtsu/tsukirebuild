@@ -74,6 +74,12 @@ def main():
             continue
         listed = set(json.load(open(os.path.join(own, "index.json")))["files"]) if os.path.isfile(os.path.join(own, "index.json")) else set()
         there = {os.path.relpath(os.path.join(d, f), own) for d, _, fs in os.walk(own) for f in fs if f != "index.json" and not f.startswith(".")}
+        there = {r for r in there if not r.startswith("pack" + os.sep)}     # (the apps' packs of these files: build_langpacks.py, checked below)
+        if os.path.isdir(os.path.join(own, "pack")):
+            import build_langpacks
+            stale = build_langpacks.check(folder)
+            if stale:
+                missing[f"{name}'s packs for the apps (run build_langpacks.py {folder})"] = stale
         counts[f"{name}'s own files"] = len(listed)
         if listed - there or not listed:
             missing[f"{name} files (run {tool})"] = sorted(listed - there) or [f"{folder}/index.json"]

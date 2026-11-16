@@ -178,7 +178,9 @@ def write_index():
     for d, _, fs in os.walk(JA):
         for f in fs:
             rel = os.path.relpath(os.path.join(d, f), JA)
-            if rel != "index.json" and not rel.startswith(".") and not f.startswith(".") and not f.endswith(".tmp") and not re.search(r"\.\d+\.(src|tmp)\.mp4$", f):
+            # (pack/: the apps' packs of these same files, build_langpacks.py; not the language's own)
+            if rel != "index.json" and not rel.startswith((".", "pack" + os.sep)) and not f.startswith(".") and not f.endswith(".tmp") \
+                    and not re.search(r"\.\d+\.(src|tmp)\.mp4$", f):
                 files.append(rel)
     files.sort()
     with open(os.path.join(JA, "index.json"), "w") as f:

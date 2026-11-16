@@ -34,6 +34,16 @@ FORMAT = 1
 # What the apps are built without: Japanese's and Chinese's own files (LANG_DIRS: downloaded when chosen), and the loose voices and sound effects.
 LANG_DIRS = ("ja", "zh")
 WITHOUT = (*LANG_DIRS, "voice", "se")
+# A language folder's small files come to the apps in packs (web-dev/tools/build_langpacks.py, under <folder>/pack): the apps download one file at a
+# time, about 150 ms a request, so Japanese's 456 files cost a minute in requests alone. What stays loose for the apps: the folder's list (an app holds a
+# language by it: update.js heldDirs), the packs and their index, and the large files (movies, faces), which gain nothing from a pack. The site keeps
+# every file loose (a browser asks for each picture as a scene needs it), so a folder with packs has its small files twice on the site.
+LANG_LOOSE = ("pack/", "movie/", "fonts/")
+
+
+def lang_loose(rel):
+    """Whether a file of a language folder (rel: under the folder) goes to the apps as itself, not in a pack."""
+    return rel == "index.json" or rel.startswith(LANG_LOOSE)
 
 
 def shell(app=ROOT / "web/app"):
@@ -68,13 +78,20 @@ def apps_list(lines):
 
 
 def lang_lists(lines):
-    """Each language folder's files, as a list in the apps' form ("md5 size path" lines, paths under web/assets): {folder: bytes}."""
+    """Each language folder's files, as a list in the apps' form ("md5 size path" lines, paths under web/assets): {folder: bytes}. A folder that has
+    packs (<folder>/pack/index.json) lists its packs and its loose files (lang_loose) in place of the files the packs carry."""
     rows = {folder: [] for folder in LANG_DIRS}
     for line in lines:
         md5, size, path = line.split(" ", 2) if isinstance(line, str) else line
         if path.split("/")[0] in rows:
             rows[path.split("/")[0]].append((path, f"{md5} {int(size)} {path}"))
-    return {folder: ("\n".join(row for _, row in sorted(found)) + "\n").encode() for folder, found in rows.items() if found}
+    out = {}
+    for folder, found in rows.items():
+        if any(path == f"{folder}/pack/index.json" for path, _ in found):
+            found = [(path, row) for path, row in found if lang_loose(path[len(folder) + 1:])]
+        if found:
+            out[folder] = ("\n".join(row for _, row in sorted(found)) + "\n").encode()
+    return out
 
 
 def listed(listing, path=None):

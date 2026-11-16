@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""build_zh.py <repo root> [text] [scripts] [tables] [ui] [movie] [font] [subs]: the Chinese fan patch -> web/assets/zh, for the language switch.
+"""build_zh.py <repo root> [text] [scripts] [tables] [ui] [img] [movie] [font] [subs]: the Chinese fan patch -> web/assets/zh, for the language switch.
 
-The patch (月姬REMAKE汉化补丁 v2.13, by Letdo1945) is a romfs layer for the original game, version 1.0.2: it changes no code, so the game runs it as it runs
-Japanese (the engine wraps the lines itself, the scripts are the original's, the pictures with writing on them stay Japanese). Chinese is therefore laid
-over Japanese: web/assets/zh holds only what the patch shows that is not what Japanese shows (ja/, then the shared files), and lang.js asks for a file
+The patch (月姬REMAKE汉化补丁 v3.0, by Letdo1945, 2024-06-18; v2.13 until 2026-11-16, GitHub issue 12) is for the original game, version 1.0.2. Its
+files are new ones (CHS.*, SCR.mrg, prologue.dat) and its exefs patch only renames what the engine opens to them (and keeps screenshots and recording on):
+the engine runs it as it runs Japanese, wrapping the lines itself, with the original's scripts. Chinese is therefore laid over Japanese: web/assets/zh holds only what the patch shows that is not what Japanese shows (ja/, then the shared files), and lang.js asks for a file
 there first, then under ja/, then the shared one.
 
   zh/text.json            the patch's lines, with the engine's row breaks (web-dev/data/zh_rows.json, read from the original engine running the patch's
@@ -13,16 +13,21 @@ there first, then under ja/, then the shared one.
   zh/system.json          the keys of system.json that differ from Japanese's (messages, scene names, the help bar's label cells ...)
   zh/gallery.json, zh/flowchart.json   titles, credits and notes
   zh/ui/...               the interface art the patch redrew (title, menu, save, config, help bar, gallery; the start-up notices)
-  zh/movie/...            the two chapter titles it translated (the other chapter titles read the same in Chinese and are the original's)
+  zh/img/...              the story's pictures it redrew with Chinese writing (signs, letters, screens: web-dev/data/zh_v3_pictures.json), under the
+                          original's names; zh/images.json the sizes of any made on another canvas
+  zh/movie/...            the two chapter titles it translated (the other chapter titles read the same in Chinese and are the original's), and its
+                          prologue: v3.0 sets the prologue's words in Chinese in the picture itself, where the original has its Japanese (no subtitles)
   zh/fonts/               its three faces (TsukuMin, TsukuGo, SeuratPro .woff2), cut down to the letters Chinese's files use and the usual punctuation
                           and symbol blocks (fontTools: FONTTOOLS_PYTHON names a Python that has it, with brotli, if this one has not); 18.5 MB whole
-  zh/subs/prologue.json   the subtitles the patch burned into the prologue, which the port draws over the original's movie (web-dev/data/zh_prologue_subs.json)
   zh/index.json           the list of all of it, which app/js/lang.js reads
 
-The patch's own prologue (the original's with subtitles burned in) and openings are not used: the prologue is the original's with the subtitles drawn by the
-port, and the openings and endings are the translation's, as in Japanese (build_ja.py ENGLISH_MOVIES).
+The patch's openings are not used: the openings and endings are the translation's, as in Japanese (build_ja.py ENGLISH_MOVIES). Its prologue is, encoded
+as the port's other movies are (AV1), at the user's word (2026-11-16: "just add prologue video then, make it av1"). v2.13 had left the original's Japanese
+in the picture and burned subtitles in under it, so until then the port drew those subtitles over the original's movie (web-dev/data/zh_prologue_subs.json,
+app/js/subs.js); v3.0 has no subtitles to draw, and zh/subs is gone.
 
-The layer: mods/japan/_zh_v213 (the update's romfs with the patch's files on top, README.txt there; named with _ so the native build skips it).
+The layer: mods/japan/_zh_v300 (the update's romfs with the patch's files on top under the original's names: parts, allpacml and allui cut out of CHS in
+their own order, SCR.mrg as script_text.mrg; README.txt there; named with _ so the native build skips it).
 """
 import filecmp
 import json
@@ -35,7 +40,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "../../web-research/tools"))
 import build_ja as ja        # (sets TSUKI_LAYER to the original game: set again below)
 
-LAYER = "_zh_v213"
+LAYER = "_zh_v300"
 os.environ["TSUKI_LAYER"] = LAYER
 
 ASSETS = ja.ASSETS
@@ -43,7 +48,10 @@ JA = ja.JA
 ZH = os.path.join(ASSETS, "zh")
 ROWS = os.path.join(HERE, "../data/zh_rows.json")
 SUBS = os.path.join(HERE, "../data/zh_prologue_subs.json")
-MOVIES = ("phasetitle_02_00", "phasetitle_14_01")
+# v3.0's own numbers for the story's pictures it redrew, read from its exefs patch against the unpatched main (the strings it overwrites): original ->
+# the entry of CHS the engine opens instead. The pre-blurred copies (_NN_NN) are left: the port blurs the sharp picture itself.
+PICTURES = os.path.join(HERE, "../data/zh_v3_pictures.json")
+MOVIES = ("phasetitle_02_00", "phasetitle_14_01", "prologue")
 
 
 def below(rel):
@@ -163,6 +171,48 @@ def build_ui(root, rom):
     print("ui:", kept, "pictures are Chinese's own")
 
 
+# ---- the story's pictures -----------------------------------------------------------------------------------------------------------
+def build_img(root, rom):
+    """Every story picture the patch redrew that the port draws, under zh/img by the original's name, at the size the port draws it."""
+    import re
+    import convert
+    import needed
+    import packs
+    from PIL import Image
+    renames = {k: v for k, v in json.load(open(PICTURES)).items() if not re.search(r"_\d\d_\d\d$", k)}
+    want = needed.needed(ASSETS)["images"]
+    chs = {}
+    for i, n, off, stored, _ in packs.entries(rom, "CHS"):
+        chs.setdefault(n.split(".")[0].upper(), {"p": "CHS", "o": off, "s": stored})
+    dest = os.path.join(ZH, "img")
+    shutil.rmtree(dest, ignore_errors=True)
+    os.makedirs(dest)
+    sized, made, unused = {}, 0, []
+    for key, new in sorted(renames.items()):
+        if key not in want:
+            unused.append(key)
+            continue
+        assert new in chs, (key, new)
+        im = convert.load_image(rom, chs[new])
+        s = convert.scales().get(key, [0, 0, 1.0])
+        scale = s[2]
+        if (im.width, im.height) != (s[0], s[1]) and s[0]:
+            sized[key] = [im.width, im.height, 1.0]      # (made on another canvas than the original's: its own size, kept whole)
+            scale = 1.0
+        w, h = max(1, round(im.width * scale)), max(1, round(im.height * scale))
+        sm = im if scale == 1.0 else im.convert("RGBa").resize((w, h), Image.LANCZOS).convert("RGBA")
+        out = os.path.join(dest, key + ".avif")
+        convert.save_avif(sm, out)
+        made += 1
+    images = os.path.join(ZH, "images.json")
+    if sized:
+        with open(images, "w") as f:
+            json.dump(sized, f, separators=(",", ":"))
+    elif os.path.exists(images):
+        os.remove(images)
+    print("img:", made, "pictures are Chinese's own,", len(sized), "of another size;", len(unused), "the port never draws:", unused[:6])
+
+
 # ---- movies, faces, subtitles -------------------------------------------------------------------------------------------------------
 def build_movies(root, rom):
     import convert
@@ -230,14 +280,9 @@ def build_fonts(rom):
 
 
 def build_subs():
-    if not os.path.exists(SUBS):
-        print("WARNING: no", os.path.relpath(SUBS, HERE), "- the prologue has no subtitles")
-        return
-    os.makedirs(os.path.join(ZH, "subs"), exist_ok=True)
-    data = json.load(open(SUBS))
-    with open(os.path.join(ZH, "subs", "prologue.json"), "w") as f:
-        json.dump({k: data[k] for k in ("fps", "style", "subs", "inPicture")}, f, ensure_ascii=False, separators=(",", ":"))
-    print("subs: prologue,", len(data["subs"]), "subtitles,", len(data["inPicture"]), "lines in the picture")
+    """v3.0's prologue is its own movie (MOVIES), with its words in the picture: no subtitles to draw (v2.13's, SUBS, are kept for the record)."""
+    shutil.rmtree(os.path.join(ZH, "subs"), ignore_errors=True)
+    print("subs: none (the prologue is the patch's own movie)")
 
 
 def write_index():
@@ -250,7 +295,7 @@ def write_index():
 
 def main():
     root = sys.argv[1]
-    kinds = set(sys.argv[2:]) or {"text", "scripts", "tables", "ui", "movie", "font", "subs"}
+    kinds = set(sys.argv[2:]) or {"text", "scripts", "tables", "ui", "img", "movie", "font", "subs"}
     from romio import Rom
     rom = Rom(root)
     assert rom.origin("script_text.mrg") == "patch" and os.path.exists(os.path.join(root, "mods/japan", LAYER, "romfs/script_text.mrg"))
@@ -264,6 +309,8 @@ def main():
         build_tables(root, rom)
     if "ui" in kinds:
         build_ui(root, rom)
+    if "img" in kinds:
+        build_img(root, rom)
     if "movie" in kinds:
         build_movies(root, rom)
     if "subs" in kinds:

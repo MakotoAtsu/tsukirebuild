@@ -92,7 +92,7 @@ export function setOwn(files, layer = "ja") { own = new Map(); addOwn(files, lay
 export function addOwn(files, layer) { for (const f of files || []) { const at = own.get(f); if (at) at.push(layer); else own.set(f, [layer]); } }
 export const has = (rel) => own.has(rel);
 // The addresses of a table each folder lays over the shared one, lowest first (system.json, images.json: vm.js init).
-export const overlays = (rel) => (own.get(rel) || []).map((layer) => `/assets/${layer}/${rel}`);
+export const overlays = (rel) => (own.get(rel) || []).map((layer) => packed.get(`${layer}/${rel}`) || `/assets/${layer}/${rel}`);
 // A file corrected after the site first served it. The game's own files are stored to be kept for 30 days and never
 // asked about again (`immutable`), which is right for files that never change but leaves a corrected one unseen until
 // a browser's copy expires. Giving it the next number here asks for it at `...?v=<n>` instead, an address no browser
@@ -116,14 +116,80 @@ export async function ownRows(script, i) {
   return out;
 }
 
-// The address to ask for: a file under /assets/ is the one of the same path in the highest folder that has it (/assets/zh/, /assets/ja/).
+// The address to ask for: a file under /assets/ is the one of the same path in the highest folder that has it (/assets/zh/, /assets/ja/); in the apps,
+// where that folder's file came in a pack, the address of its slice of the pack (loadPacks).
 export function asset(url) {
   if (!url.startsWith("/assets/")) return url;
   const rel = url.slice(8);
   const at = own.size ? own.get(rel) : null;
+  if (at && packed.size) {
+    const slice = packed.get(`${at[at.length - 1]}/${rel}`);
+    if (slice) return slice;
+  }
   const out = at ? `/assets/${at[at.length - 1]}/${rel}` : url;
   const rev = REVISED[rel];
   return rev ? `${out}${out.includes("?") ? "&" : "?"}v=${rev}` : out;
+}
+
+// ---- the apps' packs ------------------------------------------------------------------------------------------------------------------------------
+// In the Android and desktop apps a language folder's small files come in packs (web-dev/tools/build_langpacks.py): the apps download one file at a time,
+// about 150 ms a request, so a few packs come far sooner than hundreds of files. A pack is its files end to end; pack/index.json says where each is.
+// The page reads a file out of its pack: the language in use has its packs opened as the page loads (loadPacks, in langReady), so asset() can give a
+// file's address at once, a blob: address of its slice; another language's file (a save made in it: vm.js scriptIn) is read from its pack when asked
+// (fetchOwn). An app that holds a language without packs (an update from before them) has the files themselves, and asks for those as before; a pack
+// that will not come leaves its files to be asked for themselves too. The site never uses packs: a browser asks for each picture when a scene needs it.
+const TYPES = { json: "application/json", avif: "image/avif", webp: "image/webp", png: "image/png", jpg: "image/jpeg", mp4: "video/mp4", ogg: "audio/ogg",
+  woff2: "font/woff2", ttf: "font/ttf", otf: "font/otf" };
+const typeOf = (rel) => TYPES[rel.split(".").pop().toLowerCase()] || "application/octet-stream";
+const packed = new Map();       // "<layer>/<file>" -> the blob: address of its slice
+const packIndex = new Map();    // layer -> a promise of { file: [pack, at, size] }, or of null where the folder has no packs
+const packData = new Map();     // "<layer>/<pack>" -> a promise of its Blob
+function packsOf(layer, get = fetch) {
+  if (!packIndex.has(layer)) {
+    packIndex.set(layer, get(`/assets/${layer}/pack/index.json`).then((r) => (r.ok ? r.json() : null)).then((ix) => {
+      if (!ix || ix.version !== 1 || !Array.isArray(ix.packs)) return null;
+      const where = {};
+      for (const [name, list] of ix.packs) {
+        let at = 0;
+        for (let k = 0; k < list.length; k += 2) { where[list[k]] = [name, at, list[k + 1]]; at += list[k + 1]; }
+      }
+      return where;
+    }).catch(() => null));
+  }
+  return packIndex.get(layer);
+}
+function packBlob(layer, name, get = fetch) {
+  const key = `${layer}/${name}`;
+  if (!packData.has(key)) packData.set(key, get(`/assets/${layer}/pack/${name}`).then((r) => { if (!r.ok) throw new Error(`no pack ${name}`); return r.blob(); }));
+  return packData.get(key);
+}
+// Every file of `layer`'s packs given its address (asset). Resolves to how many.
+export async function loadPacks(layer, get = fetch) {
+  const where = await packsOf(layer, get);
+  if (!where) return 0;
+  const names = [...new Set(Object.values(where).map((w) => w[0]))];
+  const blobs = new Map(await Promise.all(names.map(async (n) => [n, await packBlob(layer, n, get).catch(() => null)])));
+  let n = 0;
+  for (const [rel, [name, at, size]] of Object.entries(where)) {
+    const blob = blobs.get(name);
+    if (!blob) continue;
+    packed.set(`${layer}/${rel}`, URL.createObjectURL(blob.slice(at, at + size, typeOf(rel))));
+    n++;
+  }
+  return n;
+}
+// A language folder's file (url: /assets/<folder>/<file>) as fetch() gives it: out of its pack in the apps where it is in one, else the file itself.
+export async function fetchOwn(url, get = fetch, app = APP) {
+  const m = /^\/assets\/([a-z]+)\/(.+)$/.exec(url);
+  if (app && m) {
+    const key = `${m[1]}/${m[2]}`;
+    if (packed.has(key)) return get(packed.get(key));
+    const w = (await packsOf(m[1], get))?.[m[2]];
+    if (w) {
+      try { const blob = await packBlob(m[1], w[0], get); return new Response(blob.slice(w[1], w[1] + w[2], typeOf(m[2]))); } catch { /* the file itself */ }
+    }
+  }
+  return get(url);
 }
 
 // Resolved once the lists are in (at once in English). A list that does not come leaves the game in the files below it.
@@ -138,6 +204,7 @@ export const langReady = (async () => {
     await new Promise(() => {});
   }
   lists.forEach((list, k) => addOwn(list?.files, LAYERS[k]));
+  if (APP) await Promise.all(LAYERS.map((layer) => loadPacks(layer)));   // (in the apps: the language's small files from its packs)
   if (ORIG && typeof document !== "undefined") {
     // html.ja: the original's way of setting text (style.css), in both; html.zh: Chinese's faces over it
     document.documentElement.lang = ZH ? "zh-Hans" : "ja";
