@@ -36,7 +36,7 @@ test("the language is English unless Japanese or Chinese was chosen; the address
   assert.equal(s.s["tsuki.lang"], "en");
 });
 
-test("English is the Tsukihimates translation unless Aniplex's was chosen, kept apart from the language; not chosen until the player picks one", () => {
+test("English is the Tsukihimates translation unless Aniplex's was chosen, kept apart from the language; not chosen until the player picks one", async () => {
   assert.deepEqual(ENGLISHES, ["tsukihimates", "aniplex"]);
   assert.equal(ENGLISH, "tsukihimates");
   assert.equal(OFFICIAL, false);
@@ -56,7 +56,11 @@ test("English is the Tsukihimates translation unless Aniplex's was chosen, kept 
   assert.equal(chooseEnglish("fr", t), false);
   const lang = readFileSync(new URL("../../web/app/js/lang.js", import.meta.url), "utf8");
   assert.match(lang, /export const OFFICIAL = LANG === "en" && ENGLISH === "aniplex";/, "only English shows it");
-  assert.match(lang, /LAYERS = ZH \? \["ja", "zh"\] : JA \? \["ja"\] : PT \? \["pt"\] : OFFICIAL \? \["aniplex"\] : \[\];/, "laid over the shared files as a language folder is");
+  // laid over the shared files as a language folder is (the folders from the table, languages.js)
+  assert.match(lang, /export const LAYERS = layersOf\(LANG, OFFICIAL\);/);
+  const { layersOf } = await import("../../web/app/js/languages.js");
+  assert.deepEqual(["en", "ja", "zh", "pt"].map((c) => layersOf(c)), [[], ["ja"], ["ja", "zh"], ["pt"]]);
+  assert.deepEqual(layersOf("en", true), ["aniplex"]);
   assert.match(readFileSync(new URL("../../web/app/js/savefile.js", import.meta.url), "utf8"), /"tsuki\.lang", "tsuki\.english",/, "kept by the browser, not in the save file");
 });
 
@@ -65,7 +69,7 @@ test("LANGUAGE: English's two translations shown under the three while the game 
   assert.match(home, /export const EN_PLATES = \[\{ english: "tsukihimates", plate: "TSUKIHIMATES" \}, \{ english: "aniplex", plate: "ANIPLEX" \}\];/);
   assert.match(home, /Tsukihimates \(the fan translation\) is recommended\./);
   assert.doesNotMatch(home, /enOpen|pressEnglish/, "nothing to open: the user, 2026-11-16: \"keep this open all the time\"");
-  assert.match(home, /plateRow\(LANG_PLATES, langSheet, \(l\) => l\.lang === LANG, \(l\) => setLang\(l\.lang\)\)/, "ENGLISH plays it in the translation lit");
+  assert.match(home, /plateRow\(langPlates, langSheet, \(l\) => l\.lang === LANG, \(l\) => setLang\(l\.lang\)\)/, "ENGLISH plays it in the translation lit");
   assert.match(home, /if \(LANG === "en" && official\) \{\n[^\n]*\n\s+const pick = el\("div", "hm-en"\);/, "the user, 2026-11-16: \"show it only when on english\"");
   assert.match(home, /plateRow\(EN_PLATES, enSheet, \(l\) => l\.english === ENGLISH, \(l\) => setEnglish\(l\.english\)\)/);
   assert.match(home, /const officialThere = fetch\("\/assets\/aniplex\/index\.json"\)\.then\(\(r\) => r\.ok\)\.catch\(\(\) => false\);/, "only where the official English's folder is (it is not published)");
@@ -115,7 +119,7 @@ test("Portuguese: a fourth language, its lines only, a Portuguese device's own; 
   const U = await import("../../web/app/js/update.js");
   assert.deepEqual(U.LANG_DIRS.pt, ["pt"]);
   assert.equal(U.LANG_NAMES.pt, "Portuguese");
-  assert.match(readFileSync(new URL("../../web-dev/tools/app_manifest.py", import.meta.url), "utf8"), /LANG_DIRS = \("ja", "zh", "pt"\)/);
+  assert.deepEqual((await import("../../web/app/js/languages.js")).foldersOf(), ["ja", "zh", "pt"], "the apps are built without it (app_manifest.py reads the same table)");
   assert.ok(H.LANG_NOW.pt);
 });
 

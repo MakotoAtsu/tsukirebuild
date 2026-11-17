@@ -17,6 +17,7 @@
 // (update/app.json "langs"), and Chinese, laid over Japanese, needs both (LANG_DIRS). They come as an update does, into the update the app runs,
 // and stay: every later update keeps them, brought up to date with the rest. The app is told nothing of languages: a folder is held when the
 // update in use has its index.json (heldDirs).
+import { foldersOf, langDirsOf, namesOf } from "./languages.js";
 export const SITE = "arcueid.date";
 export const MANIFEST = "update/app.json";
 export const FORMAT = 1;
@@ -53,9 +54,9 @@ export function readManifest(m) {
   return m;
 }
 
-// The language folders each language needs, lowest first (lang.js LAYERS); English is the app's own.
-export const LANG_DIRS = { ja: ["ja"], zh: ["ja", "zh"], pt: ["pt"] };
-const FOLDERS = ["ja", "zh", "pt"];
+// The language folders each language needs, lowest first (lang.js LAYERS); English is the app's own. From the table (languages.js `download`).
+export const LANG_DIRS = langDirsOf();
+const FOLDERS = foldersOf();
 const inFolder = (p) => FOLDERS.some((d) => p.startsWith(`assets/${d}/`));
 // The folders the update in use (info().update.current) holds, and whether it holds all that a language needs.
 export const heldDirs = (cur) => FOLDERS.filter((d) => !!cur?.files?.[`assets/${d}/index.json`]);
@@ -223,4 +224,4 @@ export const UPDATE_TEXT = {
   langFailed: (name) => `${name} could not be downloaded. Nothing was changed.`,
   langStopped: (name) => `${name} was stopped. Nothing was changed.`,
 };
-export const LANG_NAMES = { en: "English", ja: "Japanese", zh: "Chinese", pt: "Portuguese" };
+export const LANG_NAMES = namesOf();   // (the table's `name`)

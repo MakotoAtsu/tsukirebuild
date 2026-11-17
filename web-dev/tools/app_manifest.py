@@ -31,12 +31,32 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 FORMAT = 1
-# What the apps are built without: Japanese's, Chinese's and Portuguese's own files (LANG_DIRS: downloaded when chosen; the user, 2026-11-17, of
-# Portuguese: "make sure only people who select that download it"), and the loose voices and sound effects.
-LANG_DIRS = ("ja", "zh", "pt")
-# The folders with pictures, movies and faces of their own: they come to the apps in packs (build_langpacks.py), and the deployment keeps their
-# media 30 days (tools/cloudflare/deploy.py MEDIA). Portuguese is two files of lines, which a pack would only copy.
-PACKED = ("ja", "zh")
+
+
+def language_table(path=ROOT / "web" / "app" / "js" / "languages.js"):
+    """The page's table of languages (web/app/js/languages.js LANGUAGE_TABLE), the JSON between its two marks. No other list stands in for it."""
+    m = re.search(r"/\* languages: \*/(.*?)/\* :languages \*/", Path(path).read_text(encoding="utf-8"), re.S)
+    if not m:
+        raise SystemExit(f"{path}: no language table between /* languages: */ and /* :languages */")
+    return json.loads(m.group(1))
+
+
+def _folders(table, key):
+    out = []
+    for row in table:
+        if not row.get("coming") and row.get(key):
+            out += [f for f in row["layers"] if f not in out]
+    return tuple(out)
+
+
+LANGUAGES = language_table()
+# What the apps are built without: the folders of the languages they download when first chosen (the table's `download`: Japanese, Chinese,
+# Portuguese; the user, 2026-11-17, of Portuguese: "make sure only people who select that download it"), and the loose voices and sound effects.
+LANG_DIRS = _folders(LANGUAGES, "download")
+# The folders with pictures, movies and faces of their own (the table's `packs`: Japanese's and Chinese's): they come to the apps in packs
+# (build_langpacks.py), and the deployment keeps their media 30 days (tools/cloudflare/deploy.py MEDIA, so the order here is its cache rule's).
+# Portuguese is two files of lines, which a pack would only copy.
+PACKED = _folders(LANGUAGES, "packs")
 WITHOUT = (*LANG_DIRS, "voice", "se")
 # A language folder's small files come to the apps in packs (web-dev/tools/build_langpacks.py, under <folder>/pack): the apps download one file at a
 # time, about 150 ms a request, so Japanese's 456 files cost a minute in requests alone. What stays loose for the apps: the folder's list (an app holds a

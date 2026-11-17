@@ -27,8 +27,10 @@
 // took out again), the app goes back to English (langReady). So an app plays the device's language only once it has been chosen; its opening page is in
 // the device's language from the start (UILANG).
 import { APP } from "./apphost.js";
+import { codesOf, deviceCodes, htmlLangOf, isOriginal, layersOf, rowOf, scriptsOf as scriptsIn } from "./languages.js";
 
-export const LANGS = ["en", "ja", "zh", "pt"];
+// The languages that can be chosen, from the table (languages.js): adding one is a row there.
+export const LANGS = codesOf();
 const KEY = "tsuki.lang";
 
 // The language chosen in this browser, or null.
@@ -36,13 +38,14 @@ export function chosenLang(storage = globalThis.localStorage) {
   try { const v = storage?.getItem(KEY); return LANGS.includes(v) ? v : null; } catch { return null; }
 }
 export const storedLang = (storage = globalThis.localStorage) => chosenLang(storage) || "en";
-// The device's language: the first of the browser's languages, in its order of preference, that is one of the four (any Chinese: the one Chinese here
-// is the simplified patch's; any Portuguese: the one Portuguese is Brazil's), else English.
+// The device's language: the first of the browser's languages, in its order of preference, that a language of the table starts in (its `device`; any
+// Chinese: the one Chinese here is the simplified patch's; any Portuguese: the one Portuguese is Brazil's), else English.
+const DEVICE = deviceCodes();
 export function deviceLang(nav = globalThis.navigator) {
   const list = nav?.languages?.length ? nav.languages : [nav?.language || ""];
   for (const l of list) {
     const primary = String(l || "").toLowerCase().split(/[-_]/)[0];
-    if (LANGS.includes(primary)) return primary;
+    if (DEVICE.includes(primary)) return primary;
   }
   return "en";
 }
@@ -55,10 +58,10 @@ export const LANG = langOf(globalThis.location?.search || "");
 export const JA = LANG === "ja";
 export const ZH = LANG === "zh";
 export const PT = LANG === "pt";
-export const ORIG = JA || ZH;
-// The scripts a language plays: Portuguese's are the English ones (its folder has only lines), so a record made in one of the two stands at the same
-// command in the other and is not carried (vm.js restore).
-export const scriptsOf = (lang) => (lang === "pt" ? "en" : lang || "en");
+export const ORIG = isOriginal(LANG);   // (Japanese and Chinese)
+// The scripts a language plays (the table's `scripts`): Portuguese's are the English ones (its folder has only lines), so a record made in one of the two
+// stands at the same command in the other and is not carried (vm.js restore).
+export const scriptsOf = (lang) => scriptsIn(lang);
 // The language of the opening page's own words (sitewords.js): the game's, and in an app where none has been chosen yet, the device's.
 export const uiLangOf = (lang = LANG, storage = globalThis.localStorage, app = APP, nav = globalThis.navigator) => (app && !chosenLang(storage) ? deviceLang(nav) : lang);
 export const UILANG = uiLangOf();
@@ -80,8 +83,8 @@ export function englishOf(search = "", storage = globalThis.localStorage, app = 
 }
 export const ENGLISH = englishOf(globalThis.location?.search || "");
 export const OFFICIAL = LANG === "en" && ENGLISH === "aniplex";
-// The folders laid over the shared files, lowest first.
-export const LAYERS = ZH ? ["ja", "zh"] : JA ? ["ja"] : PT ? ["pt"] : OFFICIAL ? ["aniplex"] : [];
+// The folders laid over the shared files, lowest first (the table's `layers`; English's official translation is aniplex/).
+export const LAYERS = layersOf(LANG, OFFICIAL);
 
 // Keeps the choice for the next load. Returns whether it is another language than the one this page was loaded in.
 export function chooseLang(lang, storage = globalThis.localStorage) {
@@ -214,12 +217,19 @@ export const langReady = (async () => {
     location.reload();
     await new Promise(() => {});
   }
+  if (!APP && rowOf(LANG)?.gated && lists.some((list) => !list) && typeof location !== "undefined") {
+    // the site, a language not yet released whose folder is not here (the table's `gated`): English. Asked for by the address, the address without it
+    // (the language kept stays); kept, English kept in its place.
+    const u = new URL(location.href);
+    if (u.searchParams.get("lang") === LANG) u.searchParams.delete("lang"); else chooseLang("en");
+    location.replace(u);
+    await new Promise(() => {});
+  }
   lists.forEach((list, k) => addOwn(list?.files, LAYERS[k]));
   if (APP) await Promise.all(LAYERS.map((layer) => loadPacks(layer)));   // (in the apps: the language's small files from its packs)
-  if (PT && typeof document !== "undefined") document.documentElement.lang = "pt-BR";
+  if (typeof document !== "undefined" && htmlLangOf(LANG) !== "en") document.documentElement.lang = htmlLangOf(LANG);   // (the table's `html`)
   if (ORIG && typeof document !== "undefined") {
     // html.ja: the original's way of setting text (style.css), in both; html.zh: Chinese's faces over it
-    document.documentElement.lang = ZH ? "zh-Hans" : "ja";
     document.documentElement.classList.add("ja");
     if (ZH) document.documentElement.classList.add("zh");
     localizeStyles();

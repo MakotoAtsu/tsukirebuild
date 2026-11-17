@@ -76,8 +76,9 @@ print(json.dumps([k for k in json.load(sys.stdin) if deploy.cache_control(k) == 
   for (const k of keys.filter((x) => x.startsWith("assets/"))) assert.equal(re.test(k), long.has(k), `worker.js: ${k}`);
   // the languages named are the ones the apps' lists know
   assert.match(read("tools/cloudflare/deploy.py"), /% "\|"\.join\(app_manifest\.PACKED\)\)/);
-  assert.match(read("web-dev/tools/app_manifest.py"), /^PACKED = \("ja", "zh"\)$/m, "the languages with media of their own");
-  assert.match(read("web-dev/tools/app_manifest.py"), /^LANG_DIRS = \("ja", "zh", "pt"\)$/m);
+  // (app_manifest.py reads both from the page's table of languages, web/app/js/languages.js: the order of PACKED is the cache rule's)
+  const langs = JSON.parse(execFileSync("python3", ["-I", "-c", "import json, sys; sys.path.insert(0, 'web-dev/tools'); import app_manifest as a; print(json.dumps([a.PACKED, a.LANG_DIRS]))"], { cwd: at("."), encoding: "utf8" }));
+  assert.deepEqual(langs, [["ja", "zh"], ["ja", "zh", "pt"]], "the languages with media of their own; those the apps download");
 });
 
 test("in the repository nothing under web/assets is tracked, and the deployment stores the app alone and refuses if that changes", { skip: !existsSync(at("tools/cloudflare/deploy.py")) }, () => {

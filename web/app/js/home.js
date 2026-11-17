@@ -17,6 +17,7 @@ import { TOUCH } from "./touch.js";
 import { ButtonState, pressPulse } from "./uifx.js";
 import { SECTIONS, TOUCH_INTRO, blockEl } from "./welcome.js";
 import { ENGLISH, LANG, UILANG, asset, chooseEnglish, chooseLang } from "./lang.js";
+import { LANGUAGE_TABLE, downloadNoteOf, gatedOf, platesOf, rowsOf, startLinesOf } from "./languages.js";
 import { tr, trBlock, localize } from "./sitewords.js";
 import { FILE_NAME, NOTE, dropBase, exportSaves, hasImported, importSaves, keepBase, loadBase, loadedData, readSaves, removeImported } from "./savefile.js";
 import { GAME } from "./gamesave.js";
@@ -202,25 +203,26 @@ export const ABOUT = 0, PLAY = TABS.length - 1, SAVE = TABS.findIndex((t) => t.p
 // original game, set the same way; Portuguese is HanabiWorks' Brazilian Portuguese fan translation, finished up to Ciel's day 5, with the English where it has no scene.
 // Saves and progress are the same ones in all. In the apps 日本語, 中文 and PORTUGUÊS are downloaded when first chosen, and on the site a language's
 // files are asked for only once it is the one played (lang.js LAYERS): nothing of Portuguese's for anyone who has not chosen it.
-export const LANG_PLATES = [{ lang: "en", plate: "ENGLISH" }, { lang: "ja", plate: "日本語" }, { lang: "zh", plate: "中文" }, { lang: "pt", plate: "PORTUGUÊS" }];
-// What each is, as a short list under the plates (a row a language, as the other tabs' lists are), and one line under that.
-export const LANG_ROWS = [["ENGLISH", "The Tsukihimates fan translation, or Aniplex's official one."], ["日本語", "The original game's text."], ["中文", "The Chinese fan translation."],
-  ["PORTUGUÊS", "HanabiWorks' Brazilian Portuguese fan translation, finished up to Ciel's day 5: the rest is in English."],
-  // (no plate yet: a translation on its way; the user, 2026-11-17: "mention Spanish ... expected to release by early 2027"; no link on this page: "too big link")
-  ["ESPAÑOL", "Taikutsu Translations' Spanish fan translation is in the works, expected in early 2027."]];
+// The plates, the rows and PLAY's lines come from the language table (languages.js): a language is a row there.
+export const LANG_PLATES = platesOf();
+// What each is, as a short list under the plates (a row a language, and one on its way, as the other tabs' lists are), and one line under that.
+export const LANG_ROWS = rowsOf();
 // English's two translations (lang.js ENGLISH): two more of the panel's plates under the three while the game is in English, the one in use lit,
 // with a line that recommends Tsukihimates.
 export const EN_PLATES = [{ english: "tsukihimates", plate: "TSUKIHIMATES" }, { english: "aniplex", plate: "ANIPLEX" }];
 export const EN_LINE = { head: "Which English translation?",
   note: "Tsukihimates (the fan translation) is recommended. Aniplex is the official translation." };
 const CARRY = "Saves and progress carry over between languages. L changes it.";
-export const langLineFor = (app) => ({ head: "Language", rows: LANG_ROWS, note: app ? `日本語, 中文 and PORTUGUÊS are downloaded the first time they are chosen.\n${CARRY}` : CARRY });
+// (in the apps: "日本語, 中文 and PORTUGUÊS are downloaded the first time they are chosen.", from the table's `download`)
+export const langLineFor = (app, table = LANGUAGE_TABLE) => {
+  const note = app ? downloadNoteOf(table) : null;
+  return { head: "Language", rows: rowsOf(table), note: note ? `${note}\n${CARRY}` : CARRY };
+};
 export const LANG_LINE = langLineFor(APP);
 const REOPEN = "tsuki.home.tab";   // (kept for one reload: the page a change of language comes back to, LANGUAGE)
 // PLAY's line naming the language the game starts in (which may be the device's, never chosen), and where it is changed.
-export const LANG_NOW = { en: "The game starts in English: the Tsukihimates translation.", aniplex: "The game starts in English: Aniplex's official translation.",
-  ja: "The game starts in 日本語, the original game's text.", zh: "The game starts in 中文, the Chinese fan translation.",
-  pt: "The game starts in PORTUGUÊS, HanabiWorks' Brazilian Portuguese fan translation.", change: "LANGUAGE changes it." };
+const STARTS = startLinesOf();
+export const LANG_NOW = { en: STARTS.en, aniplex: "The game starts in English: Aniplex's official translation.", ...STARTS, change: "LANGUAGE changes it." };
 // Export, Import and Remove, on SAVE DATA's page (savefile.js): three of the panel's plates under the list of what the browser holds now. The file is the
 // Nintendo Switch game's own save, savedata000 (gamesave.js), so a save goes between the game and this page both ways. Import loads such a file's settings
 // and progress over the browser's own, which are put aside; Remove takes the file out again, after a question in the game's Yes / No window, and the
@@ -277,8 +279,15 @@ export async function openHome(ui, { started = null } = {}) {
   // (the official English is in a folder of its own, web/assets/aniplex, made from a dump of the game's global edition; it is not on the site, so its
   // choice is shown only where that folder is: a copy of the port played from its own files)
   const officialThere = fetch("/assets/aniplex/index.json").then((r) => r.ok).catch(() => false);
+  // A language not yet released (the table's `gated`) has its plate and row only where its folder is: a translator's own copy of the port. Nothing is
+  // asked for while no row is gated.
+  const gated = gatedOf();
+  const missing = new Set(gated.length ? (await Promise.all(gated.map((r) => fetch(`/assets/${r.layers.at(-1) || r.code}/index.json`)
+    .then((x) => (x.ok ? null : r.code)).catch(() => r.code)))).filter(Boolean) : []);
+  const langTable = missing.size ? LANGUAGE_TABLE.filter((r) => !missing.has(r.code)) : LANGUAGE_TABLE;
+  const langPlates = missing.size ? platesOf(langTable) : LANG_PLATES, langLine = missing.size ? langLineFor(APP, langTable) : LANG_LINE;
   const [sheet, saveSheet, fullSheet, langSheet, updateSheet, enSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: tr(t.plate) })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: tr(t.plate) })), P),
-    quickBarArt([{ label: tr(FULL_PLATE.plate) }], { w: P.w + FULL_PLATE.wider, h: P.h }), quickBarArt(LANG_PLATES.map((l) => ({ label: l.plate })), P),
+    quickBarArt([{ label: tr(FULL_PLATE.plate) }], { w: P.w + FULL_PLATE.wider, h: P.h }), quickBarArt(langPlates.map((l) => ({ label: l.plate })), P),
     quickBarArt([{ label: tr(UPDATE_PLATE.plate) }], { w: P.w + UPDATE_PLATE.wider, h: P.h }), quickBarArt(EN_PLATES.map((l) => ({ label: l.plate })), P),
     ...ART.map((a) => { const i = new Image(); i.src = asset(`/assets/ui/${a}.webp`); return i.decode().catch(() => {}); })]);
   const official = await officialThere;
@@ -580,7 +589,7 @@ export async function openHome(ui, { started = null } = {}) {
     };
     const drawLang = () => {
       if (!langBox) return;
-      const parts = [plateRow(LANG_PLATES, langSheet, (l) => l.lang === LANG, (l) => setLang(l.lang))];
+      const parts = [plateRow(langPlates, langSheet, (l) => l.lang === LANG, (l) => setLang(l.lang))];
       if (LANG === "en" && official) {
         // (the translation in use lit)
         const pick = el("div", "hm-en");
@@ -588,9 +597,9 @@ export async function openHome(ui, { started = null } = {}) {
           el("p", "hm-lang-note", tr(EN_LINE.note)));
         parts.push(pick);
       }
-      const rows = blockEl(trBlock(["rows", LANG_LINE.rows]));
+      const rows = blockEl(trBlock(["rows", langLine.rows]));
       rows.classList.add("hm-rows", "hm-lang-rows");
-      parts.push(rows, el("p", "hm-lang-note", tr(LANG_LINE.note)));
+      parts.push(rows, el("p", "hm-lang-note", tr(langLine.note)));
       langBox.replaceChildren(...parts);
     };
     const langBlock = () => {
@@ -753,7 +762,7 @@ export async function openHome(ui, { started = null } = {}) {
       }
       else if ((k === "e" || k === "E") && tab === SAVE && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) exportNow(); }
       else if ((k === "i" || k === "I") && tab === SAVE && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) importPick(); }
-      else if ((k === "l" || k === "L") && (tab === LANGUAGE || tab === PLAY) && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) setLang(LANG_PLATES[(LANG_PLATES.findIndex((l) => l.lang === LANG) + 1) % LANG_PLATES.length].lang); }
+      else if ((k === "l" || k === "L") && (tab === LANGUAGE || tab === PLAY) && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) setLang(langPlates[(langPlates.findIndex((l) => l.lang === LANG) + 1) % langPlates.length].lang); }
       else if (k === "ArrowUp") list.scrollTop -= 120;
       else if (k === "ArrowDown") list.scrollTop += 120;
       else if (k === "PageUp") list.scrollTop -= 760;

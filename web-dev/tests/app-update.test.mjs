@@ -111,7 +111,10 @@ test("an app plays the language kept once its files were in, never one an addres
   assert.match(read("web-dev/android/build_apk.sh"), /case "\$\(basename "\$f"\)" in voice\|se\|ja\|zh\) ;;/);
   const pack = JSON.parse(read("web-dev/desktop/package.json")).build;
   assert.deepEqual(pack.extraResources[1].filter, ["**/*", "!voice/**", "!se/**", "!ja/**", "!zh/**", "!**/.*"]);
-  assert.match(read("web-dev/tools/app_manifest.py"), /LANG_DIRS = \("ja", "zh", "pt"\)\n(#[^\n]*\n)*PACKED = \("ja", "zh"\)\nWITHOUT = \(\*LANG_DIRS, "voice", "se"\)/, "and the list the updates compare leaves them out too");
+  // and the list the updates compare leaves them out too: app_manifest.py reads the page's own table of languages (languages.js)
+  const py = JSON.parse(execFileSync("python3", ["-I", "-c", "import json, sys; sys.path.insert(0, 'web-dev/tools'); import app_manifest as a; print(json.dumps([a.LANG_DIRS, a.PACKED, a.WITHOUT]))"],
+    { cwd: new URL("../../", import.meta.url).pathname, encoding: "utf8" }));
+  assert.deepEqual(py, [["ja", "zh", "pt"], ["ja", "zh"], ["ja", "zh", "pt", "voice", "se"]]);
 });
 
 test("what the page asks of an app goes through one object: the desktop's promises, the Android app's numbered answers", async () => {

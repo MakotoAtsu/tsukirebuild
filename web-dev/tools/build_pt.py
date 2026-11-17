@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""build_pt.py <repo root> [PT-BR checkout] [--check-english]: the Brazilian Portuguese fan translation -> web/assets/pt.
+"""build_pt.py <repo root> [PT-BR checkout] [--to FOLDER] [--check-english]: the Brazilian Portuguese fan translation -> a translations folder
+-> web/assets/pt.
 
 The translation is HanabiWorks' (hanabiworks.github.io/tsukihime: credited in ABOUT, welcome.js, and web/README.md).
 Source: github.com/ThiagoKrz/TsukihimeRE-PTBR, the translation's working repository, cloned beside the repo root as ../ptbr-source
@@ -13,6 +14,12 @@ prologue scenes, all of Arcueid's route, Ciel's days 1-5 and Ciel-sensei's corne
 
   pt/text.json    43,960 lines, numbered as the port numbers them: Portuguese where translated, English elsewhere
   pt/index.json   the list, which app/js/lang.js reads
+
+It is the translator tool's importer for a deepLuna project (web-dev/TRANSLATOR-TOOL-PLAN.md, Stage 1): it writes the translation as a translations
+folder (--to, default ../translations/pt beside the repo root: the translation is the translators' text, built on the game's, so it is kept out of
+the repository), one file a scene in build_layer.py's form, each line as the port shows it with deepLuna's row breaks (language.json "breaks":
+"deepluna"), status final where the translation has it and empty where the English is shown, and "from" the Japanese line it renders (its hash in
+ja/text.json). Then web-dev/tools/build_layer.py checks that folder and builds pt/ from it, as it does any translation's.
 
 What is read from the checkout:
   deepluna_db.json   scene_map: each scene's lines in order, with the line number in script_text.mrg (= the port's number),
@@ -45,6 +52,7 @@ readable format) with the same rules and the italic codes on, and compares it wi
 here are deepLuna's.
 """
 import glob
+import importlib.util
 import itertools
 import json
 import os
@@ -421,7 +429,52 @@ def check_english(root, src):
     return same, len(offs)
 
 
+def layer():
+    """web-dev/tools/build_layer.py, which builds a language folder from a translations folder."""
+    spec = importlib.util.spec_from_file_location("build_layer", os.path.join(os.path.dirname(os.path.abspath(__file__)), "build_layer.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def write_translations(folder, scene_names, scenes, tl, out, port_ja):
+    """The translation as a translations folder (build_layer.py's form), written afresh: language.json and a file a translated scene."""
+    os.makedirs(folder, exist_ok=True)
+    # written afresh, but only over a folder this importer wrote (or an empty one): never another translation's
+    lang_file = os.path.join(folder, "language.json")
+    mine = os.path.isfile(lang_file) and "build_pt.py" in json.load(open(lang_file, encoding="utf-8")).get("source", "")
+    if os.listdir(folder) and not mine:
+        raise SystemExit(f"{folder}: not empty and not a folder build_pt.py wrote (its language.json): not written over")
+    for old in glob.glob(os.path.join(folder, "*.json")):
+        os.remove(old)
+    with open(os.path.join(folder, "language.json"), "w", encoding="utf-8") as f:
+        json.dump({"code": "pt", "name": "Portuguese", "breaks": "deepluna",
+                   "source": "HanabiWorks (hanabiworks.github.io/tsukihime), from github.com/ThiagoKrz/TsukihimeRE-PTBR; imported by web-dev/tools/build_pt.py"},
+                  f, ensure_ascii=False, indent=1)
+        f.write("\n")
+    hash_of = layer().line_hash
+    for scene in scene_names:
+        rows = []
+        for c in scenes[scene]:
+            o = c["offset"]
+            done = bool(tl.get(o))
+            row = {"id": o, "text": out[o] if done else "", "status": "final" if done else "empty"}
+            if port_ja is not None and o < len(port_ja):
+                row["from"] = {"lang": "ja", "hash": hash_of(port_ja[o])}
+            rows.append(json.dumps(row, ensure_ascii=False, separators=(", ", ": ")))
+        with open(os.path.join(folder, f"{scene}.json"), "w", encoding="utf-8") as f:
+            f.write(f'{{"scene": {json.dumps(scene)}, "lines": [\n' + ",\n".join(rows) + "\n]}\n")
+
+
 def main(argv):
+    opts, rest = {}, []
+    it = iter(argv[1:])
+    for a in it:
+        if a == "--to":
+            opts["to"] = next(it, None)
+        else:
+            rest.append(a)
+    argv = [argv[0]] + rest
     args = [a for a in argv[1:] if not a.startswith("--")]
     root = os.path.abspath(args[0] if args else ".")
     src = args[1] if len(args) > 1 else os.path.join(root, "..", "ptbr-source")
@@ -467,17 +520,19 @@ def main(argv):
             o = c["offset"]
             if c.get("is_choice") and o in shown and english[o].startswith(" ") and not out[o].startswith(" "):
                 out[o] = " " + out[o]
-    folder = os.path.join(assets, "pt")
-    os.makedirs(folder, exist_ok=True)
-    with open(os.path.join(folder, "text.json"), "w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-    with open(os.path.join(folder, "index.json"), "w", encoding="utf-8") as f:
-        json.dump({"files": ["text.json"]}, f, separators=(",", ":"))
     for n in notes:
         print(n)
     changed = sum(a != b for a, b in zip(out, english))
-    print(f"pt/text.json: {len(out)} lines; {len(files)} scenes translated, {len(tl)} lines from the translation, "
-          f"{changed} differ from the English")
+    print(f"Portuguese: {len(files)} scenes translated, {len(tl)} lines from the translation, {changed} differ from the English")
+    # the translations folder, then pt/ built from it as any translation is
+    to = os.path.abspath(opts.get("to") or os.path.join(root, "..", "translations", "pt"))
+    ja = os.path.join(assets, "ja", "text.json")
+    port_ja = json.load(open(ja, encoding="utf-8")) if os.path.exists(ja) else None
+    write_translations(to, sorted(files), scenes, tl, out, port_ja)
+    print(f"{to}: {len(files)} scene files")
+    errors, _, _ = layer().build("pt", to, root)
+    if errors:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

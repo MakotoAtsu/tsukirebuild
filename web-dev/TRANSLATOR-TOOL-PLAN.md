@@ -1,6 +1,6 @@
 # Translator tool: plan
 
-Written 2026-11-17. Stage 0 was built the same day (see "Stage 0 as built"); nothing after it is. The plan is for a tool
+Written 2026-11-17. Stages 0 and 1 were built the same day (see "Stage 0 as built", "Stage 1 as built"); nothing after them is. The plan is for a tool
 that helps a team translate the game into a new language and get it into the port. It builds on what the port already has. It also draws on what adding
 Portuguese turned up the same day (`web-dev/tools/build_pt.py`).
 
@@ -222,6 +222,89 @@ Each stage ends with its own tests and is usable on its own.
 - One language table in `lang.js`: code, plate, row text, start line, layers, device-default or not, downloaded in the
   apps or not, folder-gated or not. `home.js`, `update.js` and the tests read the table instead of their own lists.
 - Done when: adding a language is one table row, a folder and its page strings.
+
+**Stage 1 as built (2026-11-17; not pushed).**
+- **The table:** `web/app/js/languages.js` `LANGUAGE_TABLE`, its own module that does nothing as it loads. A row has:
+  - `code`, `plate`, `name`, `row`, `start`;
+  - `layers`, `scripts`, `html`;
+  - `original`, `device`, `download`, `packs`;
+  - `gated`, `coming`.
+
+  ESPAÑOL is a `coming` row: listed on LANGUAGE, but it can't be chosen and a Spanish device still starts in English.
+- **What reads the table:**
+  - `lang.js`: `LANGS`, `deviceLang`, `ORIG`, `scriptsOf`, `LAYERS` and the page's `lang`.
+  - `home.js`: `LANG_PLATES`, `LANG_ROWS`, `LANG_NOW` and the apps' download note.
+  - `update.js`: `LANG_DIRS`, the folder list and `LANG_NAMES`.
+  - `web-dev/tools/app_manifest.py`: `LANG_DIRS` and `PACKED`. It reads the table as the JSON between `/* languages: */` and
+    `/* :languages */`, and stops if the marks are missing. So `tools/cloudflare/deploy.py`'s cache rule follows the table
+    too: `PACKED` is still `("ja", "zh")`, so `POLICY` is unchanged (`b728eaf49af34970`).
+- **The same output as before:** every list the page and the apps had written out comes out of the table byte for byte,
+  key order included.
+- **`gated`:** an unreleased language's plate and row appear only where `/assets/<folder>/index.json` answers, e.g. a
+  translator's own copy of the port. No row is gated now, and then the opening page asks for nothing.
+  - No device starts in a gated language.
+  - Where its folder is missing, the site plays English: an address that asked for it loses `lang`, and a kept choice
+    becomes English.
+  - Drilled in the Playwright MCP with a made-up `xx` row and a two-line `build_layer.py` build, both routed in so
+    `web/app` stayed untouched. With the folder, the plate and row show and the scene plays the translated line
+    (`lang="xx"`). Without it, both are gone and `?lang=xx` plays English. The page's words fall back to English for a
+    language with no `sitewords` table.
+- **`web-dev/tools/build_layer.py <code> <folder>`:** builds `web/assets/<code>/text.json` and `index.json` from a
+  translations folder, English wherever a line is empty. The folder is the form under "Where translations live", plus
+  an optional `language.json`.
+  - Errors stop the build and nothing is written:
+    - a bad file shape, a file not named after its scene, an unknown status;
+    - a line number outside the text, or given twice;
+    - a line filed under a scene that doesn't show it;
+    - tabs, `\r`, `%{` codes or U+FFFD;
+    - `@` marks or `[tags]` the English never uses;
+    - an unclosed ruby.
+  - Warnings:
+    - a choice with a row break;
+    - a stale line (`from.hash`, the first 12 hex of the source line's SHA-1);
+    - a line left as its source;
+    - a line break in a story line when `language.json` says `"breaks": "none"`;
+    - a line the scripts never show.
+  - `--check` runs the checks only.
+  - A missing folder, or one with no scene files, is an error, so a mistyped path cannot overwrite a language with
+    English.
+  - The page-fit checks stay with the fit page's runner.
+- **Lines are stored as the port shows them:** a change from "store without breaks" above. A deepLuna import keeps
+  deepLuna's 55-cell breaks (`"breaks": "deepluna"`), which `reflow.js` takes out as it does the English's. Text
+  written in the editor has none, and the text box wraps it (the Aniplex path). A row break of the translator's own is
+  `^`, because `reflow.js` may remove a `\n` that falls where the row was full.
+- **`build_pt.py`** is now the importer for a deepLuna project. It writes `../translations/pt` (outside the repository,
+  310 scene files), with status `final` where the translation has a line, `empty` where the English is shown, and
+  `from` set to the Japanese line's hash. Then `build_layer.py` builds `pt/` from that folder. The result is
+  byte-identical to the published file (MD5 19066b53…, the manifest's).
+  - `--to` writes over only an empty folder or one `build_pt.py` wrote (its `language.json`).
+  - Portuguese gives no errors and these warnings: 2 choices with a row break, 13 lines identical to the Japanese
+    (marks), and 5 glued mark lines the scripts never show.
+- **Tests:**
+  - `web-dev/tests/languages.test.mjs` (5): the table, the lists it gives, a coming language, a new row reaching every
+    list, and Python reading the same table.
+  - `web-dev/tests/build-layer.test.mjs` (4), on an invented miniature text.
+  - Five old pins of the written-out lists now check what the table gives.
+  - Suite: 670, 667 pass, 3 skip.
+  - In the browser: the opening page in English shows the same plates, rows and note, and asks for no language folder
+    but `aniplex/index.json` (as before); `?lang=ja`, `zh`, `pt` and `english=aniplex` each play with the right page
+    `lang`, styles and layer files.
+  - In a scratch copy of the repository (HEAD plus these files, with the game's files linked): 670 tests, 669 pass,
+    1 skip. `deploy.py --stage` gives the live site's `update/app.json` `langs`, apps' list and shell; only the app's
+    version changes. POLICY `b728eaf49af34970`.
+- **Adding a text-only language now takes:**
+  - a table row;
+  - its translations folder built with `build_layer.py`, then uploaded with its manifest lines (and `assets.test.mjs`'s
+    pinned total);
+  - its page strings: the row and start line in `sitewords-table.js` for Japanese, Chinese and Portuguese, and its
+    credit in `welcome.js`.
+- **Still listing languages themselves, outside the table:**
+  - `web-dev/android/build_apk.sh` and `web-dev/desktop/package.json` leave out only `ja` and `zh`. A rebuilt app would
+    carry `pt/` (3 MB) although its list (`app_manifest.py WITHOUT`) leaves it out. The apps have not been rebuilt since
+    Portuguese.
+  - `web/cloudflare/worker.js` `MEDIA` (`ja|zh`), only for `tsukirebuild.pages.dev`.
+  - `ui.js` `HINTS_*` / `KEYS_*`: the hint bar's words in a language, part of Stage 7.
+  - `home.js` `EN_PLATES`: English's two translations, which are not languages.
 
 **Stage 2: the editor.**
 - `web-dev/translator/` is served by `dev_server.py` at `/translator/`.
