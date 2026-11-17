@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""dev_server.py [port]: the game's own server with the script smoke test added at /smoketest.html, which is kept out of web/ because the game does not need it."""
+"""dev_server.py [port]: the game's own server with the developer pages added, which are kept out of web/ because the game does not need them:
+the script smoke test at /smoketest.html, and the translator tool's page fit at /fit/ (web-dev/fit, with web-dev/data/line_map.json)."""
 import importlib.util
 import os
 import sys
@@ -10,7 +11,10 @@ spec = importlib.util.spec_from_file_location("server", os.path.join(HERE, "../.
 server = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(server)
 SMOKE = os.path.join(HERE, "../smoketest")
-EXTRA = {"/smoketest.html": os.path.join(SMOKE, "smoketest.html"), "/js/smoketest.js": os.path.join(SMOKE, "smoketest.js")}
+FIT = os.path.join(HERE, "../fit")
+EXTRA = {"/smoketest.html": os.path.join(SMOKE, "smoketest.html"), "/js/smoketest.js": os.path.join(SMOKE, "smoketest.js"),
+         "/fit": os.path.join(FIT, "fit.html"), "/fit/": os.path.join(FIT, "fit.html"), "/fit/index.html": os.path.join(FIT, "fit.html"),
+         "/fit/fit.js": os.path.join(FIT, "fit.js"), "/fit/line_map.json": os.path.join(HERE, "../data/line_map.json")}
 
 
 class Dev(server.Handler):
@@ -23,5 +27,5 @@ class Dev(server.Handler):
 
 if __name__ == "__main__":
     srv = server.Server(("127.0.0.1", server.PORT), Dev)
-    print(f"http://localhost:{server.PORT}/smoketest.html", flush=True)
+    print(f"http://localhost:{server.PORT}/smoketest.html  http://localhost:{server.PORT}/fit/", flush=True)
     srv.serve_forever()

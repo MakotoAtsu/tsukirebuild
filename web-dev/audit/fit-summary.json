@@ -1,0 +1,972 @@
+{
+ "about": "web-dev/tools/fit_summary.py: the worst pages of each fit report. Line ids and numbers only.",
+ "widest_english_choice": 1373.2,
+ "reports": {
+  "aniplex": {
+   "text": "/assets/aniplex/text.json",
+   "font": {
+    "story": "Georgia, \"Times New Roman\", \"Gelasio Bundled\", serif",
+    "georgia": true,
+    "forced": null
+   },
+   "seconds": 9.3,
+   "pages": 15818,
+   "errors": [],
+   "rows": {
+    "0": 2,
+    "1": 540,
+    "2": 3259,
+    "3": 4067,
+    "4": 3420,
+    "5": 2281,
+    "6": 1235,
+    "7": 582,
+    "8": 283,
+    "9": 112,
+    "10": 34,
+    "11": 3
+   },
+   "over12": [],
+   "fullest": [
+    {
+     "page": 2968,
+     "scene": "04_00_ARC04_9_1",
+     "script": 106,
+     "k": 21,
+     "pc": 1346,
+     "ids": [
+      7586,
+      7587,
+      7588
+     ],
+     "translated": true,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 3641,
+     "scene": "05_00_ARC05_5",
+     "script": 128,
+     "k": 2,
+     "pc": 130,
+     "ids": [
+      9571,
+      9572,
+      9573,
+      9574,
+      9575,
+      9576
+     ],
+     "translated": true,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 3848,
+     "scene": "05_00_ARC05_9",
+     "script": 136,
+     "k": 19,
+     "pc": 1726,
+     "ids": [
+      10173,
+      10174,
+      10175,
+      10176,
+      10177,
+      10178,
+      10179,
+      10180,
+      10181
+     ],
+     "translated": true,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 2540,
+     "scene": "04_00_ARC04_5",
+     "script": 93,
+     "k": 5,
+     "pc": 262,
+     "ids": [
+      6513,
+      6514,
+      6515,
+      6516,
+      6517
+     ],
+     "translated": true,
+     "rows": 10,
+     "bottom": 906
+    },
+    {
+     "page": 3895,
+     "scene": "05_00_ARC05_9B",
+     "script": 137,
+     "k": 21,
+     "pc": 2035,
+     "ids": [
+      10322,
+      10323,
+      10324,
+      10325,
+      10326,
+      10327,
+      10328,
+      10329
+     ],
+     "translated": true,
+     "rows": 10,
+     "bottom": 906
+    },
+    {
+     "page": 3899,
+     "scene": "05_00_ARC05_9B",
+     "script": 137,
+     "k": 25,
+     "pc": 2645,
+     "ids": [
+      10348,
+      10349,
+      10350,
+      10351,
+      10352,
+      10353,
+      10354
+     ],
+     "translated": true,
+     "rows": 10,
+     "bottom": 906
+    },
+    {
+     "page": 5484,
+     "scene": "06_01_CIEL06_6",
+     "script": 195,
+     "k": 14,
+     "pc": 966,
+     "ids": [
+      13781,
+      13782,
+      13783,
+      13784,
+      13785
+     ],
+     "translated": true,
+     "rows": 10,
+     "bottom": 906
+    },
+    {
+     "page": 5485,
+     "scene": "06_01_CIEL06_6",
+     "script": 195,
+     "k": 15,
+     "pc": 1018,
+     "ids": [
+      13786,
+      13787,
+      13788,
+      13789,
+      13790
+     ],
+     "translated": true,
+     "rows": 10,
+     "bottom": 906
+    },
+    {
+     "page": 6868,
+     "scene": "07_01_CIEL07_9",
+     "script": 238,
+     "k": 20,
+     "pc": 1266,
+     "ids": [
+      16471,
+      16472,
+      16473,
+      16474,
+      16475
+     ],
+     "translated": true,
+     "rows": 10,
+     "bottom": 906
+    },
+    {
+     "page": 6871,
+     "scene": "07_01_CIEL07_9",
+     "script": 238,
+     "k": 23,
+     "pc": 1436,
+     "ids": [
+      16483,
+      16484,
+      16485,
+      16486,
+      16487,
+      16488,
+      16489
+     ],
+     "translated": true,
+     "rows": 10,
+     "bottom": 906
+    }
+   ],
+   "widest_choice": 1124.5,
+   "choices_wider_than_english": [],
+   "choices_over_text": [],
+   "balloon_pages_out": 3,
+   "balloon_pages": 649,
+   "balloons_out": [
+    {
+     "page": 15601,
+     "scene": "QA_18",
+     "script": 512,
+     "k": 19,
+     "pc": 1269,
+     "ids": [
+      43559,
+      43560
+     ],
+     "translated": true,
+     "art": [
+      "tw_t_L___V19____-53"
+     ],
+     "out": 7,
+     "room": -1,
+     "width": 993.4,
+     "right": 1243.9
+    },
+    {
+     "page": 15308,
+     "scene": "QA_07",
+     "script": 501,
+     "k": 4,
+     "pc": 371,
+     "ids": [
+      43022,
+      43023
+     ],
+     "translated": true,
+     "art": [
+      "tw_t_L___V13____-57"
+     ],
+     "out": 4,
+     "room": -1,
+     "width": 848.4,
+     "right": 1284.9
+    },
+    {
+     "page": 15585,
+     "scene": "QA_18",
+     "script": 512,
+     "k": 3,
+     "pc": 278,
+     "ids": [
+      43527,
+      43528
+     ],
+     "translated": true,
+     "art": [
+      "tw_t_L___V13____-51"
+     ],
+     "out": 4,
+     "room": -1,
+     "width": 814,
+     "right": 1070.5
+    }
+   ],
+   "widest_balloon_row": {
+    "page": 15384,
+    "width": 1464.2,
+    "right": 1725.2
+   },
+   "balloon_pages_out_translated": 3
+  },
+  "en-gelasio": {
+   "text": "/assets/text.json",
+   "font": {
+    "story": "\"Gelasio Bundled\", serif",
+    "georgia": true,
+    "forced": "gelasio"
+   },
+   "seconds": 10.9,
+   "pages": 15818,
+   "errors": [],
+   "rows": {
+    "0": 2,
+    "1": 440,
+    "2": 2636,
+    "3": 3729,
+    "4": 3475,
+    "5": 2562,
+    "6": 1462,
+    "7": 801,
+    "8": 429,
+    "9": 190,
+    "10": 76,
+    "11": 13,
+    "12": 2,
+    "14": 1
+   },
+   "over12": [
+    {
+     "page": 7936,
+     "scene": "08_01_CIEL08_5",
+     "script": 279,
+     "k": 22,
+     "pc": 1893,
+     "ids": [
+      19381,
+      19382,
+      19383
+     ],
+     "translated": false,
+     "rows": 14,
+     "bottom": 1219
+    }
+   ],
+   "fullest": [
+    {
+     "page": 7936,
+     "scene": "08_01_CIEL08_5",
+     "script": 279,
+     "k": 22,
+     "pc": 1893,
+     "ids": [
+      19381,
+      19382,
+      19383
+     ],
+     "translated": false,
+     "rows": 14,
+     "bottom": 1219
+    },
+    {
+     "page": 7283,
+     "scene": "08_00_ARC08_6B",
+     "script": 259,
+     "k": 43,
+     "pc": 3005,
+     "ids": [
+      20668,
+      20669,
+      20670,
+      20671,
+      20672,
+      20673,
+      20674,
+      20675
+     ],
+     "translated": false,
+     "rows": 12,
+     "bottom": 1064
+    },
+    {
+     "page": 10799,
+     "scene": "11_00_ARC11_2",
+     "script": 380,
+     "k": 17,
+     "pc": 942,
+     "ids": [
+      29665,
+      29666,
+      29667,
+      29668,
+      29669,
+      29670
+     ],
+     "translated": false,
+     "rows": 12,
+     "bottom": 1064
+    },
+    {
+     "page": 1749,
+     "scene": "03_00_ARC03_5B",
+     "script": 70,
+     "k": 40,
+     "pc": 3054,
+     "ids": [
+      4616,
+      4617,
+      4618,
+      4619,
+      4620
+     ],
+     "translated": false,
+     "rows": 11,
+     "bottom": 986.5
+    },
+    {
+     "page": 2933,
+     "scene": "04_00_ARC04_9",
+     "script": 105,
+     "k": 22,
+     "pc": 1359,
+     "ids": [
+      7457,
+      7458,
+      7459,
+      7460,
+      7461,
+      7462
+     ],
+     "translated": false,
+     "rows": 11,
+     "bottom": 986.5
+    },
+    {
+     "page": 5484,
+     "scene": "06_01_CIEL06_6",
+     "script": 195,
+     "k": 14,
+     "pc": 966,
+     "ids": [
+      13781,
+      13782,
+      13783,
+      13784,
+      13785
+     ],
+     "translated": false,
+     "rows": 11,
+     "bottom": 986.5
+    },
+    {
+     "page": 5485,
+     "scene": "06_01_CIEL06_6",
+     "script": 195,
+     "k": 15,
+     "pc": 1018,
+     "ids": [
+      13786,
+      13787,
+      13788,
+      13789,
+      13790
+     ],
+     "translated": false,
+     "rows": 11,
+     "bottom": 986.5
+    },
+    {
+     "page": 7625,
+     "scene": "08_01_CIEL08_1E",
+     "script": 270,
+     "k": 6,
+     "pc": 329,
+     "ids": [
+      18619,
+      18620,
+      18621,
+      18622
+     ],
+     "translated": false,
+     "rows": 11,
+     "bottom": 986.5
+    },
+    {
+     "page": 7914,
+     "scene": "08_01_CIEL08_5",
+     "script": 279,
+     "k": 0,
+     "pc": 0,
+     "ids": [
+      19319,
+      19320,
+      19321,
+      19322,
+      19323,
+      19324
+     ],
+     "translated": false,
+     "rows": 11,
+     "bottom": 986.5
+    },
+    {
+     "page": 8315,
+     "scene": "09_00_ARC09_4_2",
+     "script": 297,
+     "k": 56,
+     "pc": 3680,
+     "ids": [
+      22096,
+      22097,
+      22098,
+      22099,
+      22100,
+      22101,
+      22102
+     ],
+     "translated": false,
+     "rows": 11,
+     "bottom": 986.5
+    }
+   ],
+   "widest_choice": 1371.7,
+   "choices_wider_than_english": [],
+   "choices_over_text": [],
+   "balloon_pages_out": 0,
+   "balloon_pages": 649,
+   "balloons_out": [],
+   "widest_balloon_row": {
+    "page": 15622,
+    "width": 1428.6,
+    "right": 1710.6
+   },
+   "balloon_pages_out_translated": 0
+  },
+  "en": {
+   "text": "/assets/text.json",
+   "font": {
+    "story": "Georgia, \"Times New Roman\", \"Gelasio Bundled\", serif",
+    "georgia": true,
+    "forced": null
+   },
+   "seconds": 10.5,
+   "pages": 15818,
+   "errors": [],
+   "rows": {
+    "0": 2,
+    "1": 440,
+    "2": 2637,
+    "3": 3730,
+    "4": 3475,
+    "5": 2558,
+    "6": 1464,
+    "7": 803,
+    "8": 428,
+    "9": 189,
+    "10": 77,
+    "11": 12,
+    "12": 2,
+    "14": 1
+   },
+   "over12": [
+    {
+     "page": 7936,
+     "scene": "08_01_CIEL08_5",
+     "script": 279,
+     "k": 22,
+     "pc": 1893,
+     "ids": [
+      19381,
+      19382,
+      19383
+     ],
+     "rows": 14,
+     "bottom": 1216
+    }
+   ],
+   "fullest": [
+    {
+     "page": 7936,
+     "scene": "08_01_CIEL08_5",
+     "script": 279,
+     "k": 22,
+     "pc": 1893,
+     "ids": [
+      19381,
+      19382,
+      19383
+     ],
+     "rows": 14,
+     "bottom": 1216
+    },
+    {
+     "page": 7283,
+     "scene": "08_00_ARC08_6B",
+     "script": 259,
+     "k": 43,
+     "pc": 3005,
+     "ids": [
+      20668,
+      20669,
+      20670,
+      20671,
+      20672,
+      20673,
+      20674,
+      20675
+     ],
+     "rows": 12,
+     "bottom": 1061
+    },
+    {
+     "page": 10799,
+     "scene": "11_00_ARC11_2",
+     "script": 380,
+     "k": 17,
+     "pc": 942,
+     "ids": [
+      29665,
+      29666,
+      29667,
+      29668,
+      29669,
+      29670
+     ],
+     "rows": 12,
+     "bottom": 1061
+    },
+    {
+     "page": 1749,
+     "scene": "03_00_ARC03_5B",
+     "script": 70,
+     "k": 40,
+     "pc": 3054,
+     "ids": [
+      4616,
+      4617,
+      4618,
+      4619,
+      4620
+     ],
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 2933,
+     "scene": "04_00_ARC04_9",
+     "script": 105,
+     "k": 22,
+     "pc": 1359,
+     "ids": [
+      7457,
+      7458,
+      7459,
+      7460,
+      7461,
+      7462
+     ],
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 5484,
+     "scene": "06_01_CIEL06_6",
+     "script": 195,
+     "k": 14,
+     "pc": 966,
+     "ids": [
+      13781,
+      13782,
+      13783,
+      13784,
+      13785
+     ],
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 5485,
+     "scene": "06_01_CIEL06_6",
+     "script": 195,
+     "k": 15,
+     "pc": 1018,
+     "ids": [
+      13786,
+      13787,
+      13788,
+      13789,
+      13790
+     ],
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 7625,
+     "scene": "08_01_CIEL08_1E",
+     "script": 270,
+     "k": 6,
+     "pc": 329,
+     "ids": [
+      18619,
+      18620,
+      18621,
+      18622
+     ],
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 7914,
+     "scene": "08_01_CIEL08_5",
+     "script": 279,
+     "k": 0,
+     "pc": 0,
+     "ids": [
+      19319,
+      19320,
+      19321,
+      19322,
+      19323,
+      19324
+     ],
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 8315,
+     "scene": "09_00_ARC09_4_2",
+     "script": 297,
+     "k": 56,
+     "pc": 3680,
+     "ids": [
+      22096,
+      22097,
+      22098,
+      22099,
+      22100,
+      22101,
+      22102
+     ],
+     "rows": 11,
+     "bottom": 983.5
+    }
+   ],
+   "widest_choice": 1373.2,
+   "choices_wider_than_english": [],
+   "choices_over_text": [],
+   "balloon_pages_out": 0,
+   "balloon_pages": 649,
+   "balloons_out": [],
+   "widest_balloon_row": {
+    "page": 15622,
+    "width": 1428.6,
+    "right": 1710.6
+   }
+  },
+  "pt": {
+   "text": "/assets/pt/text.json",
+   "font": {
+    "story": "Georgia, \"Times New Roman\", \"Gelasio Bundled\", serif",
+    "georgia": true,
+    "forced": null
+   },
+   "seconds": 10.5,
+   "pages": 15818,
+   "errors": [],
+   "rows": {
+    "0": 2,
+    "1": 435,
+    "2": 2503,
+    "3": 3556,
+    "4": 3441,
+    "5": 2602,
+    "6": 1551,
+    "7": 909,
+    "8": 500,
+    "9": 211,
+    "10": 89,
+    "11": 18,
+    "14": 1
+   },
+   "over12": [
+    {
+     "page": 7936,
+     "scene": "08_01_CIEL08_5",
+     "script": 279,
+     "k": 22,
+     "pc": 1893,
+     "ids": [
+      19381,
+      19382,
+      19383
+     ],
+     "translated": false,
+     "rows": 14,
+     "bottom": 1216
+    }
+   ],
+   "fullest": [
+    {
+     "page": 7936,
+     "scene": "08_01_CIEL08_5",
+     "script": 279,
+     "k": 22,
+     "pc": 1893,
+     "ids": [
+      19381,
+      19382,
+      19383
+     ],
+     "translated": false,
+     "rows": 14,
+     "bottom": 1216
+    },
+    {
+     "page": 2933,
+     "scene": "04_00_ARC04_9",
+     "script": 105,
+     "k": 22,
+     "pc": 1359,
+     "ids": [
+      7457,
+      7458,
+      7459,
+      7460,
+      7461,
+      7462
+     ],
+     "translated": true,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 3895,
+     "scene": "05_00_ARC05_9B",
+     "script": 137,
+     "k": 21,
+     "pc": 2035,
+     "ids": [
+      10322,
+      10323,
+      10324,
+      10325,
+      10326,
+      10327,
+      10328,
+      10329
+     ],
+     "translated": true,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 3898,
+     "scene": "05_00_ARC05_9B",
+     "script": 137,
+     "k": 24,
+     "pc": 2502,
+     "ids": [
+      10341,
+      10342,
+      10343,
+      10344,
+      10345,
+      10346,
+      10347
+     ],
+     "translated": true,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 3995,
+     "scene": "05_00_ARC05_9_2B",
+     "script": 140,
+     "k": 42,
+     "pc": 4583,
+     "ids": [
+      10547,
+      10548,
+      10549,
+      10550,
+      10551,
+      10552
+     ],
+     "translated": true,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 4607,
+     "scene": "05_01_CIEL05_3E",
+     "script": 161,
+     "k": 2,
+     "pc": 145,
+     "ids": [
+      12361,
+      12362,
+      12363,
+      12364,
+      12365,
+      12366
+     ],
+     "translated": true,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 4780,
+     "scene": "05_01_CIEL05_4B",
+     "script": 166,
+     "k": 21,
+     "pc": 2374,
+     "ids": [
+      12901,
+      12902,
+      12903,
+      12904,
+      12905,
+      12906
+     ],
+     "translated": true,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 5484,
+     "scene": "06_01_CIEL06_6",
+     "script": 195,
+     "k": 14,
+     "pc": 966,
+     "ids": [
+      13781,
+      13782,
+      13783,
+      13784,
+      13785
+     ],
+     "translated": false,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 5485,
+     "scene": "06_01_CIEL06_6",
+     "script": 195,
+     "k": 15,
+     "pc": 1018,
+     "ids": [
+      13786,
+      13787,
+      13788,
+      13789,
+      13790
+     ],
+     "translated": false,
+     "rows": 11,
+     "bottom": 983.5
+    },
+    {
+     "page": 6046,
+     "scene": "07_00_ARC07_3_1_1",
+     "script": 212,
+     "k": 9,
+     "pc": 565,
+     "ids": [
+      17885,
+      17886,
+      17887,
+      17888,
+      17889
+     ],
+     "translated": true,
+     "rows": 11,
+     "bottom": 983.5
+    }
+   ],
+   "widest_choice": 1373.2,
+   "choices_wider_than_english": [],
+   "choices_over_text": [],
+   "balloon_pages_out": 0,
+   "balloon_pages": 649,
+   "balloons_out": [],
+   "widest_balloon_row": {
+    "page": 15480,
+    "width": 1460.9,
+    "right": 1841.9
+   },
+   "balloon_pages_out_translated": 0
+  }
+ }
+}

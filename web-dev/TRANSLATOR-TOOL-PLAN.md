@@ -1,7 +1,7 @@
 # Translator tool: plan
 
-Written 2026-11-17. Nothing here is built yet. The plan is for a developer-only tool that helps a team translate the game
-into a new language and get it into the port. It builds on what the port already has. It also draws on what adding
+Written 2026-11-17. Stage 0 was built the same day (see "Stage 0 as built"); nothing after it is. The plan is for a tool
+that helps a team translate the game into a new language and get it into the port. It builds on what the port already has. It also draws on what adding
 Portuguese turned up the same day (`web-dev/tools/build_pt.py`).
 
 ## What it is for
@@ -14,8 +14,9 @@ A translator should be able to:
 - run checks that catch what goes wrong in practice;
 - hand back a folder the port can serve as a language.
 
-The tool runs locally from `web-dev/`. It is never deployed or packaged: deploy uploads only tracked `web/app` files,
-and the apps pack only `web/app` and `web/assets`.
+The tool runs locally. It is never deployed to the site or packed into the apps: deploy uploads only tracked `web/app`
+files, and the apps pack only `web/app` and `web/assets`. It is built in `web-dev/`, and (decision 1 below) handed to
+translators separately, to run on top of the app they downloaded.
 
 ## What it builds on (facts, checked 2026-11-17)
 
@@ -135,6 +136,85 @@ Each stage ends with its own tests and is usable on its own.
   751 px.
 - Done when: the map covers every named line, and the fit report for English shows no page past 1,076 px.
 
+**Stage 0 as built (2026-11-17).**
+- Files:
+  - `web-dev/tools/line_map.py` → `web-dev/data/line_map.json` (4.4 MB, a row per page and per line, so a script change is a
+    small diff). Scenes (name, route, day, part or Q&A episode), pages, lines, and `ja` (below). Not in the repository:
+    `web-dev/data/` holds data made from the game's files and is ignored, so run the tool after
+    `fetch_assets.py --tables`.
+  - `web-dev/fit/fit.html` + `fit.js`: the fit page, at `/fit/` of `dev_server.py` (also `/fit/fit.js`, `/fit/line_map.json`).
+    `?text=/assets/pt/text.json` picks the lines, `?page=n` shows a page, `&font=gelasio` sets the story in the bundled face
+    (what a machine without Georgia shows, Android among them). It makes storage read-only before the game's code loads.
+  - `web-dev/fit/run-mcp.js`: the runner, for the Playwright MCP (own profile). On `dev_server.py` it needs nothing more; on
+    any other server of the game, `&root=<web-dev folder>` routes `/fit/*` from disk.
+  - `web-dev/tools/fit_summary.py` → `web-dev/audit/fit-summary.json`, from `web-dev/audit/fit-en.json`, `fit-en-gelasio.json`,
+    `fit-aniplex.json` and `fit-pt.json`.
+  - `web-dev/tests/line-map.test.mjs` (8 tests).
+  - `.claude/launch.json` has `tsukihime-dev-8798` (`dev_server.py`); it was not started, because the folder already had five
+    other chats' servers. The runs used the parent session's game server on 8797 with `&root`.
+- What the map found:
+  - 43,906 of 43,960 lines named; 54 never; 22 named by two or three commands (all kept).
+  - 15,818 pages. 43 have more than one way through (IF__, GOTS, IFSC); each way is listed as runs of commands. No cap
+    was hit. A path remembers the tests it passed, so `IF__ F075 ne 0` then `IF__ F075 eq 0` is one choice row, not both.
+  - IFP4 blocks (PlayStation 4 only, never run) hold no lines, so no line is "dead". Their WKADs and WNTYs are skipped.
+  - 16,680 voiced lines, 197 choices, 1,294 glued. Glued means set on the row before: deepLuna's 713 `is_glued`, plus
+    the English's timed continuations (`$a@k@e@n`, then an MSAD), which share the row in the port too.
+  - Japanese and Chinese: 241 scripts of their own. 2,911 lines are at other commands there, listed under `ja.at`; their
+    pages are not mapped.
+- How to run it (about 11 s a language):
+  1. `python3 web-dev/tools/line_map.py`
+  2. In the Playwright MCP:
+     - `browser_navigate` to `http://localhost:PORT/fit/?text=/assets/<x>/text.json`;
+     - `browser_run_code_unsafe` with `filename: tsukire-pc-port/web-dev/fit/run-mcp.js`;
+     - `browser_evaluate` `() => JSON.stringify(window.__fitReport)` with `filename: tsukire-pc-port/web-dev/audit/fit-<x>.json`.
+
+     The MCP's code has no file access, and it writes an object in inspector notation, so the report goes out as a string.
+  3. `python3 web-dev/tools/fit_summary.py`
+- Checked against the game at `/?script=S&pc=P` with the text finished. These gave the same rows, lowest pixel, and
+  choice and balloon edges as the fit page:
+  - English pages of 14 rows, 12 rows, blank rows and glued MSADs;
+  - an English balloon and a two-row choice;
+  - a Portuguese and an Aniplex 11-row page, each in its own mode (`lang=pt`, `english=aniplex`);
+  - a Portuguese and an Aniplex balloon.
+
+  `lang.js` `PT` and `OFFICIAL` only pick files (and `<html lang>`, which no style reads), so swapping the lines in English
+  mode is what the game does. "Lowest pixel" is the bottom of the letter boxes, 62.5 px below the row's top: row 8 ends at
+  751, row 12 at 1,061, and row 12's line box at 1,076. In Gelasio every row ends 3 px lower.
+- Results (`web-dev/audit/fit-summary.json`):
+  - **English (Tsukihimates):** one page past 12 rows. Page 7936, `08_01_CIEL08_5`, lines 19381–19383, is 14 rows: the
+    scream in 19383 is 10 rows by itself (15 rows in the patch's own 55-cell breaks; the Japanese page is 9 rows). Seen
+    on screen in the port: its last two rows are below the screen. So the "done when" above fails on the English text
+    itself, not on the harness. Next fullest: two pages of 12 rows. No choice row is pushed over the text. The widest
+    choice is 1,373.2 px (line 42765). No balloon letter is outside its picture in any of the 649 balloon pages.
+    Gelasio gives the same verdicts.
+  - **Aniplex:** no page past 12 rows (fullest 11), widest choice 1,124.5 px. 231 of 649 balloon pages had letters
+    outside the balloon. In QA_01, "…here,but you're a part" ran past the balloon's right edge. The cause: the official
+    scripts set 514 corner sentences as one message with a row break between two lines (`$042793^$042794`). The port
+    plays Aniplex's lines with Tsukihimates' scripts, which give the second line its own MSAD glued to the first's row;
+    Tsukihimates puts the break in its text, the official text has none. Fixed the same day (below): 3 left.
+  - **Portuguese:** its only page past 12 rows is the English page 7936 (Ciel's day 8 is not translated). Its fullest
+    translated pages are 11 rows (983.5 px), so the "751 px" above did not come from a walk of every page. No choice is
+    wider than the English's widest. 24 balloon pages, all translated (QA 1–14), had letters outside the balloon; one row
+    reached x 1,914. Seen on screen in QA_13 and QA_14: the first row ran past the balloon's right edge. Fixed (below): 0
+    left.
+- **Balloon fix (2026-11-17, the user's choice of two):**
+  - `build_aniplex.py` reads the official scripts (`../tsukihime-global-script/scripts`) and ends with a row break each
+    corner line the official scripts break from the next while the port's scripts glue them: 512 lines. This is the same
+    mechanism as Tsukihimates' text. `aniplex/text.json` grew 1,024 bytes; `web-dev/assets-manifest.txt` and the tests
+    that pin it are updated.
+  - `textbox.js` `BALLOON_INSIDE`: text laid over the English (`lang.js` `LAYERS` not empty and not Japanese/Chinese:
+    Aniplex, Portuguese, later translations) wraps each balloon at the width that stays on its picture, not at the game's
+    table width, which runs 30–400 px past the picture. The 30 widths come from `fit.insideWidths()`; the runner refuses
+    to run if the table and the pictures disagree. Every Tsukihimates balloon row is narrower than its balloon's inside,
+    and Tsukihimates keeps the table width anyway: the English report is identical before and after.
+  - Result: Aniplex 231 → 3 balloon pages out, Portuguese 24 → 0, English 0. No story page moved in any language.
+  - The 3 left are Aniplex pages 15308 (QA_07), 15585 and 15601 (QA_18). The official rows are wider than the balloon
+    in the port's 42 px SeuratPro, so a fourth row falls below it. The official script uses the same balloons there,
+    so the official engine's face must be narrower. Not changed.
+  - `web-dev/tests/balloon-rows.test.mjs` (5 tests).
+- Left for later stages: Stage 4's balloon check is the fit page's (letters against the picture). Stage 2 needs a runner
+  that works over an installed app.
+
 **Stage 1: build and registration.**
 - `web-dev/tools/build_layer.py` generalises `build_pt.py`. Translations folder in, `web/assets/<code>/text.json` and
   `index.json` out, with English fallback and every check below run as a gate.
@@ -187,18 +267,22 @@ Each stage ends with its own tests and is usable on its own.
 
 **Later, only if asked:** a hosted version for teams working online (a Cloudflare Worker with D1, GitHub sign-in).
 
-## Decisions for the user
+## Decisions (answered by the user, 2026-11-17)
 
-1. **Where translations live, and copyright.** The Japanese and both English scripts are not ours to hand around, and the
-   game's files left this repository on 2026-11-12 for that reason. A translation is the translators' work, but it is
-   built on that script. Should translations sit in this repository, or in the translators' own repositories (as
-   HanabiWorks does), with the tool pointing at a folder? My default: their own repositories; this repository keeps only
-   the tool.
-2. **Translate from Japanese or from English?** The tool can show both; this only changes the default columns.
-3. **Local only, or hosted later?** My default: local only until a team asks.
-4. **Fold language registration into one table (Stage 1) before adding a fifth language.** My default: yes.
-5. **Right-to-left languages** (Arabic, Hebrew) need text-box work in the engine. Scripts without spaces (Thai) need
-   their own line breaking. Out of scope unless asked.
+1. **Where translations live, and copyright: in the translators' own repositories.** This repository keeps only the
+   tool. In the user's words: translators keep the work in their own repository while they work on it; they download the
+   app and the tool, which runs on top of the app; when they release their work, the user adds it to R2 and releases it
+   on the site.
+   - So the tool is handed to translators, not only run from this checkout. From Stage 2 on it must run over an installed
+     app's files (the desktop app's `www`, or a `web/` folder filled by `fetch_assets.py`), point at a translations
+     folder outside both, and need nothing else from `web-dev/`. Stage 0's map and fit page are written with that in
+     mind: the map is numbers only and can ship with the tool, and the fit page needs only `web/app` and `web/assets`.
+   - Releasing stays the user's job: the tool's output is a language folder (`text.json` + `index.json`) the user
+     uploads.
+2. **Default reference columns: Japanese and Tsukihimates side by side.** Any other version can be switched on.
+3. **Local only.** No hosted version until a team asks.
+4. **Yes: fold language registration into one table in Stage 1**, before a fifth language.
+5. **Right-to-left and no-space scripts are out of scope** unless asked.
 
 ## Rough size
 

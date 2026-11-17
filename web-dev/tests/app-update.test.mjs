@@ -703,7 +703,7 @@ print(json.dumps({"m": json.loads(desc), "list": lists[0][1].decode()}))`], { en
   const built = { m: { ...generated.m, time: 1000, assets: { md5: md5(before), size: before.length } }, list: before };
   const expected = [
     ["assets/aniplex/index.json", 23, "eb6a03f024456b50ee62bbab40dfccfc"],
-    ["assets/aniplex/text.json", 2833819, "14f1a1e9b3fd58d7b0e1f3a666941c52"],
+    ["assets/aniplex/text.json", 2834843, "5b24332b17d732e9e799bb84738da585"],   // (rebuilt 2026-11-17: the corners' official row breaks)
   ];
   for (const kind of ["android", "desktop"]) {
     const w = world({ built, site: generated });
@@ -711,7 +711,7 @@ print(json.dumps({"m": json.loads(desc), "list": lists[0][1].decode()}))`], { en
     const plan = await checkUpdate(w.host, w);
     assert.equal(plan.state, "update", kind);
     assert.deepEqual(plan.files.map((f) => [f.path, f.size, f.hash]), expected, `${kind}: no unchanged app files or game media downloaded`);
-    assert.equal(plan.bytes, 2833842);
+    assert.equal(plan.bytes, 2834866);   // the two files (23 + 2,834,843)
     assert.equal(plan.count, 2);
     assert.equal(plan.meta.version, built.m.version, "the app code version stays the same; the asset list changes");
     for (const f of plan.files) assert.equal(f.from, `${f.path}?h=${f.hash.slice(0, 12)}`);

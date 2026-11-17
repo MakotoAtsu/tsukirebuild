@@ -79,7 +79,11 @@ test("Aniplex's English has a line for every number of the port's, in markup the
   assert.ok(lines.filter((l) => l.trim()).length > port.length - 100, "nearly every line has words");
   const marks = new Set(lines.flatMap((l) => l.match(/@[a-z]|\[[a-z]+\d*\]/g) || []));
   for (const m of marks) assert.ok(["@t", "@b", "@k", "[ber00]", "[zap00]"].includes(m), `${m}: a mark parseMarkup does not read`);
-  assert.ok(!lines.some((l) => l.includes("\n")), "no line breaks of its own: the text box wraps it");
+  // no line breaks of its own, the text box wraps it; but the 512 corner lines the official scripts break from the next one ("$a^$b") end in the
+  // break the port's scripts lost (build_aniplex.py, balloon-rows.test.mjs)
+  const broken = lines.filter((l) => l.includes("\n"));
+  assert.equal(broken.length, 512);
+  assert.ok(broken.every((l) => l.indexOf("\n") === l.length - 1), "only a break at the end");
   const italic = lines.filter((l) => /[\uE020-\uE07E]/.test(l)).length;
   assert.ok(italic > 1000, "its italics, as the fan translation writes them");
   assert.ok(parseMarkup(lines.find((l) => /[\uE041-\uE05A]/.test(l))).some((p) => p.i), "read as italics");

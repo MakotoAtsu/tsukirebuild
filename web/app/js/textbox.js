@@ -1,5 +1,5 @@
 // textbox.js - dialogue shown a line at a time over the picture, on a full page that clears when the page ends.
-import { ORIG, ZH, asset } from "./lang.js";
+import { LAYERS, ORIG, ZH, asset } from "./lang.js";
 const el = () => document.getElementById("text");
 const panel = () => document.getElementById("panel");
 // Italics: U+E000 plus the ASCII code (the game font's slanted letters at U+E021-E07E). Written as escapes: the raw
@@ -532,8 +532,21 @@ function dimReadings(seg, v) {
   for (const rt of seg.querySelectorAll("rt")) rt.style.opacity = v;
 }
 
+// Ciel-sensei's balloons (window styles 3-32): how far a row may run from the text's left edge and stay on the balloon's picture, in stage pixels.
+// The game's table gives each balloon a text width (system.json windows, style[5] x 3) that runs 30 to 400 px past the picture's edge: the original
+// and the Tsukihimates text break their balloon rows by hand, short of it, and are set as they are. Text laid over the English that does not
+// (Aniplex's official lines, which the official engine breaks itself; Portuguese and later translations) wraps at this width instead, so its rows
+// stay on the picture. Measured from the pictures by the fit page (web-dev/fit/fit.js insideWidths: the least of where the picture ends right of
+// each row that lies inside it, less 8 px); each is wider than the widest Tsukihimates row in its balloon.
+export const BALLOON_INSIDE = {
+  3: 792, 4: 796, 5: 1084, 6: 1120, 7: 1452, 8: 1475, 9: 804, 10: 788, 11: 1088, 12: 1111, 13: 1445, 14: 1478, 15: 825, 16: 814, 17: 1073,
+  18: 1133, 19: 1411, 20: 1459, 21: 861, 22: 810, 23: 1141, 24: 1116, 25: 1455, 26: 1459, 27: 805, 28: 788, 29: 1106, 30: 1109, 31: 1464, 32: 1478,
+};
+
 export class TextBox {
   constructor() {
+    // balloon rows wrap inside the picture (BALLOON_INSIDE) for text laid over the English, not for the original's or Tsukihimates' own rows
+    this.insideBalloons = !ORIG && LAYERS.length > 0;
     this.speed = 22;       // ms per letter; 0 shows at once
     this.charFade = true;  // "Text display" (config +0x61, all text): letters fade in as typed, or appear whole
     this.eraseAtOnce = false;   // "Read text display" (config +0x62): earlier lines "Fade out" (0) or dim at once (1)
@@ -675,8 +688,9 @@ export class TextBox {
     // Where the text goes, in stage pixels: the first balloon's text origin, and the second's when there is one (see placeCurrent).
     // The row width stays the first style's (0x34defc by F1105).
     const origin = (s, ox, oy) => ({ left: (s[1] + s[3] + ox) * 1.5 - 3, top: (s[2] + s[4] + oy) * 1.5 - 11 });
-    this.first = st && st[0] && w.style >= 3 ? { ...origin(st, off("x", w.x), off("y", w.y)), width: st[5] * 3 } : null;
-    this.second = this.first && st2 && st2[0] && w.style2 >= 3 ? { ...origin(st2, off("x", w.x2), off("y", w.y2)), width: st[5] * 3 } : null;
+    const rowWidth = st ? (this.insideBalloons && BALLOON_INSIDE[w.style] ? Math.min(st[5] * 3, BALLOON_INSIDE[w.style]) : st[5] * 3) : 0;
+    this.first = st && st[0] && w.style >= 3 ? { ...origin(st, off("x", w.x), off("y", w.y)), width: rowWidth } : null;
+    this.second = this.first && st2 && st2[0] && w.style2 >= 3 ? { ...origin(st2, off("x", w.x2), off("y", w.y2)), width: rowWidth } : null;
     if (!p || !box) return;
     this.balloon = !!(st && st[0] && w.style >= 3);
     if (this.balloon) document.fonts?.load?.(ZH ? '45.6px "SeuratProZh"' : ORIG ? '45.6px "SeuratProJa"' : '42px "SeuratPro"');   // the balloon's face (N2-21), fetched before its first letter is typed
@@ -686,13 +700,13 @@ export class TextBox {
       box.style.left = box.style.width = box.style.top = "";
       box.classList.remove("balloon");
     } else {
-      const [file, x, y, tx, ty, width] = st;
+      const [file, x, y, tx, ty] = st;
       const ox = off("x", w.x), oy = off("y", w.y);
       p.style.background = `url("${asset(`/assets/ui/DISP_PARTS_JA/${file}.webp`)}") ${(x + ox) * 1.5}px ${(y + oy) * 1.5}px no-repeat`;
       // the table's text origin in stage pixels, less what the game's cells put above and left of the port's line box (measured on native frames, styles 3 and 5)
       box.style.left = `${(x + tx + ox) * 1.5 - 3}px`;
       box.style.top = `${(y + ty + oy) * 1.5 - 11}px`;
-      box.style.width = `${width * 3}px`;
+      box.style.width = `${rowWidth}px`;
       box.classList.add("balloon");
     }
     // the second balloon's picture; the line it holds is placed as it is added (placeCurrent), and goes back with the balloon
