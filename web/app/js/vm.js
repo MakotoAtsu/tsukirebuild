@@ -9,7 +9,7 @@ import { blurName, pivotOf, sizeClass, wrapRotation } from "./transform.js";
 import { splitSample, startLines, startSplit, stopLines, stopSplit } from "./screenfx.js";
 import { reflow, wrapContext, choiceText } from "./reflow.js";
 import { colourMarks, plain, SOFT, ROW } from "./textbox.js";
-import { ORIG, LANG, asset, fetchOwn, overlays, ownRows, langReady } from "./lang.js";
+import { ORIG, LANG, asset, fetchOwn, overlays, ownRows, langReady, scriptsOf } from "./lang.js";
 import { carryPoint, noteLine } from "./langsave.js";
 
 // A global variable is its number, however a script writes it: "G70" (13_01_02_CIEL13_7B) is G070. Kept under the three-digit name, which is also
@@ -2414,8 +2414,8 @@ export class VM {
   // (0x82330 / 0x81a50 -> 0x5ef10, 0x28d50 -> 0x9c610), so the music starts again from its top; a rewind keeps it.
   async restore(s, { rewind = false, restartMusic = !rewind, retype = !rewind, readSpeed = false, voice = !rewind } = {}) {
     // A record made in the other language (a save from before the switch, or from before there was one: English) stands at another command of
-    // the scripts the two do not share: carried across by its line (langsave.js).
-    if ((s.lang || "en") !== LANG) s = await this.carry(s);
+    // the scripts the two do not share: carried across by its line (langsave.js). English and Portuguese play the same scripts: it stands as it is.
+    if (scriptsOf(s.lang) !== scriptsOf(LANG)) s = await this.carry(s);
     this.stop();
     this.endInstant(false);   // the restore puts the sound back itself
     const gen = this.generation;   // a later restore or stop ends this one

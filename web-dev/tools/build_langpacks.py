@@ -111,7 +111,7 @@ def check(lang):
 
 
 def main(argv):
-    langs = [a for a in argv if not a.startswith("--")] or [l for l in app_manifest.LANG_DIRS if os.path.isdir(os.path.join(ASSETS, l))]
+    langs = [a for a in argv if not a.startswith("--")] or [l for l in app_manifest.PACKED if os.path.isdir(os.path.join(ASSETS, l))]
     if "--check" in argv:
         problems = [p for lang in langs for p in check(lang)]
         print("\n".join(problems) if problems else f"packs match their folders: {', '.join(langs)}")

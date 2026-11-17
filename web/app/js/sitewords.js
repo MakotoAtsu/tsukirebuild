@@ -1,13 +1,13 @@
-// sitewords.js - the opening page's own words (home.js, welcome.js) in Japanese and Chinese. The page is written in English; as it is drawn, each string is
+// sitewords.js - the opening page's own words (home.js, welcome.js) in Japanese, Chinese and Portuguese. The page is written in English; as it is drawn, each string is
 // looked up here by its English (tr) and shown in the language of the page (lang.js UILANG: the game's, or in an app where none has been chosen, the
 // device's), or as it is where there is no entry. Words made of parts (a file name, a size, a list of plates) are matched by PATTERNS instead.
 // Every string the page can show has an entry in both (web-dev/tests/sitewords.test.mjs walks them all), so a change to the English shows there.
 // The Chinese faces keep only the letters Chinese uses, and this file is read for them (build_zh.py used_letters).
 import { UILANG } from "./lang.js";
-import { SITE_JA, SITE_ZH, PATTERNS_JA, PATTERNS_ZH } from "./sitewords-table.js";
+import { SITE_JA, SITE_ZH, SITE_PT, PATTERNS_JA, PATTERNS_ZH, PATTERNS_PT } from "./sitewords-table.js";
 
-export const TABLES = { ja: SITE_JA, zh: SITE_ZH };
-export const PATTERNS = { ja: PATTERNS_JA, zh: PATTERNS_ZH };
+export const TABLES = { ja: SITE_JA, zh: SITE_ZH, pt: SITE_PT };
+export const PATTERNS = { ja: PATTERNS_JA, zh: PATTERNS_ZH, pt: PATTERNS_PT };
 
 // The string in the page's language (or `lang`): the table's entry, else the first pattern that matches, else the English as it is.
 export function tr(text, lang = UILANG) {

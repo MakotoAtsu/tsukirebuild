@@ -123,10 +123,10 @@ html.touch .wl-text .hm-update-version { font-size: 30px; line-height: 42px; }
 html.touch .wl-text .hm-lang-note { font-size: 34px; line-height: 46px; }
 html.touch .wl-text .hm-lang-rows .wl-what { font-size: 34px; line-height: 46px; }
 html.touch .wl-text .hm-lang-rows .wl-name { font-size: 42px; line-height: 50px; }
-/* ... and its plates (ENGLISH, 日本語, 中文; TSUKIHIMATES, ANIPLEX) at the size SAVE DATA's are by touch; held upright a little smaller, so that the
-   three still stand in one row of the narrower column */
+/* ... and its plates (ENGLISH, 日本語, 中文, PORTUGUÊS; TSUKIHIMATES, ANIPLEX) at the size SAVE DATA's are by touch; held upright a little smaller,
+   two to a row of the narrower column (four in one row ran off both sides of it) */
 html.touch .hm-lang-row .qbtn { transform: scale(1.5); transform-origin: 50% 0; margin: 0 55px 31px; overflow: visible; }
-html.touch.upright .hm-lang-row { gap: 14px; }
+html.touch.upright .hm-lang-row { gap: 14px; flex-wrap: wrap; max-width: 620px; margin: 0 auto; }
 html.touch.upright .hm-lang-row .qbtn { transform: scale(1.35); margin: 0 39px 22px; }
 /* held upright (touch.js place: html.upright, the stage 1080 wide and as tall as the window): the title's picture covering it, Config's
    panel down its length 40 from the sides, the panel's strip with its rounded ends kept over the same two rows of plates, the column

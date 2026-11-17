@@ -12,8 +12,8 @@
 // the app fetches (from the site's address only, which it knows itself), checks, keeps and switches. Should an update not come up twice running,
 // the app goes back to what it had and names the update in `rejected`: it is not offered again by itself.
 //
-// Languages. The apps are built in English. Japanese and Chinese have folders of their own under the game's files (ja/, zh/: lang.js), which an
-// app downloads when the player first chooses the language on PLAY (home.js asks first, with the size): the site lists each folder apart
+// Languages. The apps are built in English. Japanese, Chinese and Portuguese have folders of their own under the game's files (ja/, zh/, pt/: lang.js),
+// which an app downloads when the player first chooses the language on PLAY (home.js asks first, with the size): the site lists each folder apart
 // (update/app.json "langs"), and Chinese, laid over Japanese, needs both (LANG_DIRS). They come as an update does, into the update the app runs,
 // and stay: every later update keeps them, brought up to date with the rest. The app is told nothing of languages: a folder is held when the
 // update in use has its index.json (heldDirs).
@@ -54,8 +54,8 @@ export function readManifest(m) {
 }
 
 // The language folders each language needs, lowest first (lang.js LAYERS); English is the app's own.
-export const LANG_DIRS = { ja: ["ja"], zh: ["ja", "zh"] };
-const FOLDERS = ["ja", "zh"];
+export const LANG_DIRS = { ja: ["ja"], zh: ["ja", "zh"], pt: ["pt"] };
+const FOLDERS = ["ja", "zh", "pt"];
 const inFolder = (p) => FOLDERS.some((d) => p.startsWith(`assets/${d}/`));
 // The folders the update in use (info().update.current) holds, and whether it holds all that a language needs.
 export const heldDirs = (cur) => FOLDERS.filter((d) => !!cur?.files?.[`assets/${d}/index.json`]);
@@ -223,4 +223,4 @@ export const UPDATE_TEXT = {
   langFailed: (name) => `${name} could not be downloaded. Nothing was changed.`,
   langStopped: (name) => `${name} was stopped. Nothing was changed.`,
 };
-export const LANG_NAMES = { en: "English", ja: "Japanese", zh: "Chinese" };
+export const LANG_NAMES = { en: "English", ja: "Japanese", zh: "Chinese", pt: "Portuguese" };

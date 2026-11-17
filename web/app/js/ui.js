@@ -10,7 +10,7 @@ import { LogoDust, LogoShards, MenuCursor, MENU_COLUMN, MENU_FADE, drawTitlePart
 import { ACTIONS, MENU_KEYS, MOUSE, SLOTS, canBind, keyLabel, keyName } from "./keys.js";
 import { chapterNamed, menuChapter } from "./chapters.js";
 import { TOUCH, TOUCH_CONTROLS, TOUCH_HINTS, barPlace } from "./touch.js";
-import { JA, ZH, ORIG, LANG, asset } from "./lang.js";
+import { JA, ZH, PT, ORIG, LANG, asset } from "./lang.js";
 import { say } from "./words.js";
 const PHASES = {
   // script prefix -> [column, row] in system_phasetitle_ja. The route of each is inferred from the script names.
@@ -284,7 +284,13 @@ export const HINTS_JA = { Start: "決定", Back: "戻る", Choose: "決定", Mov
 // Chinese: the same, as the Chinese patch's picture of the labels has them.
 export const HINTS_ZH = { Start: "确定", Back: "返回", Choose: "确定", Move: "移动", "Cursor movement": "光标移动", "Change page": "页面变更", Scroll: "滚动",
   "Quick jump": "快速跳转", "Replay voice": "语音播放", Picture: "图像的切换", Zoom: "扩大・缩小", Reset: "初始化", "Change key": "变更" };
-const HINT_WORDS = JA ? HINTS_JA : ZH ? HINTS_ZH : {};
+// Portuguese (the user, 2026-11-17: "translate all pages there in pt too"): the labels, and the mouse's part of each entry; the keys keep their names.
+export const HINTS_PT = { Start: "Começar", Back: "Voltar", Choose: "Escolher", Move: "Mover", "Cursor movement": "Mover o cursor", "Change page": "Mudar de página",
+  Scroll: "Rolar", "Quick jump": "Salto rápido", "Replay voice": "Repetir a voz", Picture: "Trocar imagem", Zoom: "Zoom", Fill: "Preencher", Reset: "Redefinir",
+  "Change key": "Mudar tecla" };
+export const KEYS_PT = { Click: "Clique", "Right click": "Botão direito", Wheel: "Roda do mouse", "Click START": "Clique em START", "Click its mark": "Clique na marca" };
+const HINT_WORDS = JA ? HINTS_JA : ZH ? HINTS_ZH : PT ? HINTS_PT : {};
+const HINT_KEYS = PT ? KEYS_PT : {};
 // The system menu background's sparkles, one set for the whole session (menuBackground; 0xb34bc8), drawn on one canvas
 // that the newest background takes.
 export const menuSparkles = { set: null, star: null, owner: null, canvas: null, render: null };
@@ -698,7 +704,7 @@ export class UI {
       // on a touch device, what a finger does instead (touch.js TOUCH_HINTS); an entry with nothing to say is left out
       const keys = this.touch ? TOUCH_HINTS[label] : own ? own : label === "Replay voice" ? [this.keys?.label("voice") || "V", ...HINTS[label].slice(1)] : HINTS[label] || [];
       if (!keys) continue;
-      for (const key of keys) hint.append(Object.assign(document.createElement("kbd"), { textContent: key }));
+      for (const key of keys) hint.append(Object.assign(document.createElement("kbd"), { textContent: HINT_KEYS[key] || key }));
       hint.append(Object.assign(document.createElement("span"), { className: "hint-label", textContent: HINT_WORDS[label] || label }));
       bar.append(hint);
     }

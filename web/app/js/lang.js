@@ -11,17 +11,24 @@
 // it redrew, two chapter titles, its faces, the prologue's subtitles); a file is asked for there first, then under ja/, then where it always was. ORIG
 // names what the two share, the original game's way of setting its text; JA and ZH what is each one's own (words, faces).
 //
+// Portuguese is a fan translation of the English's kind, not the original's: the Brazilian Portuguese of HanabiWorks (hanabiworks.github.io/tsukihime; its
+// files from github.com/ThiagoKrz/TsukihimeRE-PTBR), made with the tool the English was made with (deepLuna). It is unfinished, so web/assets/pt/text.json (web-dev/tools/build_pt.py) has the Portuguese of
+// the scenes it has and the English line everywhere else: the story goes on in English where the Portuguese ends. It has nothing but lines: the
+// scripts, pictures, menus and the page's words are the English ones, its text is wrapped as the English is (reflow.js), and a save goes between the
+// two as it stands (scriptsOf). Its folder is fetched only by those who play it: on the site once it is the language, in the apps when it is first
+// chosen (update.js LANG_DIRS). A device in Portuguese starts in it (deviceLang), and the opening page's own words are in Portuguese too (SITE_PT).
+//
 // The language is chosen on the opening page (home.js, LANGUAGE) and kept in this browser; until one is chosen it is the device's (deviceLang: the
 // browser's own list of languages), English where that is none of the three. It is read once, as the page loads: every table is fetched in that language
 // from the start, so changing it loads the page again. `?lang=ja` (or en) in the address chooses it for that visit. The opening page is in the same
 // language as the game (UILANG, sitewords.js).
-// The Android and desktop apps are built in English, without web/assets/ja and zh: a language's folders are downloaded into the app when its plate is
+// The Android and desktop apps are built in English, without web/assets/ja, zh and pt: a language's folders are downloaded into the app when its plate is
 // first chosen there (home.js, update.js langPlan), and the choice is kept only once they are in. Should they be gone after all (an update the app
 // took out again), the app goes back to English (langReady). So an app plays the device's language only once it has been chosen; its opening page is in
 // the device's language from the start (UILANG).
 import { APP } from "./apphost.js";
 
-export const LANGS = ["en", "ja", "zh"];
+export const LANGS = ["en", "ja", "zh", "pt"];
 const KEY = "tsuki.lang";
 
 // The language chosen in this browser, or null.
@@ -29,8 +36,8 @@ export function chosenLang(storage = globalThis.localStorage) {
   try { const v = storage?.getItem(KEY); return LANGS.includes(v) ? v : null; } catch { return null; }
 }
 export const storedLang = (storage = globalThis.localStorage) => chosenLang(storage) || "en";
-// The device's language: the first of the browser's languages, in its order of preference, that is one of the three (any Chinese: the one Chinese here
-// is the simplified patch's), else English.
+// The device's language: the first of the browser's languages, in its order of preference, that is one of the four (any Chinese: the one Chinese here
+// is the simplified patch's; any Portuguese: the one Portuguese is Brazil's), else English.
 export function deviceLang(nav = globalThis.navigator) {
   const list = nav?.languages?.length ? nav.languages : [nav?.language || ""];
   for (const l of list) {
@@ -47,7 +54,11 @@ export function langOf(search = "", storage = globalThis.localStorage, app = APP
 export const LANG = langOf(globalThis.location?.search || "");
 export const JA = LANG === "ja";
 export const ZH = LANG === "zh";
+export const PT = LANG === "pt";
 export const ORIG = JA || ZH;
+// The scripts a language plays: Portuguese's are the English ones (its folder has only lines), so a record made in one of the two stands at the same
+// command in the other and is not carried (vm.js restore).
+export const scriptsOf = (lang) => (lang === "pt" ? "en" : lang || "en");
 // The language of the opening page's own words (sitewords.js): the game's, and in an app where none has been chosen yet, the device's.
 export const uiLangOf = (lang = LANG, storage = globalThis.localStorage, app = APP, nav = globalThis.navigator) => (app && !chosenLang(storage) ? deviceLang(nav) : lang);
 export const UILANG = uiLangOf();
@@ -70,7 +81,7 @@ export function englishOf(search = "", storage = globalThis.localStorage, app = 
 export const ENGLISH = englishOf(globalThis.location?.search || "");
 export const OFFICIAL = LANG === "en" && ENGLISH === "aniplex";
 // The folders laid over the shared files, lowest first.
-export const LAYERS = ZH ? ["ja", "zh"] : JA ? ["ja"] : OFFICIAL ? ["aniplex"] : [];
+export const LAYERS = ZH ? ["ja", "zh"] : JA ? ["ja"] : PT ? ["pt"] : OFFICIAL ? ["aniplex"] : [];
 
 // Keeps the choice for the next load. Returns whether it is another language than the one this page was loaded in.
 export function chooseLang(lang, storage = globalThis.localStorage) {
@@ -205,6 +216,7 @@ export const langReady = (async () => {
   }
   lists.forEach((list, k) => addOwn(list?.files, LAYERS[k]));
   if (APP) await Promise.all(LAYERS.map((layer) => loadPacks(layer)));   // (in the apps: the language's small files from its packs)
+  if (PT && typeof document !== "undefined") document.documentElement.lang = "pt-BR";
   if (ORIG && typeof document !== "undefined") {
     // html.ja: the original's way of setting text (style.css), in both; html.zh: Chinese's faces over it
     document.documentElement.lang = ZH ? "zh-Hans" : "ja";

@@ -67,12 +67,12 @@ test("the apps open on the opening page: ABOUT, SAVE DATA, LANGUAGE and PLAY, wi
   assert.deepEqual(app[3].sections.map((s) => s.head), ["Play", "Updates"]);
   assert.deepEqual(kinds(app[3]), ["langnow", "press", "update"]);
   assert.deepEqual(kinds(site[4]), ["gpu", "langnow", "press"]);
-  assert.deepEqual(LANG_PLATES.map((l) => l.plate), ["ENGLISH", "日本語", "中文"]);
+  assert.deepEqual(LANG_PLATES.map((l) => l.plate), ["ENGLISH", "日本語", "中文", "PORTUGUÊS"]);   // (PORTUGUÊS only where its folder is: home.js langShown)
   // (what each language is: a short list under the plates, a row a language, and one line under it; the user, 2026-11-16, of a long wrapped
   // paragraph: "looks messy")
-  assert.deepEqual(langLineFor(null).rows.map((r) => r[0]), ["ENGLISH", "日本語", "中文"]);
+  assert.deepEqual(langLineFor(null).rows.map((r) => r[0]), ["ENGLISH", "日本語", "中文", "PORTUGUÊS", "ESPAÑOL"]);   // (ESPAÑOL: on its way, no plate)
   assert.equal(langLineFor(null).note, "Saves and progress carry over between languages. L changes it.");
-  assert.equal(langLineFor("android").note, "日本語 and 中文 are downloaded the first time they are chosen.\nSaves and progress carry over between languages. L changes it.");
+  assert.equal(langLineFor("android").note, "日本語, 中文 and PORTUGUÊS are downloaded the first time they are chosen.\nSaves and progress carry over between languages. L changes it.");
   assert.equal(noneLine(app), "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, SAVE DATA, LANGUAGE, or PLAY to start the game.");
   assert.match(noneLine(site), /ABOUT, DOWNLOAD, SAVE DATA, LANGUAGE, or PLAY ONLINE to start the game\.$/);
   const home = read("web/app/js/home.js");
@@ -111,7 +111,7 @@ test("an app plays the language kept once its files were in, never one an addres
   assert.match(read("web-dev/android/build_apk.sh"), /case "\$\(basename "\$f"\)" in voice\|se\|ja\|zh\) ;;/);
   const pack = JSON.parse(read("web-dev/desktop/package.json")).build;
   assert.deepEqual(pack.extraResources[1].filter, ["**/*", "!voice/**", "!se/**", "!ja/**", "!zh/**", "!**/.*"]);
-  assert.match(read("web-dev/tools/app_manifest.py"), /LANG_DIRS = \("ja", "zh"\)\nWITHOUT = \(\*LANG_DIRS, "voice", "se"\)/, "and the list the updates compare leaves them out too");
+  assert.match(read("web-dev/tools/app_manifest.py"), /LANG_DIRS = \("ja", "zh", "pt"\)\n(#[^\n]*\n)*PACKED = \("ja", "zh"\)\nWITHOUT = \(\*LANG_DIRS, "voice", "se"\)/, "and the list the updates compare leaves them out too");
 });
 
 test("what the page asks of an app goes through one object: the desktop's promises, the Android app's numbered answers", async () => {
@@ -365,8 +365,8 @@ const inside = (d, files) => Object.keys(files).map((p) => `assets/${d}/${p}`).s
 
 test("a language is downloaded when it is first chosen, as an update over the version in use; Chinese brings Japanese's folder too", async () => {
   const built = describe(V.a, 1000, APP1, ASSETS1), site = describe(V.a, 2000, APP1, ASSETS1, 1, { ja: JA1, zh: ZH1 });
-  assert.deepEqual(LANG_DIRS, { ja: ["ja"], zh: ["ja", "zh"] }, "Chinese is laid over Japanese (lang.js LAYERS)");
-  assert.deepEqual(LANG_NAMES, { en: "English", ja: "Japanese", zh: "Chinese" });
+  assert.deepEqual(LANG_DIRS, { ja: ["ja"], zh: ["ja", "zh"], pt: ["pt"] }, "Chinese is laid over Japanese (lang.js LAYERS); Portuguese is its own");
+  assert.deepEqual(LANG_NAMES, { en: "English", ja: "Japanese", zh: "Chinese", pt: "Portuguese" });
   // the site lists the languages, the app has none of them: nothing is offered by itself, and their lists are not even fetched
   let w = world({ site });
   assert.deepEqual(await checkUpdate(w.host, w), { state: "current", version: V.a, time: 1000 });

@@ -1,5 +1,5 @@
-// The opening page in Japanese and Chinese (web/app/js/sitewords.js, sitewords-table.js) and the language picked from the device (lang.js deviceLang):
-// every string the page can show has its Japanese and Chinese, the words made of parts are matched, and the language a visit starts in.
+// The opening page in Japanese, Chinese and Portuguese (web/app/js/sitewords.js, sitewords-table.js) and the language picked from the device (lang.js
+// deviceLang): every string the page can show has its Japanese, Chinese and Portuguese, the words made of parts are matched, and the language a visit starts in.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -11,7 +11,7 @@ const H = await import("../../web/app/js/home.js");
 const W = await import("../../web/app/js/welcome.js");
 const U = await import("../../web/app/js/update.js");
 const { tr, trBlock, localize } = await import("../../web/app/js/sitewords.js");
-const { SITE_JA, SITE_ZH, SAME } = await import("../../web/app/js/sitewords-table.js");
+const { SITE_JA, SITE_ZH, SITE_PT, SAME } = await import("../../web/app/js/sitewords-table.js");
 const { deviceLang, langOf, uiLangOf, chosenLang } = await import("../../web/app/js/lang.js");
 const read = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), "utf8");
 
@@ -35,6 +35,7 @@ function pageStrings() {
   for (const v of Object.values(U.UPDATE_TEXT)) add(v);
   for (const app of [null, "android"]) add(H.langLineFor(app).note);
   add(H.EN_LINE.head); add(H.EN_LINE.note);
+  block(["rows", H.LANG_ROWS]);
   for (const v of Object.values(H.LANG_NOW)) add(v);
   for (const p of [...H.SAVE_PLATES, H.FULL_PLATE, H.UPDATE_PLATE]) add(p.plate);
   for (const v of Object.values(U.LANG_NAMES)) add(v);
@@ -44,12 +45,16 @@ function pageStrings() {
 test("every string the opening page can show has its Japanese and its Chinese, or is shown as it is (paths, commands, names)", () => {
   const all = pageStrings();
   assert.ok(all.length > 250, `${all.length} strings`);
-  const missing = all.filter((s) => !SAME.has(s) && !(Object.hasOwn(SITE_JA, s) && Object.hasOwn(SITE_ZH, s)));
+  const missing = all.filter((s) => !SAME.has(s) && !(Object.hasOwn(SITE_JA, s) && Object.hasOwn(SITE_ZH, s) && Object.hasOwn(SITE_PT, s)));
   assert.deepEqual(missing, [], "add these to web/app/js/sitewords-table.js");
   for (const [en, ja] of Object.entries(SITE_JA)) assert.ok(/[぀-ヿ一-鿿]/.test(ja) || /^\d/.test(ja) || ja === "ENGLISH", `Japanese for ${en}`);
   for (const [en, zh] of Object.entries(SITE_ZH)) assert.ok(/[一-鿿]/.test(zh), `Chinese for ${en}`);
+  assert.deepEqual(Object.keys(SITE_PT), Object.keys(SITE_JA), "Portuguese has every entry the other two have");
+  const samePt = Object.entries(SITE_PT).filter(([en, pt]) => en === pt).map(([en]) => en);
+  assert.deepEqual(samePt, ["Extras"], "every other entry is in Portuguese");
+  for (const [en, pt] of Object.entries(SITE_PT)) assert.equal(pt.split("\n").length, en.split("\n").length, `the same rows: ${en}`);
   // (the apps' words for "browser", which this walk, run as the site, does not reach)
-  for (const s of ["In this app now", "No save data in this app yet.", "Nothing to export yet: the game has not been played in this app."]) assert.ok(SITE_JA[s] && SITE_ZH[s], s);
+  for (const s of ["In this app now", "No save data in this app yet.", "Nothing to export yet: the game has not been played in this app."]) assert.ok(SITE_JA[s] && SITE_ZH[s] && SITE_PT[s], s);
 });
 
 test("a question in the game's Yes / No window stays within its rows in Japanese and Chinese (about 18 wide letters a row)", () => {
@@ -58,6 +63,20 @@ test("a question in the game's Yes / No window stays within its rows in Japanese
   }
   const ask = U.UPDATE_TEXT.askLang(tr("Japanese", "zh"), 101e6, true);
   for (const row of tr(ask, "zh").split("\n")) assert.ok([...row].length <= 18, row);
+});
+
+test("the hint bar in Portuguese: a word for every entry, and the mouse's part of each", async () => {
+  const { HINTS, HINTS_PT, KEYS_PT } = await import("../../web/app/js/ui.js");
+  assert.deepEqual(Object.keys(HINTS_PT).sort(), Object.keys(HINTS).sort());
+  const mouse = new Set(Object.values(HINTS).flat().filter((k) => /[a-z]/.test(k) && !/^(Enter|Esc|Tab|Home|Page Up \/ Down|V)$/.test(k)));
+  assert.deepEqual([...mouse].sort(), Object.keys(KEYS_PT).sort(), "every mouse word has its Portuguese; key names stay");
+  assert.match(read("web/app/js/ui.js"), /const HINT_WORDS = JA \? HINTS_JA : ZH \? HINTS_ZH : PT \? HINTS_PT : \{\};/);
+});
+
+test("a question in the game's Yes / No window stays within its rows in Portuguese: no row wider than the English's widest", () => {
+  const asks = [H.SAVE_TEXT_EN.askRemove, H.SAVE_TEXT_EN.askFull, U.UPDATE_TEXT.askShell, U.UPDATE_TEXT.askLang("Japanese", 101e6, true), U.UPDATE_TEXT.ask(12_300_000)];
+  const widest = Math.max(...asks.flatMap((s) => s.split("\n").map((r) => r.length)));
+  for (const s of asks) for (const row of tr(s.replace("Japanese", tr("Japanese", "pt")), "pt").split("\n")) assert.ok(row.length <= widest, `${row} (${row.length} > ${widest})`);
 });
 
 test("words made of parts: file names, sizes, versions, a language's name and the list of plates are matched, in both", () => {
@@ -71,6 +90,15 @@ test("words made of parts: file names, sizes, versions, a language's name and th
   assert.match(tr(H.noneLine(H.tabsFor("android")), "zh"), /“关于”、“存档”、“语言”，或选择“游玩”开始游戏。$/);
   assert.equal(tr("saves made here: 3 in the list, 1 automatic", "ja"), "ここで作ったセーブ：一覧 3、自動 1");
   assert.match(tr("The 100% save is loaded: these are its own. Your own are put aside until it is removed.", "zh"), /^已载入100% 存档：/);
+  assert.equal(tr("Saved as savedata000.", "pt"), "Salvo como savedata000.");
+  assert.equal(tr("Loaded savedata000.", "pt"), "savedata000 carregado.", "a file's name keeps its small letter");
+  assert.equal(tr("Loaded the 100% save.", "pt"), "Save 100% carregado.");
+  assert.equal(tr(U.UPDATE_TEXT.ask(12_300_000), "pt"), "Há uma atualização disponível (12 MB).\nBaixar agora?");
+  assert.equal(tr(U.UPDATE_TEXT.langLoading(tr("Chinese", "pt"), 1, 2), "pt"), "Baixando o chinês  50%\nAperte para parar");
+  assert.match(tr(H.noneLine(H.TABS), "pt"), /SOBRE, BAIXAR, DADOS SALVOS, IDIOMA ou JOGAR ONLINE para começar o jogo\.$/);
+  assert.equal(tr("saves made here: 3 in the list, 1 automatic", "pt"), "saves feitos aqui: 3 na lista, 1 automático");
+  assert.equal(tr("saves made here: 1 in the list, 2 automatic", "pt"), "saves feitos aqui: 1 na lista, 2 automáticos");
+  assert.match(tr("The 100% save is loaded: these are its own. Your own are put aside until it is removed.", "pt"), /^O save 100% está carregado: /);
   assert.equal(tr("Something new.", "ja"), "Something new.", "English where there is nothing");
   assert.equal(tr("Language", "en"), "Language");
 });
@@ -88,7 +116,7 @@ test("blocks and word tables are looked up as they are drawn; paths and commands
   assert.match(read("web-dev/tools/build_zh.py"), /sitewords-table\.js/, "the Chinese faces keep the page's letters too");
 });
 
-test("the language a visit starts in: the one chosen, else the device's first of English, Japanese and Chinese, else English", () => {
+test("the language a visit starts in: the one chosen, else the device's first of English, Japanese, Chinese and Portuguese, else English", () => {
   const nav = (...languages) => ({ languages, language: languages[0] });
   assert.equal(deviceLang(nav("ja-JP", "en-US")), "ja");
   assert.equal(deviceLang(nav("zh-TW")), "zh", "any Chinese: the one Chinese here");
@@ -96,6 +124,9 @@ test("the language a visit starts in: the one chosen, else the device's first of
   assert.equal(deviceLang(nav("fr-FR", "ja")), "ja", "the first of the three in the device's order");
   assert.equal(deviceLang(nav("en-GB", "ja")), "en");
   assert.equal(deviceLang(nav("fr", "de")), "en", "none of them: English");
+  assert.equal(deviceLang(nav("pt-BR", "en")), "pt", "any Portuguese: the one Portuguese here (the user, 2026-11-17: \"select pt if device is in pt\")");
+  assert.equal(deviceLang(nav("pt-PT")), "pt");
+  assert.equal(uiLangOf("en", store(), "android", nav("pt-BR")), "pt", "an app's page in Portuguese from the start");
   assert.equal(deviceLang({ language: "ja" }), "ja");
   assert.equal(deviceLang(undefined), "en");
   assert.equal(langOf("", store(), null, nav("ja-JP")), "ja", "the site, nothing chosen: the device's");

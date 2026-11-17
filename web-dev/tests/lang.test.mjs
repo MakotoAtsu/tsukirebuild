@@ -7,7 +7,7 @@ import { readFileSync, existsSync } from "node:fs";
 
 const store = (init = {}) => ({ s: { ...init }, getItem(k) { return this.s[k] ?? null; }, setItem(k, v) { this.s[k] = String(v); } });
 globalThis.localStorage = store();
-const { LANGS, langOf, storedLang, chooseLang, asset, setOwn, addOwn, has, overlays, LANG, ORIG, LAYERS, ENGLISHES, ENGLISH, OFFICIAL, storedEnglish, englishOf, chooseEnglish } = await import("../../web/app/js/lang.js");
+const { LANGS, langOf, storedLang, chooseLang, asset, setOwn, addOwn, has, overlays, LANG, ORIG, LAYERS, ENGLISHES, ENGLISH, OFFICIAL, storedEnglish, englishOf, chooseEnglish, PT, scriptsOf } = await import("../../web/app/js/lang.js");
 const { mapPc, carryPoint, noteLine } = await import("../../web/app/js/langsave.js");
 const { ROW, SOFT, parseMarkup, plain } = await import("../../web/app/js/textbox.js");
 
@@ -16,7 +16,7 @@ const read = (rel) => JSON.parse(readFileSync(new URL(rel, ASSETS), "utf8"));
 const there = (rel) => existsSync(new URL(rel, ASSETS));
 
 test("the language is English unless Japanese or Chinese was chosen; the address can name one for a visit", () => {
-  assert.deepEqual(LANGS, ["en", "ja", "zh"]);
+  assert.deepEqual(LANGS, ["en", "ja", "zh", "pt"]);
   assert.equal(LANG, "en");
   assert.equal(ORIG, false);
   assert.deepEqual(LAYERS, []);
@@ -56,7 +56,7 @@ test("English is the Tsukihimates translation unless Aniplex's was chosen, kept 
   assert.equal(chooseEnglish("fr", t), false);
   const lang = readFileSync(new URL("../../web/app/js/lang.js", import.meta.url), "utf8");
   assert.match(lang, /export const OFFICIAL = LANG === "en" && ENGLISH === "aniplex";/, "only English shows it");
-  assert.match(lang, /LAYERS = ZH \? \["ja", "zh"\] : JA \? \["ja"\] : OFFICIAL \? \["aniplex"\] : \[\];/, "laid over the shared files as a language folder is");
+  assert.match(lang, /LAYERS = ZH \? \["ja", "zh"\] : JA \? \["ja"\] : PT \? \["pt"\] : OFFICIAL \? \["aniplex"\] : \[\];/, "laid over the shared files as a language folder is");
   assert.match(readFileSync(new URL("../../web/app/js/savefile.js", import.meta.url), "utf8"), /"tsuki\.lang", "tsuki\.english",/, "kept by the browser, not in the save file");
 });
 
@@ -83,6 +83,49 @@ test("Aniplex's English has a line for every number of the port's, in markup the
   const italic = lines.filter((l) => /[\uE020-\uE07E]/.test(l)).length;
   assert.ok(italic > 1000, "its italics, as the fan translation writes them");
   assert.ok(parseMarkup(lines.find((l) => /[\uE041-\uE05A]/.test(l))).some((p) => p.i), "read as italics");
+});
+
+test("Portuguese: a fourth language, its lines only, a Portuguese device's own; a save goes between it and English as it stands", async () => {
+  assert.equal(PT, false);
+  assert.equal(langOf("?lang=pt", store()), "pt");
+  assert.equal(storedLang(store({ "tsuki.lang": "pt" })), "pt");
+  const s = store();
+  assert.equal(chooseLang("pt", s), true);
+  assert.equal(s.s["tsuki.lang"], "pt");
+  const { deviceLang } = await import("../../web/app/js/lang.js");
+  assert.equal(deviceLang({ languages: ["pt-BR", "en"] }), "pt", "a device in Portuguese starts in it (the user, 2026-11-17)");
+  assert.equal(langOf("", store(), null, { languages: ["pt-BR"] }), "pt");
+  assert.equal(langOf("", store({ "tsuki.lang": "en" }), null, { languages: ["pt-BR"] }), "en", "a choice wins");
+  assert.equal(scriptsOf("pt"), "en");
+  assert.equal(scriptsOf(undefined), "en");
+  assert.equal(scriptsOf("ja"), "ja");
+  assert.equal(scriptsOf("zh"), "zh", "Chinese is still carried from Japanese's scripts as before");
+  assert.match(readFileSync(new URL("../../web/app/js/vm.js", import.meta.url), "utf8"), /if \(scriptsOf\(s\.lang\) !== scriptsOf\(LANG\)\) s = await this\.carry\(s\);/);
+  const H = await import("../../web/app/js/home.js");
+  assert.deepEqual(H.LANG_PLATES.at(-1), { lang: "pt", plate: "PORTUGUÊS" }, "last, so the others keep their places on the plate sheet");
+  // only those who play it fetch it (the user, 2026-11-17: "make sure only people who select that download it"): the opening page asks nothing of
+  // pt/, the site fetches its lines only as a layer of the language in use, and the apps are built without it and download it when it is chosen
+  const home = readFileSync(new URL("../../web/app/js/home.js", import.meta.url), "utf8");
+  assert.doesNotMatch(home, /assets\/pt\//, "the opening page fetches nothing of Portuguese's");
+  assert.equal(LAYERS.includes("pt"), false, "English here: no Portuguese layer");
+  const U = await import("../../web/app/js/update.js");
+  assert.deepEqual(U.LANG_DIRS.pt, ["pt"]);
+  assert.equal(U.LANG_NAMES.pt, "Portuguese");
+  assert.match(readFileSync(new URL("../../web-dev/tools/app_manifest.py", import.meta.url), "utf8"), /LANG_DIRS = \("ja", "zh", "pt"\)/);
+  assert.ok(H.LANG_NOW.pt);
+});
+
+test("Portuguese's lines: one for every number of the port's, the English wherever the translation has no scene, in markup the text box reads", { skip: !there("pt/index.json") }, () => {
+  assert.deepEqual(read("pt/index.json"), { files: ["text.json"] });
+  const pt = read("pt/text.json"), en = read("text.json");
+  assert.equal(pt.length, en.length);
+  const changed = pt.filter((l, i) => l !== en[i]).length;
+  assert.ok(changed > 20000 && changed < en.length * 0.6, `${changed} lines in Portuguese`);
+  for (const l of pt) assert.ok(!/%\{[^}]*\}|[\t\r]/.test(l), `a code or tab left: ${JSON.stringify(l.slice(0, 60))}`);
+  const marks = new Set(pt.flatMap((l) => l.match(/@[a-z]|\[[a-z]+\d*\]/g) || []));
+  for (const m of marks) assert.ok(["@g", "@t", "@k", "[ber00]", "[zap00]"].includes(m), `${m}: a mark parseMarkup does not read`);
+  assert.ok(/[ãçõ]/.test(pt[1146] + pt[1147] + pt[1148]), "the first scene of the story is in Portuguese");
+  assert.equal(pt[35000], en[35000], "Ciel's day 13: past where the translation ends, English");
 });
 
 test("a file Japanese has of its own is asked for under ja/, every other where it always was", () => {

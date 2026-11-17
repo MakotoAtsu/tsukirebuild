@@ -10,7 +10,7 @@ const read = (name) => readFileSync(at(name), "utf8");
 const lines = read("web-dev/assets-manifest.txt").split("\n").filter(Boolean).map((l) => { const [md5, size, ...rest] = l.split(" "); return { md5, size: Number(size), path: rest.join(" ") }; });
 
 test("the manifest lists every asset the site serves: an MD5, a size and a path each, in order, the loose voices and sounds left out", () => {
-  assert.equal(lines.length, 11136);   // 10,517 the translation's, 474 Japanese's own (ja/, 17 of them the apps' packs), 143 Chinese's own (zh/, the patch v3.0; 5 packs), 2 official English (aniplex/)
+  assert.equal(lines.length, 11138);   // 10,517 the translation's, 474 Japanese's own (ja/, 17 of them the apps' packs), 143 Chinese's own (zh/, the patch v3.0; 5 packs), 2 official English (aniplex/), 2 Portuguese (pt/)
   for (const l of lines) {
     assert.match(l.md5, /^[0-9a-f]{32}$/, l.path);
     assert.ok(Number.isInteger(l.size) && l.size > 0, l.path);
@@ -21,11 +21,12 @@ test("the manifest lists every asset the site serves: an MD5, a size and a path 
   assert.equal(new Set(paths).size, paths.length);
   assert.ok(!paths.some((p) => p.startsWith("voice/") || p.startsWith("se/")), "the site plays those from the packs");
   for (const p of ["text.json", "system.json", "scripts/index.json", "pack/index.json", "gallery.json", "flowchart.json"]) assert.ok(paths.includes(p), p);
-  assert.equal(lines.reduce((n, l) => n + l.size, 0), 3014480784, "3.0 GB");
+  assert.equal(lines.reduce((n, l) => n + l.size, 0), 3017830228, "3.0 GB");
   assert.ok(paths.includes("ja/index.json") && paths.filter((p) => p.startsWith("ja/")).length === 474, "Japanese's own, under ja/");
   assert.ok(paths.includes("zh/index.json") && paths.filter((p) => p.startsWith("zh/")).length === 143, "Chinese's own, under zh/");
   for (const lang of ["ja", "zh"]) assert.ok(paths.includes(`${lang}/pack/index.json`), `${lang}: the apps' packs (build_langpacks.py)`);
   assert.deepEqual(paths.filter((p) => p.startsWith("aniplex/")), ["aniplex/index.json", "aniplex/text.json"], "both official English files are published for the site and app updates");
+  assert.deepEqual(paths.filter((p) => p.startsWith("pt/")), ["pt/index.json", "pt/text.json"], "Portuguese's lines, for the site and app updates (ordinary assets: no download of its own in the apps)");
 });
 
 test("fetch_assets.py reads that list, fetches from the site, and can take the scripts and tables alone", () => {
@@ -37,7 +38,7 @@ test("fetch_assets.py reads that list, fetches from the site, and can take the s
   const media = ["img/", "ui/", "bgm/", "movie/", "pack/", "sys/", "fonts/"];
   const tables = lines.filter((l) => !media.some((m) => l.path.replace(/^(ja|zh)\//, "").startsWith(m)));
   assert.ok(tables.every((l) => l.path.endsWith(".json")), "everything else is a script or a table");
-  assert.ok(tables.reduce((n, l) => n + l.size, 0) < 75e6, "small enough to fetch for the tests");
+  assert.ok(tables.reduce((n, l) => n + l.size, 0) < 80e6, "small enough to fetch for the tests");   // (75.4 MB with Portuguese's lines)
   assert.match(tool, /part\.stat\(\)\.st_size != size or digest\.hexdigest\(\) != md5/, "a download is checked against the list before it is kept");
 });
 
@@ -74,8 +75,9 @@ print(json.dumps([k for k in json.load(sys.stdin) if deploy.cache_control(k) == 
   const re = new RegExp(worker[1].slice(1, -1));
   for (const k of keys.filter((x) => x.startsWith("assets/"))) assert.equal(re.test(k), long.has(k), `worker.js: ${k}`);
   // the languages named are the ones the apps' lists know
-  assert.match(read("tools/cloudflare/deploy.py"), /% "\|"\.join\(app_manifest\.LANG_DIRS\)\)/);
-  assert.match(read("web-dev/tools/app_manifest.py"), /^LANG_DIRS = \("ja", "zh"\)$/m);
+  assert.match(read("tools/cloudflare/deploy.py"), /% "\|"\.join\(app_manifest\.PACKED\)\)/);
+  assert.match(read("web-dev/tools/app_manifest.py"), /^PACKED = \("ja", "zh"\)$/m, "the languages with media of their own");
+  assert.match(read("web-dev/tools/app_manifest.py"), /^LANG_DIRS = \("ja", "zh", "pt"\)$/m);
 });
 
 test("in the repository nothing under web/assets is tracked, and the deployment stores the app alone and refuses if that changes", { skip: !existsSync(at("tools/cloudflare/deploy.py")) }, () => {

@@ -31,8 +31,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 FORMAT = 1
-# What the apps are built without: Japanese's and Chinese's own files (LANG_DIRS: downloaded when chosen), and the loose voices and sound effects.
-LANG_DIRS = ("ja", "zh")
+# What the apps are built without: Japanese's, Chinese's and Portuguese's own files (LANG_DIRS: downloaded when chosen; the user, 2026-11-17, of
+# Portuguese: "make sure only people who select that download it"), and the loose voices and sound effects.
+LANG_DIRS = ("ja", "zh", "pt")
+# The folders with pictures, movies and faces of their own: they come to the apps in packs (build_langpacks.py), and the deployment keeps their
+# media 30 days (tools/cloudflare/deploy.py MEDIA). Portuguese is two files of lines, which a pack would only copy.
+PACKED = ("ja", "zh")
 WITHOUT = (*LANG_DIRS, "voice", "se")
 # A language folder's small files come to the apps in packs (web-dev/tools/build_langpacks.py, under <folder>/pack): the apps download one file at a
 # time, about 150 ms a request, so Japanese's 456 files cost a minute in requests alone. What stays loose for the apps: the folder's list (an app holds a

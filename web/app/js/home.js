@@ -8,8 +8,8 @@
 // It opens on every visit, for everyone, with no tab chosen and no plate lit: the column holds only the game's logo and a line naming the plates, so
 // a stray tap starts nothing. Not where the address asks for a scene (?script, for tests and the scene links in ABOUT's Extras).
 // The Android and desktop apps (web-dev/android, web-dev/desktop) open on it too, with four tabs (tabsFor): ABOUT, SAVE DATA, LANGUAGE and PLAY, the
-// site's PLAY ONLINE under the app's name for it. There is no DOWNLOAD there (it is the download). LANGUAGE has the site's three language plates, but the
-// apps are built in English: Japanese's and Chinese's files are downloaded the first time one is chosen, after asking (update.js langPlan); and PLAY's
+// site's PLAY ONLINE under the app's name for it. There is no DOWNLOAD there (it is the download). LANGUAGE has the site's four language plates, but the
+// apps are built in English: Japanese's, Chinese's and Portuguese's files are downloaded the first time one is chosen, after asking (update.js langPlan); and PLAY's
 // page has the app's updates (update.js). What a browser does for the page the app does through apphost.js: Export's file goes where the player
 // chooses, and a link opens in the system's browser.
 import { sprite, quickBarArt, panelBack } from "./ui.js";
@@ -40,7 +40,7 @@ export function homeDue(query) {
 }
 
 // The tabs: a plate, and the sections its page shows, each a heading and blocks as welcome.js draws them, plus ["link", text, address, file name if a
-// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, ["lang"], the language's three plates, ["langnow"], the line on PLAY
+// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, ["lang"], the language's plates, ["langnow"], the line on PLAY
 // naming the language the game starts in, ["update"], the app's updates, and ["press"], the prompt that starts the game.
 // The site's PLAY ONLINE only (the apps have no browser full screen to leave), and not by touch, where there is no F key.
 const FULL_KEY_LINE = "Press F to exit fullscreen.";
@@ -71,7 +71,7 @@ const SITE_TABS = [
       ["note", "Downloaded the app before 13 November 2026? Please download it again: those first versions cannot update themselves. They open straight on the game's title, not on a page of tabs like this one. On Android, install the new one over the old one; on Windows, extract it and play from the new folder. Your saves stay."],
       "The whole game as an app that needs no connection: every picture, voice, song and movie is inside it, and nothing is fetched while you play. Windows and Android have a download here; for macOS and Linux the same app is built from the source, below.",
       ["facts", [[DESKTOP.size, "Windows"], [APK.size, "Android"], ["0", "connections needed"]]],
-      "It is this site's game in a window of its own, opening on this page's ABOUT, SAVE DATA, LANGUAGE and PLAY. It is in English; 日本語 and 中文 are downloaded inside it the first time they are chosen on LANGUAGE (about 100 MB). Saves are kept in the app, apart from this site's, and stay when a newer version replaces it; SAVE DATA moves progress between the app and this site as a file. Leaving the app makes the automatic save, so you come back to where you were.",
+      "It is this site's game in a window of its own, opening on this page's ABOUT, SAVE DATA, LANGUAGE and PLAY. It is in English; 日本語 and 中文 (about 100 MB) and PORTUGUÊS (3 MB) are downloaded inside it the first time they are chosen on LANGUAGE. Saves are kept in the app, apart from this site's, and stay when a newer version replaces it; SAVE DATA moves progress between the app and this site as a file. Leaving the app makes the automatic save, so you come back to where you were.",
       "The app keeps itself up to date: when it opens with a connection it looks here for a newer version, asks, and downloads only the files that changed, so a fix is not this download again.",
     ] },
     { head: "Windows", blocks: [
@@ -197,24 +197,30 @@ export function glAccel() {
   } catch { return "unsure"; }
 }
 export const ABOUT = 0, PLAY = TABS.length - 1, SAVE = TABS.findIndex((t) => t.plate === "SAVE DATA"), LANGUAGE = TABS.findIndex((t) => t.plate === "LANGUAGE"), NONE = -1;
-// The language, chosen on LANGUAGE (lang.js): three of the panel's plates, the one in use lit as a chosen tab is. English is the
+// The language, chosen on LANGUAGE (lang.js): the panel's plates, the one in use lit as a chosen tab is. English is the
 // translation the port was made from; Japanese is the original game's own text, set as its engine sets it; Chinese is the Chinese fan translation of the
-// original game, set the same way. Saves and progress are the same ones in all three. In the apps 日本語 and 中文 are downloaded when first chosen.
-export const LANG_PLATES = [{ lang: "en", plate: "ENGLISH" }, { lang: "ja", plate: "日本語" }, { lang: "zh", plate: "中文" }];
+// original game, set the same way; Portuguese is HanabiWorks' Brazilian Portuguese fan translation, finished up to Ciel's day 5, with the English where it has no scene.
+// Saves and progress are the same ones in all. In the apps 日本語, 中文 and PORTUGUÊS are downloaded when first chosen, and on the site a language's
+// files are asked for only once it is the one played (lang.js LAYERS): nothing of Portuguese's for anyone who has not chosen it.
+export const LANG_PLATES = [{ lang: "en", plate: "ENGLISH" }, { lang: "ja", plate: "日本語" }, { lang: "zh", plate: "中文" }, { lang: "pt", plate: "PORTUGUÊS" }];
 // What each is, as a short list under the plates (a row a language, as the other tabs' lists are), and one line under that.
-export const LANG_ROWS = [["ENGLISH", "The Tsukihimates fan translation, or Aniplex's official one."], ["日本語", "The original game's text."], ["中文", "The Chinese fan translation."]];
+export const LANG_ROWS = [["ENGLISH", "The Tsukihimates fan translation, or Aniplex's official one."], ["日本語", "The original game's text."], ["中文", "The Chinese fan translation."],
+  ["PORTUGUÊS", "HanabiWorks' Brazilian Portuguese fan translation, finished up to Ciel's day 5: the rest is in English."],
+  // (no plate yet: a translation on its way; the user, 2026-11-17: "mention Spanish ... expected to release by early 2027"; no link on this page: "too big link")
+  ["ESPAÑOL", "Taikutsu Translations' Spanish fan translation is in the works, expected in early 2027."]];
 // English's two translations (lang.js ENGLISH): two more of the panel's plates under the three while the game is in English, the one in use lit,
 // with a line that recommends Tsukihimates.
 export const EN_PLATES = [{ english: "tsukihimates", plate: "TSUKIHIMATES" }, { english: "aniplex", plate: "ANIPLEX" }];
 export const EN_LINE = { head: "Which English translation?",
   note: "Tsukihimates (the fan translation) is recommended. Aniplex is the official translation." };
 const CARRY = "Saves and progress carry over between languages. L changes it.";
-export const langLineFor = (app) => ({ head: "Language", rows: LANG_ROWS, note: app ? `日本語 and 中文 are downloaded the first time they are chosen.\n${CARRY}` : CARRY });
+export const langLineFor = (app) => ({ head: "Language", rows: LANG_ROWS, note: app ? `日本語, 中文 and PORTUGUÊS are downloaded the first time they are chosen.\n${CARRY}` : CARRY });
 export const LANG_LINE = langLineFor(APP);
 const REOPEN = "tsuki.home.tab";   // (kept for one reload: the page a change of language comes back to, LANGUAGE)
 // PLAY's line naming the language the game starts in (which may be the device's, never chosen), and where it is changed.
 export const LANG_NOW = { en: "The game starts in English: the Tsukihimates translation.", aniplex: "The game starts in English: Aniplex's official translation.",
-  ja: "The game starts in 日本語, the original game's text.", zh: "The game starts in 中文, the Chinese fan translation.", change: "LANGUAGE changes it." };
+  ja: "The game starts in 日本語, the original game's text.", zh: "The game starts in 中文, the Chinese fan translation.",
+  pt: "The game starts in PORTUGUÊS, HanabiWorks' Brazilian Portuguese fan translation.", change: "LANGUAGE changes it." };
 // Export, Import and Remove, on SAVE DATA's page (savefile.js): three of the panel's plates under the list of what the browser holds now. The file is the
 // Nintendo Switch game's own save, savedata000 (gamesave.js), so a save goes between the game and this page both ways. Import loads such a file's settings
 // and progress over the browser's own, which are put aside; Remove takes the file out again, after a question in the game's Yes / No window, and the
