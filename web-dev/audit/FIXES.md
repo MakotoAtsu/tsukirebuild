@@ -1821,3 +1821,23 @@ scenes measure the same on that day's version as on 14 November's. The downloada
   run was muted (the decoded sounds' budget of 14 November was not exercised).
 
 Tests: `shrink.test.mjs` (7). 642 tests, 640 pass, 2 skipped (in the working folder).
+
+## Android 13 and before: the smallest picture budget for a limit that is the browser's, not the GPU's, 2026-11-16
+
+The user found, and Chromium's `gpu/config/gpu_driver_bug_list.json` confirms (entries 147 and 456), that Chrome and the WebView give WebGL the
+4096 texture limit on every Android before 14.0 and 8192 on the rest, whatever the GPU (read directly; `gpu_driver_bug_workarounds.cc` takes
+the 4096 where both apply). `renderer.js` read a 4096 limit as a small GPU and kept
+400 MB of pictures there, so a phone with 12 GB on Android 13 had 400 MB where the same phone on Android 14 has 1400 MB. Across the 549 scripts
+that is about 1,500 pictures decoded a second time against 48.
+
+- **Change** (`renderer.js pictureBudget`): on Android, where the browser says the device's memory, the memory alone decides (1400 MB, 700 MB at
+  4 GB, 400 MB at 2 GB or less). Elsewhere a 4096 limit still means 400 MB, as does Firefox on Android (it says nothing of the memory and gives
+  the GPU's own limit) and an iPhone or iPad. `upload` still cuts the budget when the GPU refuses a picture with an error; a browser that
+  takes the context away or ends the page instead leaves it as it was, as on any Android 14 phone with 8 GB and on every Android before
+  13 November. Chrome's "desktop site" on Android sends another user agent: 400 MB there as before.
+- **Checked** in a browser set up as an Android 13 phone with 8 GB (Android user agent, `deviceMemory` 8, the 4096 emulation, processor slowed
+  four times), `05_00_ARC05_9_2B` for 150 s, one run each: 400 MB before, 57 pictures decoded again (614 MB), 1.66 s waited for pictures;
+  1400 MB after, none decoded again, 0.95 s waited (late frames 2.65 s and 1.79 s, within what two like runs differ by). Not run on a phone
+  on Android 13.
+
+Tests: `touch.test.mjs` (the budgets by device). 644 tests, 641 pass, 3 skipped (in the working folder).

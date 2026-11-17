@@ -127,7 +127,7 @@ test("an iPhone or an iPad is known in any of its browsers, an iPad also where i
   assert.equal(appleTouch({}), false, "no browser at all");
 });
 
-test("on an iPhone the page is laid out one CSS pixel to a screen pixel, so a layer is drawn at the size it is shown; elsewhere the page is left alone", () => {
+test("on an iPhone the page is laid out one CSS pixel to a screen pixel, so a layer is drawn at the size it is shown; elsewhere the page is left alone", async () => {
   let meta = viewportMeta();
   const doc = (m) => ({ querySelector: (sel) => (sel === 'meta[name="viewport"]' ? m : null) });
   assert.equal(fitPage({ navigator: IPHONE, devicePixelRatio: 3 }, doc(meta)), 3);
@@ -148,8 +148,43 @@ test("on an iPhone the page is laid out one CSS pixel to a screen pixel, so a la
   for (const side of ["top", "right", "bottom", "left"]) assert.ok(css.includes(`calc(env(safe-area-inset-${side}, 0px) * var(--unit, 1))`), side);
   // ... and it counts as a device with little memory: it does not say how much it has, and a page that takes much is ended there
   const renderer = source("js/renderer.js");
-  assert.match(renderer, /const memory = globalThis\.navigator\?\.deviceMemory \|\| \(appleTouch\(globalThis\) \? 2 : 8\);/);
-  assert.match(renderer, /this\.limit = \(this\.maxSide <= 4096 \|\| memory <= 2 \? 400 : memory <= 4 \? 700 : 1400\) \* 1024 \* 1024;/);
+  assert.match(renderer, /this\.limit = pictureBudget\(this\.maxSide\);/);
+  const { pictureBudget } = await import("../../web/app/js/renderer.js");
+  const MB = 1024 * 1024;
+  assert.equal(pictureBudget(16384, { navigator: IPHONE }), 400 * MB);
+  assert.equal(pictureBudget(16384, { navigator: IPAD }), 400 * MB);
+  assert.equal(pictureBudget(16384, { navigator: MAC }), 1400 * MB, "a desktop");
+  assert.equal(pictureBudget(16384, {}), 1400 * MB);
+});
+
+// The pictures' budget. A GPU with the 4096 limit is a small one, except on Android, where Chrome and the WebView give that limit to every device
+// before Android 14 whatever its GPU (Chromium's gpu_driver_bug_list.json: 4096 below 14.0, 8192 on all): there the memory the device says decides.
+test("the pictures' budget: by the device's memory; a 4096 limit means a small GPU, but not on Android, where the browser gives it to every device before Android 14", async () => {
+  const { pictureBudget } = await import("../../web/app/js/renderer.js");
+  const MB = 1024 * 1024;
+  const A13 = { ...ANDROID, userAgent: "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Mobile Safari/537.36" };
+  const WEBVIEW = { ...A13, userAgent: "Mozilla/5.0 (Linux; Android 13; SM-S908B Build/TP1A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/157.0.0.0 Mobile Safari/537.36" };
+  // Android 13 and before (4096 from the browser): 1400 MB with 8 GB, as the same phone on Android 14 (8192); it was 400 MB
+  for (const nav of [A13, WEBVIEW]) {
+    assert.equal(pictureBudget(4096, { navigator: { ...nav, deviceMemory: 8 } }), 1400 * MB);
+    assert.equal(pictureBudget(4096, { navigator: { ...nav, deviceMemory: 4 } }), 700 * MB);
+    assert.equal(pictureBudget(4096, { navigator: { ...nav, deviceMemory: 2 } }), 400 * MB);
+    assert.equal(pictureBudget(4096, { navigator: { ...nav, deviceMemory: 1 } }), 400 * MB);
+  }
+  for (const [memory, mb] of [[8, 1400], [4, 700], [2, 400]]) assert.equal(pictureBudget(8192, { navigator: { ...ANDROID, deviceMemory: memory } }), mb * MB, `Android 14 on, ${memory} GB`);
+  // Firefox on Android says nothing of the memory and gives the GPU's own limit: 4096 there is a small GPU
+  const FIREFOX = { userAgent: "Mozilla/5.0 (Android 13; Mobile; rv:140.0) Gecko/140.0 Firefox/140.0", vendor: "", maxTouchPoints: 5 };
+  assert.equal(pictureBudget(4096, { navigator: FIREFOX }), 400 * MB);
+  assert.equal(pictureBudget(8192, { navigator: FIREFOX }), 1400 * MB);
+  // anywhere else the 4096 limit is the GPU's (an old laptop), and less than 4096 is small everywhere
+  const LAPTOP = { userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36", vendor: "Google Inc.", maxTouchPoints: 0, deviceMemory: 8 };
+  assert.equal(pictureBudget(4096, { navigator: LAPTOP }), 400 * MB);
+  assert.equal(pictureBudget(16384, { navigator: LAPTOP }), 1400 * MB);
+  assert.equal(pictureBudget(16384, { navigator: { ...LAPTOP, deviceMemory: 4 } }), 700 * MB);
+  assert.equal(pictureBudget(2048, { navigator: { ...A13, deviceMemory: 8 } }), 400 * MB);
+  assert.equal(pictureBudget(4096, {}), 400 * MB);
+  // the blurred copies keep their quarter of it, and the sounds' budget goes by the memory alone as before
+  assert.match(source("js/renderer.js"), /this\.dropBlurred\(this\.limit \/ 4\);/);
 });
 
 // ---- issue 8's follow-up: decoded sounds, the sound after an interruption, a page ended out of sight ----------------------

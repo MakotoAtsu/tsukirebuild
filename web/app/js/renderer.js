@@ -10,6 +10,21 @@ import { appleTouch } from "./touch.js";
 import { Shrinker } from "./shrink.js";
 const F = 1.5;
 const MIN_TEXTURES = 192 * 1024 * 1024;   // the least the picture textures are cut back to when the GPU runs out of room (upload)
+// How much of the pictures' textures is kept, in bytes: 1400 MB, 700 MB where the device says it has 4 GB, 400 MB where it says 2 GB or less
+// or where its GPU takes no texture over 4096 on a side, the mark of a small one. An iPhone or an iPad says neither (Safari has no
+// deviceMemory, and its limit is a desktop's), and its browsers end a page that takes much, reloading it: counted as a desktop it kept
+// 1400 MB of pictures (issue 8). It is given the least.
+// On Android the 4096 limit is not the GPU's: Chrome and the WebView give it to every device before Android 14 and 8192 to the rest, whatever
+// the hardware (Chromium's gpu_driver_bug_list.json, entries 147 and 456), so a phone with 12 GB on Android 13 was kept to 400 MB, and the
+// heaviest scenes had their pictures decoded again and again (05_00_ARC05_9_2B: 49 to 70 times in 150 s, against one at 1400 MB). There
+// the device's memory alone decides, where the browser says it (Firefox does not: the limit it gives is the GPU's own).
+export function pictureBudget(maxSide, win = globalThis) {
+  const n = win.navigator;
+  const memory = n?.deviceMemory || (appleTouch(win) ? 2 : 8);
+  const capped = !!n?.deviceMemory && /Android/.test(n.userAgent || "") && maxSide === 4096;   // (the browser's limit, not the GPU's)
+  const small = maxSide <= 4096 && !capped;
+  return (small || memory <= 2 ? 400 : memory <= 4 ? 700 : 1400) * 1024 * 1024;
+}
 // STBR's number -> the shader that draws the layer, as positions in the engine's shader table (0x264668). The draw
 // (0x89ad0) looks the number up in 0x34dd70 (the identity for 0-39) and maps it with 0xa2790 to a shader; shaders of
 // type 7 (0xa27c0) composite the layer over a copy of the screen. 0 draws normally; 2 and 3 are fixed-function draws.
@@ -618,13 +633,10 @@ export class Renderer {
     canvas.addEventListener?.("webglcontextrestored", () => this.restore());
     this.bytes = 0;
     this.files = new Map();   // name -> { read, done }: the pictures' files kept as they came (file)
-    // What the GPU takes: the longest side of a texture, and how much of them is kept (evict). The machines with the 4096 limit and those that
-    // say they have little memory are the ones with little room for textures, which upload lowers again when the GPU has none left.
-    // An iPhone or an iPad says neither (Safari has no deviceMemory, and its limit is a desktop's), and its browsers end a page that takes
-    // much, reloading it: counted as a desktop it kept 1400 MB of pictures (issue 8). It is given the least.
+    // What the GPU takes: the longest side of a texture, and how much of them is kept (evict: pictureBudget), which upload lowers again
+    // when the GPU has none left.
     this.maxSide = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
-    const memory = globalThis.navigator?.deviceMemory || (appleTouch(globalThis) ? 2 : 8);
-    this.limit = (this.maxSide <= 4096 || memory <= 2 ? 400 : memory <= 4 ? 700 : 1400) * 1024 * 1024;
+    this.limit = pictureBudget(this.maxSide);
     this.blurCache = new Map();
     this.blurRefused = new Set();   // blurred copies the GPU would not hold: drawn sharp (blurred)
     this.blurBytes = 0;             // what the blurred copies take (blurred: a share of limit)
