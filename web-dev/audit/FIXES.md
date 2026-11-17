@@ -1792,3 +1792,32 @@ rebuild of the APK or the Windows zip is needed), and PLAY has the site's three 
 
 Tests: `app-update.test.mjs` (three plates on PLAY, the language plans, a language through the desktop updater, the site's lists, the
 question's line lengths), `packs.test.mjs` (notify). 613 of 620 pass, 7 skipped (in the repository checkout). Pushed 2026-11-14 at the user's word.
+
+## A 4096 GPU: the page stood still while an oversized picture was made smaller, 2026-11-16
+
+A player reported "degraded performance" on Android and the website after an update, in Percentage Showtime (`05_00_ARC05_9_2B`) and Mystic
+Eyes of Death Perception (`13_00_ARC13_5`), with either English translation. Nothing of 16 November touches drawing, pictures or sound, and both
+scenes measure the same on that day's version as on 14 November's. The downloadable Android app was built from `bd716b3e`, just before
+`1245af37`, so its first update brings everything since.
+
+- **Cause** (`renderer.js upload`, since `1245af37`): on a GPU that takes no texture over 4096 on a side, a larger picture (2,276 of the game's)
+  is read again at a size that fits, `createImageBitmap(blob, { resizeWidth, resizeHeight, resizeQuality: "high" })`. Chrome does that resize on
+  the page's thread. With the processor slowed four times: 0.1 s for a standing sprite, 0.67 s for `VRV_A_12_00_A01` (5927 x 4332), nothing
+  drawn meanwhile. `05_00_ARC05_9_2B` for 150 s on an emulated 4096 GPU with the 400 MB budget: 5.1 to 5.5 s lost to late frames (two runs),
+  2.9 s on the same version with no limit; 3.4 s of the long frames lay over the seven resizes. Quality "low" still held the page 0.2 s.
+- **Fix** (`shrink.js`, new): the same call in a worker, made from a few lines in the file when first needed. It holds the page 6 ms. Where there
+  is no worker, or it fails, does not answer in 20 s, or gives another size than asked, the picture is made on the page as before and the worker
+  is not used again.
+- **Checked**: the worker's bitmap and the page's are the same byte for byte (four pictures, up to 4096 x 2993); the frame of `?script=6&pc=84`
+  on the emulated 4096 GPU is the same before and after; the scene above with the fix loses 3.3 and 2.6 s (no resize on the page left).
+  `13_00_ARC13_5` the same way (15 oversized pictures): 6.5 s lost before, 4.0 s of it over the 15 resizes, the longest wait for a picture
+  1.66 s; 2.7 s after, the longest wait 0.74 s.
+- **On a phone** (the user's OnePlus CPH2749, Snapdragon 8 Elite Gen 5, Chrome 157, a tab on a data file of the site, no game code): it reports
+  `MAX_TEXTURE_SIZE` 8192 and `deviceMemory` 8, so it never takes this path in the game (no picture is over 8192; the full 1400 MB budget). Asked
+  for by hand there, the resize of `VRV_A_12_00_A01` to 4096 x 2993 held the page 255 ms on the page and 9 to 14 ms in the worker; a sprite 29 ms
+  against 2 to 5 ms; the bitmaps the same byte for byte. So the fastest Android phone still loses a quarter of a second to one such picture.
+- **Not the cause, as far as a Mac shows**: the smaller picture budgets (400 / 700 MB against 1400 MB). In `13_00_ARC13_5` they have 16 to 49
+  pictures decoded a second time in 150 s, with no more frames lost than before (3.0 s old, 2.6 to 2.8 s new). No phone was measured, and every
+  run was muted (the decoded sounds' budget of 14 November was not exercised).
+
+Tests: `shrink.test.mjs` (7). 642 tests, 640 pass, 2 skipped (in the working folder).

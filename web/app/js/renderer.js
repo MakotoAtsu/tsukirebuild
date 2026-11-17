@@ -7,6 +7,7 @@ import { place, clipGeometry, panelRuns, groupModes, plainGroups, groupCoverage,
 import { grainSample, linesSample, splitSample } from "./screenfx.js";
 import { asset } from "./lang.js";
 import { appleTouch } from "./touch.js";
+import { Shrinker } from "./shrink.js";
 const F = 1.5;
 const MIN_TEXTURES = 192 * 1024 * 1024;   // the least the picture textures are cut back to when the GPU runs out of room (upload)
 // STBR's number -> the shader that draws the layer, as positions in the engine's shader table (0x264668). The draw
@@ -812,7 +813,8 @@ export class Renderer {
       const w = Math.max(1, Math.floor(fw / by)), h = Math.max(1, Math.floor(fh / by));
       if (bmp.width !== w || bmp.height !== h) {
         bmp.close();
-        bmp = await createImageBitmap(blob, { ...opts, resizeWidth: w, resizeHeight: h, resizeQuality: "high" });
+        // (in a worker: asked for on the page, the resize holds the page's thread, up to 0.7 s for the largest pictures: shrink.js)
+        bmp = await (this.shrink ||= new Shrinker()).bitmap(blob, { ...opts, resizeWidth: w, resizeHeight: h, resizeQuality: "high" });
       }
       let failed = gl.isContextLost() || bmp.width > most || bmp.height > most;
       let tex = null;
