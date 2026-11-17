@@ -47,6 +47,37 @@ test("what needs the files says how to get them", () => {
 });
 
 // (the deployment and git are the repository's; the working folder this is developed in has neither)
+// What a browser keeps for 30 days and what for 5 minutes (deploy.py cache_control; the Pages worker has the same rule). A language's own pictures,
+// faces, movies and content-named packs were left at 5 minutes until 2026-11-16: the rule named only the folders at the top.
+test("the cache rule: media are kept 30 days in a language's folder as at the top; lists, scripts, tables and interface art 5 minutes", { skip: !existsSync(at("tools/cloudflare/deploy.py")) }, () => {
+  const paths = lines.map((l) => l.path);
+  const keys = [...paths.map((p) => `assets/${p}`), "index.html", "js/main.js", "style.css", "update/app.json", "v/f24929f4ffdb/js/main.js", "assets/jazz/img/a.avif", "assets/ja/pack/index-0123456789.json"];
+  const long = new Set(JSON.parse(execFileSync("python3", ["-c", `import sys, json
+sys.path.insert(0, ${JSON.stringify(at("tools/cloudflare").pathname)})
+import deploy
+print(json.dumps([k for k in json.load(sys.stdin) if deploy.cache_control(k) == deploy.LONG]))`], { input: JSON.stringify(keys), encoding: "utf8", maxBuffer: 16 * 1024 * 1024 })));
+  const kind = (p) => { const parts = p.split("/"), lang = ["ja", "zh", "aniplex"].includes(parts[0]) ? parts.shift() : null; return { lang, dir: parts.length > 1 ? parts[0] : null, file: parts.at(-1) }; };
+  for (const p of paths) {
+    const { dir, file } = kind(p);
+    const media = ["img", "movie", "fonts", "bgm", "sys"].includes(dir) || (dir === "pack" && /^[a-z]+-[0-9a-f]{10}\./.test(file));
+    assert.equal(long.has(`assets/${p}`), media, p);
+  }
+  // each language has something of each kind for this to say anything
+  for (const lang of ["ja", "zh"]) for (const dir of ["img", "movie", "fonts", "pack", "ui"]) assert.ok(paths.some((p) => p.startsWith(`${lang}/${dir}/`)), `${lang}/${dir}`);
+  assert.ok(long.has("assets/ja/pack/ja-34a76cd29f.pack") || paths.every((p) => p !== "ja/pack/ja-34a76cd29f.pack"));
+  for (const p of ["ja/pack/index.json", "zh/pack/index.json", "pack/index.json", "ja/index.json", "zh/text.json", "aniplex/text.json", "ja/ui/CG_THUMB_PARTS_JA/cg_thumb_all.webp"]) if (paths.includes(p)) assert.ok(!long.has(`assets/${p}`), `${p}: asked about again after 5 minutes`);
+  assert.deepEqual(["index.html", "js/main.js", "style.css", "update/app.json", "assets/jazz/img/a.avif"].filter((k) => long.has(k)), [], "the app at its plain addresses, and a folder that is no language");
+  assert.ok(long.has("v/f24929f4ffdb/js/main.js") && long.has("assets/ja/pack/index-0123456789.json"), "the app's content-named copy; a content-named index");
+  // the Pages worker answers /assets/ by the same rule
+  const worker = /const MEDIA = (\/.+\/);/.exec(read("web/cloudflare/worker.js"));
+  assert.ok(worker);
+  const re = new RegExp(worker[1].slice(1, -1));
+  for (const k of keys.filter((x) => x.startsWith("assets/"))) assert.equal(re.test(k), long.has(k), `worker.js: ${k}`);
+  // the languages named are the ones the apps' lists know
+  assert.match(read("tools/cloudflare/deploy.py"), /% "\|"\.join\(app_manifest\.LANG_DIRS\)\)/);
+  assert.match(read("web-dev/tools/app_manifest.py"), /^LANG_DIRS = \("ja", "zh"\)$/m);
+});
+
 test("in the repository nothing under web/assets is tracked, and the deployment stores the app alone and refuses if that changes", { skip: !existsSync(at("tools/cloudflare/deploy.py")) }, () => {
   assert.equal(execFileSync("git", ["ls-files", "--", "web/assets"], { cwd: at("."), encoding: "utf8" }).trim(), "");
   assert.match(read("web/.gitignore"), /^assets\/$/m, "fetched files are ignored");

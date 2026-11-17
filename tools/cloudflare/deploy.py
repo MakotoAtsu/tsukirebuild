@@ -56,10 +56,12 @@ CONTENT_TYPES = {
 
 
 # What a browser may keep for 30 days: the game's converted media, which do not change with the code, and the sound packs and their
-# index, which are named by their content (web/cloudflare/worker.js has the same rule for the Pages way in). Everything else, the app
-# included, is kept 5 minutes so that a deployment reaches players by itself; the versioned copy of the app (VERSIONED) is kept 30 days,
-# since a new version is a new folder.
-MEDIA = re.compile(r"^(assets/((voice|img|se|bgm|movie|sys|fonts)/|pack/[a-z]+-[0-9a-f]{10}\.)|v/[0-9a-f]{12}/)")
+# index, which are named by their content (web/cloudflare/worker.js has the same rule for the Pages way in); the same in a language's
+# own folder (assets/ja/img/, assets/zh/movie/, assets/ja/pack/ja-<hash>.pack: they were left at 5 minutes until 2026-11-16, each
+# picture, face and movie of a Japanese or Chinese visit asked about again). Everything else, the app included, is kept 5 minutes so
+# that a deployment reaches players by itself; the versioned copy of the app (VERSIONED) is kept 30 days, since a new version is a
+# new folder. A file kept 30 days that is ever made again needs a new address (web/app/js/lang.js REVISED).
+MEDIA = re.compile(r"^(assets/((%s)/)?((voice|img|se|bgm|movie|sys|fonts)/|pack/[a-z]+-[0-9a-f]{10}\.)|v/[0-9a-f]{12}/)" % "|".join(app_manifest.LANG_DIRS))
 
 
 LONG, SHORT = "public, max-age=2592000, immutable", "public, max-age=300"
