@@ -7,12 +7,12 @@
 // are listed in web/app/js/apphost.js): a place for an exported save, a link opened in the computer's browser, and
 // the update: files newer than the app's own, fetched from the site into the app's data folder and answered from
 // there first (updater.js). The story's lines are also passed on to text-extraction tools on this computer (textfeed.js).
-const { app, BrowserWindow, Menu, dialog, ipcMain, powerSaveBlocker, protocol, screen, session, shell } = require("electron");
+const { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, powerSaveBlocker, protocol, screen, session, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { Readable } = require("node:stream");
 const { Updater } = require("./updater.js");
-const { TextFeed, portOf, LunaFeed, lunaPortOf } = require("./textfeed.js");
+const { TextFeed, portOf, ClipboardFeed, clipboardModeOf } = require("./textfeed.js");
 
 const HOST = "tsukihime.desktop";            // apphost.js knows this name: the page there is the app's
 const HOME = `app://${HOST}/`;
@@ -26,10 +26,10 @@ const flag = (name) => { const a = process.argv.find((v) => v.startsWith(`--${na
 const WWW = !app.isPackaged && flag("www") ? path.resolve(flag("www")) : null;
 const TEST_DIR = flag("test-dir") ? path.resolve(flag("test-dir")) : null;
 const ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(flag("update-origin") || "") ? flag("update-origin") : SITE;
-// --text-port=N: the port of the text feed (textfeed.js; 6677 if not given), or 0 for none. --luna-port=N: LunaTranslator's network service,
-// where the same lines go too (2333, its default, if not given), or 0 for none.
+// --text-port=N: the port of the text feed (textfeed.js; 6677 if not given), or 0 for none. --clipboard=on|off: the same lines to the
+// clipboard always or never, for LunaTranslator; if not given, while LunaTranslator is running (with --test-dir: to DIR/clipboard.jsonl).
 const TEXT_PORT = portOf(flag("text-port"));
-const LUNA_PORT = lunaPortOf(flag("luna-port"));
+const CLIPBOARD = clipboardModeOf(flag("clipboard"));
 const WEB = path.join(__dirname, "..", "..", "web");
 const APP_DIR = app.isPackaged ? path.join(process.resourcesPath, "www") : WWW || path.join(WEB, "app");
 const ASSETS_DIR = app.isPackaged || WWW ? path.join(APP_DIR, "assets") : path.join(WEB, "assets");
@@ -110,15 +110,15 @@ async function serve(request) {
 let win = null;
 let closing = false;   // the app or its window has begun to close
 let feed = null, feedStarted = Promise.resolve(false);   // the text feed, once the app is ready
-let luna = null;                                         // ... and LunaTranslator's
-// What the page is told of them: their ports, or null when there is neither (the page then sends no lines).
-const feedInfo = () => { const ws = feed?.info(), lu = luna?.info(); return ws || lu ? { port: ws?.port ?? null, luna: lu?.port ?? null } : null; };
+let clip = null;                                         // ... and the clipboard's, for LunaTranslator
+// What the page is told of them: the feed's port and the clipboard's mode, or null when there is neither (the page then sends no lines).
+const feedInfo = () => { const ws = feed?.info(), cb = clip?.info(); return ws || cb ? { port: ws?.port ?? null, clipboard: cb?.mode ?? null } : null; };
 
 // What the page asks of the app (preload.js; the commands and their answers are listed in web/app/js/apphost.js).
 const host = {
   info: async () => { await feedStarted; return { kind: "desktop", shell: SHELL, version: app.getVersion(), update: updater.info(), text: feedInfo() }; },
-  // a line the story shows, for the text feed and LunaTranslator
-  text: ({ line }) => { const s = typeof line === "string" ? line : ""; feed?.send(s); luna?.send(s); return {}; },
+  // a line the story shows, for the text feed and the clipboard
+  text: ({ line }) => { const s = typeof line === "string" ? line : ""; feed?.send(s); clip?.send(s); return {}; },
   // a web page, in the computer's own browser
   open: ({ url }) => { outside(String(url)); return {}; },
   // An exported save: the system's own question of where to put it, then written there.
@@ -211,7 +211,7 @@ else {
     loadUpdater();
     feed = new TextFeed({ port: TEXT_PORT });
     feedStarted = feed.start().catch(() => false);   // (info waits for it, and the updates wait for info)
-    luna = new LunaFeed({ port: LUNA_PORT });
+    clip = new ClipboardFeed({ mode: CLIPBOARD, write: TEST_DIR ? (t) => fs.appendFileSync(path.join(TEST_DIR, "clipboard.jsonl"), JSON.stringify(t) + "\n") : (t) => clipboard.writeText(t) });
     protocol.handle("app", (request) => serve(request).catch((e) => plain(500, String(e))));
     // The page's requests of the app: from the game's own page only, and only the commands above.
     ipcMain.handle("host", async (event, name, args) => {
@@ -230,7 +230,7 @@ else {
     app.on("activate", () => { if (!win) createWindow(); });
   });
   app.on("before-quit", () => { closing = true; });
-  app.on("will-quit", () => { feed?.close(); luna?.close(); });
+  app.on("will-quit", () => { feed?.close(); clip?.close(); });
   // The saves are in the page's localStorage, under the app's own data folder: written to disk before the app ends.
   app.on("window-all-closed", () => { session.defaultSession.flushStorageData(); app.quit(); });
 }

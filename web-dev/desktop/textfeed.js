@@ -5,7 +5,7 @@
 // It listens on this computer only (127.0.0.1 and ::1): nothing on the network reaches it, and Windows asks no firewall question. What a
 // page sends it is not read. --text-port=N gives it another port and --text-port=0 turns it off. A port another program already has is
 // left to that program: the feed is then off until the app is started again.
-// LunaTranslator reads no WebSocket, so the same lines also go to it the way it takes text from other programs (LunaFeed, below).
+// LunaTranslator reads no WebSocket, so the same lines also go to the clipboard while it runs (ClipboardFeed, below).
 const http = require("node:http");
 const { WebSocketServer, WebSocket } = require("ws");
 
@@ -84,69 +84,82 @@ class TextFeed {
   }
 }
 
-// ---- LunaTranslator --------------------------------------------------------------------------------------------------------------------
-// LunaTranslator takes text from other programs through its own network service: GET /api/textinput?text=... shows and translates the
-// line as it does one it hooked (its LunaTranslator.py textgetmethod). That service is off until the player turns it on in LunaTranslator,
-// and listens on IPv4 port 2333 unless set otherwise (its networktcpport). It answers one request a connection, each in a thread of its
-// own (network/server/tcpservice.py), so the lines go one at a time, each after the last was answered, to arrive in order. While nothing
-// listens there a line is simply dropped. --luna-port=N for another port, 0 for none.
-const LUNA_PORT = 2333;
-const WAITING = 200;   // lines held while LunaTranslator is slow to answer (fast forward); beyond that the oldest are dropped
+// ---- the clipboard, for LunaTranslator -----------------------------------------------------------------------------------------------------
+// LunaTranslator reads no WebSocket. It takes other programs' text from the clipboard (its "Clipboard" text source, textio/textsource/
+// copyboard.py): each change is a line, handled as a hooked one. (Its network service's /api/textinput is for text typed in by hand: it
+// brings LunaTranslator's window to the front for every line, and crashed LunaTranslator for a player, 2026-11-18.) So each line goes to
+// the clipboard too, but only while LunaTranslator is running ("auto"), so that nobody else's clipboard is touched: --clipboard=on for
+// always, --clipboard=off for never. The lines go a little apart, so that each change is read before the next.
+const { execFile } = require("node:child_process");
+const CLIP_GAP = 60;          // ms between two lines on the clipboard
+const CLIP_WAITING = 30;      // lines held for it (fast forward); beyond that the oldest are dropped
+const LOOK_EVERY = 5000;      // ms a look for LunaTranslator holds
 
-// The port from --luna-port=N: a whole number from 0 (off) to 65535, else LunaTranslator's default.
-function lunaPortOf(value) {
-  if (value === null || value === undefined || value === "") return LUNA_PORT;
-  const n = Number(value);
-  return Number.isInteger(n) && n >= 0 && n <= 65535 ? n : LUNA_PORT;
+// --clipboard=on|off|auto (auto if not given).
+const clipboardModeOf = (value) => (value === "on" || value === "off" ? value : "auto");
+
+// Whether LunaTranslator is running: one of tasklist's rows names a program whose name starts with it (LunaTranslator.exe and the like).
+const hasLuna = (csv) => String(csv).split(/\r?\n/).some((row) => /^"lunatranslator[^"]*\.exe"/i.test(row.trim()));
+function lunaRunning({ platform = process.platform, exec = execFile } = {}) {
+  if (platform !== "win32") return Promise.resolve(false);   // (LunaTranslator is Windows only)
+  return new Promise((done) => exec("tasklist", ["/FO", "CSV", "/NH"], { windowsHide: true, timeout: 5000, maxBuffer: 8 << 20 },
+    (err, out) => done(!err && hasLuna(out))));
 }
 
-class LunaFeed {
-  constructor({ port = LUNA_PORT, host = "127.0.0.1", timeout = 3000 } = {}) {
-    this.port = port;
-    this.host = host;           // (its service listens on IPv4 alone: "localhost" could be tried as ::1 first)
-    this.timeout = timeout;
+class ClipboardFeed {
+  constructor({ mode = "auto", write, running = lunaRunning, gap = CLIP_GAP, lookEvery = LOOK_EVERY, now = Date.now } = {}) {
+    this.mode = clipboardModeOf(mode);
+    this.write = write;
+    this.running = running;
+    this.gap = gap;
+    this.lookEvery = lookEvery;
+    this.now = now;
     this.queue = [];
     this.busy = false;
     this.closed = false;
-    this.reached = false;       // whether the last line was answered (for tests and a look from the inspector)
+    this.looked = null;       // { at, running } of the last look for LunaTranslator
+    this.written = 0;
     this.idle = [];
   }
 
-  // One line, sent after those before it.
+  // One line, written after those before it.
   send(line) {
-    if (!this.port || this.closed || typeof line !== "string" || !line.trim()) return;
+    if (this.mode === "off" || this.closed || typeof line !== "string" || !line.trim()) return;
     this.queue.push(line.length > LONGEST ? line.slice(0, LONGEST) : line);
-    if (this.queue.length > WAITING) this.queue.splice(0, this.queue.length - WAITING);
+    if (this.queue.length > CLIP_WAITING) this.queue.splice(0, this.queue.length - CLIP_WAITING);
     this.next();
   }
 
-  next() {
+  // Whether the lines are wanted now: always ("on"), or while LunaTranslator runs ("auto", looked for again after lookEvery).
+  async wanted() {
+    if (this.mode === "on") return true;
+    if (this.looked && this.now() - this.looked.at < this.lookEvery) return this.looked.running;
+    const at = this.now();
+    let running = false;
+    try { running = !!(await this.running()); } catch { /* not running, as far as can be told */ }
+    this.looked = { at, running };
+    return running;
+  }
+
+  async next() {
     if (this.busy) return;
-    if (this.closed || !this.queue.length) { for (const done of this.idle.splice(0)) done(); return; }
     this.busy = true;
-    this.post(this.queue.shift()).then((ok) => { this.reached = ok; this.busy = false; this.next(); });
+    while (this.queue.length && !this.closed) {
+      if (!(await this.wanted())) { this.queue = []; break; }
+      const line = this.queue.shift();
+      try { this.write(line); this.written++; } catch { /* the clipboard held by another program: that line is lost */ }
+      await new Promise((done) => setTimeout(done, this.gap));
+    }
+    this.busy = false;
+    for (const done of this.idle.splice(0)) done();
   }
 
-  // A request: true once LunaTranslator has answered it, false when nothing did (not running, its service off, too slow). Never rejected.
-  post(line) {
-    return new Promise((done) => {
-      const req = http.get({ host: this.host, port: this.port, path: "/api/textinput?text=" + encodeURIComponent(line), agent: false,
-        timeout: this.timeout, headers: { Connection: "close" } }, (res) => {
-        res.on("error", () => done(false));
-        res.on("end", () => done(res.statusCode === 200));
-        res.resume();
-      });
-      req.on("timeout", () => req.destroy(Error("no answer")));
-      req.on("error", () => done(false));
-    });
-  }
+  // Settles once every line handed over has been written or dropped.
+  drained() { return this.busy || this.queue.length ? new Promise((done) => this.idle.push(done)) : Promise.resolve(); }
 
-  // Settles once every line handed over has been sent or dropped.
-  drained() { return new Promise((done) => { this.idle.push(done); if (!this.busy) this.next(); }); }
+  info() { return this.mode === "off" || this.closed ? null : { mode: this.mode }; }
 
-  info() { return this.port && !this.closed ? { port: this.port } : null; }
-
-  close() { this.closed = true; this.queue = []; this.next(); }
+  close() { this.closed = true; this.queue = []; }
 }
 
-module.exports = { TextFeed, portOf, PORT, LunaFeed, lunaPortOf, LUNA_PORT };
+module.exports = { TextFeed, portOf, PORT, ClipboardFeed, clipboardModeOf, lunaRunning, hasLuna };
