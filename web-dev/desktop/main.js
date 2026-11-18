@@ -12,7 +12,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { Readable } = require("node:stream");
 const { Updater } = require("./updater.js");
-const { TextFeed, portOf } = require("./textfeed.js");
+const { TextFeed, portOf, LunaFeed, lunaPortOf } = require("./textfeed.js");
 
 const HOST = "tsukihime.desktop";            // apphost.js knows this name: the page there is the app's
 const HOME = `app://${HOST}/`;
@@ -26,8 +26,10 @@ const flag = (name) => { const a = process.argv.find((v) => v.startsWith(`--${na
 const WWW = !app.isPackaged && flag("www") ? path.resolve(flag("www")) : null;
 const TEST_DIR = flag("test-dir") ? path.resolve(flag("test-dir")) : null;
 const ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(flag("update-origin") || "") ? flag("update-origin") : SITE;
-// --text-port=N: the port of the text feed (textfeed.js; 6677 if not given), or 0 for none.
+// --text-port=N: the port of the text feed (textfeed.js; 6677 if not given), or 0 for none. --luna-port=N: LunaTranslator's network service,
+// where the same lines go too (2333, its default, if not given), or 0 for none.
 const TEXT_PORT = portOf(flag("text-port"));
+const LUNA_PORT = lunaPortOf(flag("luna-port"));
 const WEB = path.join(__dirname, "..", "..", "web");
 const APP_DIR = app.isPackaged ? path.join(process.resourcesPath, "www") : WWW || path.join(WEB, "app");
 const ASSETS_DIR = app.isPackaged || WWW ? path.join(APP_DIR, "assets") : path.join(WEB, "assets");
@@ -108,13 +110,15 @@ async function serve(request) {
 let win = null;
 let closing = false;   // the app or its window has begun to close
 let feed = null, feedStarted = Promise.resolve(false);   // the text feed, once the app is ready
+let luna = null;                                         // ... and LunaTranslator's
+// What the page is told of them: their ports, or null when there is neither (the page then sends no lines).
+const feedInfo = () => { const ws = feed?.info(), lu = luna?.info(); return ws || lu ? { port: ws?.port ?? null, luna: lu?.port ?? null } : null; };
 
 // What the page asks of the app (preload.js; the commands and their answers are listed in web/app/js/apphost.js).
 const host = {
-  // (text: the feed's port, or null when there is none; the page sends its lines only when there is one)
-  info: async () => { await feedStarted; return { kind: "desktop", shell: SHELL, version: app.getVersion(), update: updater.info(), text: feed?.info() || null }; },
-  // a line the story shows, for the text feed
-  text: ({ line }) => { feed?.send(typeof line === "string" ? line : ""); return {}; },
+  info: async () => { await feedStarted; return { kind: "desktop", shell: SHELL, version: app.getVersion(), update: updater.info(), text: feedInfo() }; },
+  // a line the story shows, for the text feed and LunaTranslator
+  text: ({ line }) => { const s = typeof line === "string" ? line : ""; feed?.send(s); luna?.send(s); return {}; },
   // a web page, in the computer's own browser
   open: ({ url }) => { outside(String(url)); return {}; },
   // An exported save: the system's own question of where to put it, then written there.
@@ -207,6 +211,7 @@ else {
     loadUpdater();
     feed = new TextFeed({ port: TEXT_PORT });
     feedStarted = feed.start().catch(() => false);   // (info waits for it, and the updates wait for info)
+    luna = new LunaFeed({ port: LUNA_PORT });
     protocol.handle("app", (request) => serve(request).catch((e) => plain(500, String(e))));
     // The page's requests of the app: from the game's own page only, and only the commands above.
     ipcMain.handle("host", async (event, name, args) => {
@@ -225,7 +230,7 @@ else {
     app.on("activate", () => { if (!win) createWindow(); });
   });
   app.on("before-quit", () => { closing = true; });
-  app.on("will-quit", () => feed?.close());
+  app.on("will-quit", () => { feed?.close(); luna?.close(); });
   // The saves are in the page's localStorage, under the app's own data folder: written to disk before the app ends.
   app.on("window-all-closed", () => { session.defaultSession.flushStorageData(); app.quit(); });
 }
