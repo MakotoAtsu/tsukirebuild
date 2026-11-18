@@ -14,6 +14,8 @@
 //   cancel       {}                              stops that
 //   apply        { id, meta }                    switches to update `id`: the page then loads itself again, and is served the new files
 //   confirm      {}                              the page has come up: the update it runs is kept
+// and the desktop app alone (its info then has text: { port }; it is null when there is no feed):
+//   text         { line }                        a line the story shows, for text-extraction tools on the computer (desktop/textfeed.js)
 export const APP_HOSTS = { "appassets.androidplatform.net": "android", "tsukihime.desktop": "desktop" };
 export const appKind = (host = globalThis.location?.hostname || "") => APP_HOSTS[host] || null;
 export const APP = appKind();

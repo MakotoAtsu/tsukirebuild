@@ -6,12 +6,13 @@
 // The page itself reaches nothing outside. What it needs of the app it asks for by name (`host`, below; the commands
 // are listed in web/app/js/apphost.js): a place for an exported save, a link opened in the computer's browser, and
 // the update: files newer than the app's own, fetched from the site into the app's data folder and answered from
-// there first (updater.js).
+// there first (updater.js). The story's lines are also passed on to text-extraction tools on this computer (textfeed.js).
 const { app, BrowserWindow, Menu, dialog, ipcMain, powerSaveBlocker, protocol, screen, session, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { Readable } = require("node:stream");
 const { Updater } = require("./updater.js");
+const { TextFeed, portOf } = require("./textfeed.js");
 
 const HOST = "tsukihime.desktop";            // apphost.js knows this name: the page there is the app's
 const HOME = `app://${HOST}/`;
@@ -25,6 +26,8 @@ const flag = (name) => { const a = process.argv.find((v) => v.startsWith(`--${na
 const WWW = !app.isPackaged && flag("www") ? path.resolve(flag("www")) : null;
 const TEST_DIR = flag("test-dir") ? path.resolve(flag("test-dir")) : null;
 const ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(flag("update-origin") || "") ? flag("update-origin") : SITE;
+// --text-port=N: the port of the text feed (textfeed.js; 6677 if not given), or 0 for none.
+const TEXT_PORT = portOf(flag("text-port"));
 const WEB = path.join(__dirname, "..", "..", "web");
 const APP_DIR = app.isPackaged ? path.join(process.resourcesPath, "www") : WWW || path.join(WEB, "app");
 const ASSETS_DIR = app.isPackaged || WWW ? path.join(APP_DIR, "assets") : path.join(WEB, "assets");
@@ -104,10 +107,14 @@ async function serve(request) {
 
 let win = null;
 let closing = false;   // the app or its window has begun to close
+let feed = null, feedStarted = Promise.resolve(false);   // the text feed, once the app is ready
 
 // What the page asks of the app (preload.js; the commands and their answers are listed in web/app/js/apphost.js).
 const host = {
-  info: () => ({ kind: "desktop", shell: SHELL, version: app.getVersion(), update: updater.info() }),
+  // (text: the feed's port, or null when there is none; the page sends its lines only when there is one)
+  info: async () => { await feedStarted; return { kind: "desktop", shell: SHELL, version: app.getVersion(), update: updater.info(), text: feed?.info() || null }; },
+  // a line the story shows, for the text feed
+  text: ({ line }) => { feed?.send(typeof line === "string" ? line : ""); return {}; },
   // a web page, in the computer's own browser
   open: ({ url }) => { outside(String(url)); return {}; },
   // An exported save: the system's own question of where to put it, then written there.
@@ -198,6 +205,8 @@ else {
   app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
   app.whenReady().then(() => {
     loadUpdater();
+    feed = new TextFeed({ port: TEXT_PORT });
+    feedStarted = feed.start().catch(() => false);   // (info waits for it, and the updates wait for info)
     protocol.handle("app", (request) => serve(request).catch((e) => plain(500, String(e))));
     // The page's requests of the app: from the game's own page only, and only the commands above.
     ipcMain.handle("host", async (event, name, args) => {
@@ -216,6 +225,7 @@ else {
     app.on("activate", () => { if (!win) createWindow(); });
   });
   app.on("before-quit", () => { closing = true; });
+  app.on("will-quit", () => feed?.close());
   // The saves are in the page's localStorage, under the app's own data folder: written to disk before the app ends.
   app.on("window-all-closed", () => { session.defaultSession.flushStorageData(); app.quit(); });
 }

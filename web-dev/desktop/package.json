@@ -1,7 +1,7 @@
 {
   "name": "tsukihime",
   "productName": "Tsukihime",
-  "version": "2026.11.13",
+  "version": "2026.11.17",
   "description": "An unofficial fan rebuild of the Tsukihime remake, as a desktop app",
   "homepage": "https://arcueid.date",
   "author": "TsukiREbuild",
@@ -10,6 +10,9 @@
   "main": "main.js",
   "scripts": {
     "start": "electron ."
+  },
+  "dependencies": {
+    "ws": "8.22.1"
   },
   "devDependencies": {
     "electron": "45.3.0",
@@ -20,7 +23,7 @@
     "productName": "Tsukihime",
     "artifactName": "Tsukihime-${os}-${arch}.${ext}",
     "directories": { "output": "out", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "updater.js", "package.json"],
+    "files": ["main.js", "preload.js", "updater.js", "textfeed.js", "package.json"],
     "extraResources": [
       { "from": "../../web/app", "to": "www", "filter": ["**/*", "!**/.*"] },
       { "from": "../../web/assets", "to": "www/assets", "filter": ["**/*", "!voice/**", "!se/**", "!ja/**", "!zh/**", "!**/.*"] },

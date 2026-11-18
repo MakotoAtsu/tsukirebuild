@@ -18,7 +18,7 @@ done
 [ ${#args[@]} -gt 0 ] || args=(--mac --win --linux)
 # The game's files are not in the repository: fetch_assets.py brings them from the site into web/assets, once.
 [ -f "../../web/assets/text.json" ] || { echo "the game's files are not in web/assets: run python3 web-dev/tools/fetch_assets.py first" >&2; exit 1; }
-[ -d node_modules/electron-builder ] || npm install
+[ -d node_modules/electron-builder ] && [ -d node_modules/ws ] || npm install   # (ws: the text feed, textfeed.js)
 # What is being packed, for the app's updates to be worked out from (web-dev/tools/app_manifest.py): it goes into the
 # app beside the files it describes.
 rm -rf out/bundle

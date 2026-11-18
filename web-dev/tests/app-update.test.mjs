@@ -772,7 +772,8 @@ test("the Android app's one permission is the internet, for its updates; the pag
   assert.match(desktop, /ses\.webRequest\.onBeforeRequest\(\{ urls: \["http:\/\/\*\/\*", "https:\/\/\*\/\*", "ws:\/\/\*\/\*", "wss:\/\/\*\/\*"\] \}, \(details, done\) => done\(\{ cancel: true \}\)\);/);
   assert.match(desktop, /const net = \(\) => session\.fromPartition\("update"\);/, "the updates have a session of their own");
   assert.match(desktop, /if \(!event\.senderFrame \|\| !String\(event\.senderFrame\.url\)\.startsWith\(HOME\) \|\| !Object\.hasOwn\(host, name\)\) throw Error\("not available"\);/);
-  assert.deepEqual(JSON.parse(read("web-dev/desktop/package.json")).build.files, ["main.js", "preload.js", "updater.js", "package.json"]);
+  // (the text feed, textfeed.js, is the app's, not the page's: it listens on the computer itself, and the page only hands it lines through `host`)
+  assert.deepEqual(JSON.parse(read("web-dev/desktop/package.json")).build.files, ["main.js", "preload.js", "updater.js", "textfeed.js", "package.json"]);
 });
 
 test("a deployment publishes what the apps update from, after every file it names", { skip: !existsSync(at("tools/cloudflare/deploy.py")) }, () => {

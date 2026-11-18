@@ -263,6 +263,12 @@ export function parseMarkup(s) {
   return res;
 }
 
+// A line's text read back from the page (a restored page has only its HTML): the letters without the ruby's readings (<rt>).
+export function lineText(ln) {
+  const text = (n) => (n.nodeType === 3 ? n.data : n.nodeName === "RT" ? "" : [...(n.childNodes || [])].map(text).join(""));
+  return (ln?.segs || []).map(text).join("");
+}
+
 // Plain text (the backlog, measuring): a mirrored run reads the right way round there.
 export function plain(s) {
   const sup = { "\u2212": "\u207B", 3: "\u00B3", 5: "\u2075" };
@@ -553,6 +559,7 @@ export class TextBox {
     this.history = [];     // backlog records (log, logChoice), oldest first
     this.logged = 0;       // lines logged so far, counting those the log has dropped
     this.dropped = false;  // the 800-record log has let its oldest go
+    this.onLine = null;    // (line) each line logged, as plain text, for whoever listens (main.js: the desktop app's text feed)
     this.pageParts = [];
     this.lines = [];       // the page's lines in order, the last the current one: {segs, timer, T, k}
     this.run = null;       // the line being typed: {chars, n, t (the @t index), front, insta, lo, ruby, fresh, ended, done}
@@ -1045,6 +1052,9 @@ export class TextBox {
     this.finish();
     const ln = this.lines.at(-1);
     if (!ln) return null;
+    // a load, Quick Jump or going back types the line on screen again without logging it (a load empties the log): onLine still hears it
+    const line = lineText(ln);
+    if (line.trim()) this.tell(line);
     const chars = [], ruby = [];
     let t = 0;
     for (const seg of ln.segs) {
@@ -1110,6 +1120,7 @@ export class TextBox {
   log(markup, voice = null, { inline = false, pageEnd = false, skips = null, glue = false, color = 0, edge = 0 } = {}) {
     const p = plain(markup);
     if (!p.trim()) return;
+    this.tell(p);
     this.logged++;
     const part = { markup, color, edge, seq: this.logged };
     const last = this.history.at(-1);
@@ -1121,9 +1132,15 @@ export class TextBox {
   // the choice's own rewind point (taken just before) is the one whose count is a row's seq - 1.
   logChoice(labels, skips = null) {
     if (!labels.length) return;
+    this.tell(labels.map(plain).join("\n"));
     this.logged++;
     labels.forEach((label, i) => this.push({ kind: "choice", text: plain(label), seq: this.logged, voice: null, pageEnd: i === labels.length - 1,
       skips: skips ? skips.slice() : null, glue: false, parts: [{ markup: label, color: 0, edge: 0, seq: this.logged }] }));
+  }
+
+  // A line (an inline message's piece on its own, a choice's rows together) to onLine; nothing there can stop the story.
+  tell(line) {
+    try { this.onLine?.(line); } catch { /* the story goes on */ }
   }
 
   push(record) {

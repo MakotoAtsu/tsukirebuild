@@ -14,6 +14,7 @@ import { openGallery, preloadGallery } from "./gallery.js";
 import { welcomeDue, markWelcomed } from "./welcome.js";
 import { openHome, homeDue, showNoGl } from "./home.js";
 import { LANG, ORIG } from "./lang.js";
+import { HOST } from "./apphost.js";
 import { savesReplaced } from "./savefile.js";
 import { Preloader, RANK, movieUrl, fontsFor } from "./preload.js";
 import { subsFor, showSubs } from "./subs.js";
@@ -378,6 +379,12 @@ const vm = new VM({
 });
 vm.externalTicks = true;   // the frame loop below steps the game's frames (vm.tick)
 vm.useFrameTime();         // and the story's clocks with them, a whole frame at a time (TODO items 123, 146)
+// The desktop app passes the story's lines on to text-extraction tools such as texthooker-ui (web-dev/desktop/textfeed.js), when its info
+// names a feed: each line as it is shown, fast forward included, but none of a run that passes everything at once without showing it (a
+// read scene's instant run, a load's restore: vm.fast). Nothing changes on the site, in the Android app or in an older desktop app.
+HOST?.call("info").then((info) => {
+  if (info?.text) text.onLine = (line) => { if (!vm.fast) HOST.call("text", { line }).catch(() => {}); };
+}).catch(() => {});
 // What is read before it is asked for (preload.js): the start-up list from the first page on, and what the script is coming to.
 const preload = new Preloader({ vm, gfx, audio });
 vm.ahead = (script, pc) => preload.ahead(script, pc);
