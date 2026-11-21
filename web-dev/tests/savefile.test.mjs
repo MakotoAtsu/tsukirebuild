@@ -6,8 +6,9 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 const { GAME, FLOW_BITS, DEFAULT_CONFIG, configToPort, portToConfig, globalName, isGameSave, readSystem, writeSystem } = await import("../../web/app/js/gamesave.js");
 const { FILE_NAME, KEYS, LOCAL, NOTE, OWN, IMPORTED, hasImported, importedLabel, loadedData, removeImported, exportSaves, hasProgress, importSaves, portState, readSaves, savesReplaced } = await import("../../web/app/js/savefile.js");
-const { TABS, PLAY, SAVE, SAVE_PLATES, FULL_PLATE, SAVE_TEXT } = await import("../../web/app/js/home.js");
+const { TABS, PLAY, SAVE, SAVE_PLATES, FULL_PLATE, CIEL_PLATE, SAVE_TEXT } = await import("../../web/app/js/home.js");
 const { fullSaveFile } = await import("../../web/app/js/fullsave.js");
+const { arcSaveFile } = await import("../../web/app/js/arcsave.js");
 const source = (name) => readFileSync(new URL(`../../web/app/${name}`, import.meta.url), "utf8");
 
 function memory(init = {}) {
@@ -259,12 +260,47 @@ test("the 100% save: a finished game's progress bundled with the app, loaded ove
   assert.match(tool, /system\[CONFIG:CONFIG \+ CONFIG_SIZE\] = default/);
 });
 
+test("the Ciel route save: a game with Arcueid's route played to its end (G003 set), bundled with the app, loaded as the 100% save is", () => {
+  const file = arcSaveFile();
+  assert.equal(file.length, GAME.size);
+  const sys = readSaves(file);
+  assert.equal(sys.globals.G003, 1, "Arcueid's route finished: what 03_00_ARC03_5B's second row asks for");
+  assert.equal(sys.globals.G002, 1, "the title at its stage after Arcueid's ending");
+  assert.ok(sys.flow.completed.includes(14) && sys.flow.started.includes(560), "the route's last scene, and its ending");
+  assert.ok(sys.flow.started.includes(544), "its Ciel-sensei episode, so the Ending List shows Arcueid's ending");
+  assert.deepEqual([sys.flow.started.length, sys.flow.completed.length], [191, 190]);
+  assert.deepEqual(sys.movies, ["op1_arc"]);
+  // nothing of Ciel's route itself: none of its last days, its endings or its opening song
+  assert.ok(!sys.flow.started.includes(562) && !sys.flow.started.includes(383) && sys.globals.G004 === undefined);
+  // part of the 100% save (the reference save, where it is here): every scene, line, picture and song it has, a finished game has too
+  const full = readSaves(fullSaveFile());
+  for (const k of ["started", "completed", "secondary"]) assert.deepEqual(sys.flow[k].filter((n) => !full.flow[k].includes(n)), [], k);
+  assert.deepEqual(sys.seen.filter((b) => !full.seen.includes(b)), []);
+  assert.deepEqual(sys.music.filter((n) => !full.music.includes(n)), []);
+  // nobody's settings and no records, as the 100% save
+  assert.deepEqual(sys.settings, configToPort(DEFAULT_CONFIG).settings);
+  assert.equal(sys.newest, 0);
+  assert.ok(file.subarray(GAME.records).every((b) => b === 0));
+  const mine = { "tsuki.flow.v2": JSON.stringify({ started: [485], completed: [485] }), "tsuki.settings": JSON.stringify({ textSpeed: 50 }) };
+  const store = memory(mine);
+  importSaves(sys, store, { label: SAVE_TEXT.ciel, keepSettings: true });
+  assert.equal(store.getItem("tsuki.settings"), mine["tsuki.settings"]);
+  assert.equal(JSON.parse(store.getItem("tsuki.globals")).G003, 1);
+  assert.match(loadedData(store).file, /^The Ciel route save is loaded: these are its own\. Your own are put aside until it is removed\.$/);
+  assert.equal(removeImported(store), true);
+  assert.deepEqual(Object.fromEntries(store.map), mine);
+  // made by the tool, which plays the route through the port's engine
+  const tool = readFileSync(new URL("../../web-dev/tools/make_arcsave.mjs", import.meta.url), "utf8");
+  assert.match(tool, /const ROUTE = \[/);
+});
+
 test("the opening page's SAVE DATA tab: the Nintendo format named, what is loaded now, and three of the panel's plates; Remove asks first, and the page loads again", () => {
   assert.equal(TABS[SAVE].plate, "SAVE DATA");
   const blocks = TABS[SAVE].sections[0].blocks, kinds = blocks.map((b) => (Array.isArray(b) ? b[0] : "text"));
   assert.deepEqual(kinds, ["text", "text", "data", "saves", "rows"]);
   assert.equal(TABS[SAVE].sections.length, 1, "the 100% save has no part of its own: its plate is in the row, its warning in its question");
-  assert.deepEqual(blocks[4][1].map((r) => r[0]), ["Export", "Import", "Remove", "100% save"], "what each plate does");
+  assert.deepEqual(blocks[4][1].map((r) => r[0]), ["Export", "Import", "Remove", "100% save", "Ciel route"], "what each plate does");
+  assert.match(blocks[4][1][4][1], /^Loads a save in which Arcueid's route has been played to its end, which is what opens Ciel's route\. It asks first;/);
   assert.match(blocks[4][1][3][1], /It warns and asks first/);
   assert.match(blocks[1], /Export and Import use the Nintendo Switch game's own save format, the file savedata000/);
   assert.match(blocks[4][1][1][1], /put aside, not lost/);
@@ -273,9 +309,13 @@ test("the opening page's SAVE DATA tab: the Nintendo format named, what is loade
   assert.deepEqual(TABS[PLAY].sections[0].blocks.at(-1), ["press"]);
   assert.deepEqual(SAVE_PLATES.map((p) => p.plate), ["EXPORT SAVES", "IMPORT SAVES", "REMOVE DATA"]);
   assert.deepEqual(FULL_PLATE, { act: "full", plate: "LOAD 100% SAVE", wider: 80 }, "a wider plate of its own: the words do not fit the others' 220");
+  assert.deepEqual(CIEL_PLATE, { act: "ciel", plate: "START CIEL ROUTE", wider: 80 }, "as wide as the 100% save's");
   { const q = SAVE_TEXT.askRemove.split("\n"); assert.ok(q.length === 2 && q.every((line) => line.length <= 36), "the question fits the game's window, two lines"); }
   // the 100% save's warning is its question, shown when its plate is pressed: three lines, set smaller (ui.js dialog three)
   assert.equal(SAVE_TEXT.askFull, "Not recommended.\nOnly do this if you have finished the game.\nLoad the 100% save?");
+  // the Ciel route save's question says what it loads: three lines, none wider than the 100% save's widest
+  assert.equal(SAVE_TEXT.askCiel, "Loads a save with Arcueid's route finished,\nwhich opens Ciel's route.\nLoad it?");
+  assert.ok(SAVE_TEXT.askCiel.split("\n").every((line) => line.length <= 43));
   assert.match(source("js/ui.js"), /box\.className = story \? "dialog story" : three \? "dialog three" : "dialog";/);
   assert.match(source("style.css"), /\.dialog\.three \.dialog-q \{ top: 428px; font-size: 34px; line-height: 54px; \}/);
   // on a phone held upright the stage is 1080 wide, not the game's 1920: the window is set in its middle, small enough to fit (it lay off the right edge)
@@ -287,6 +327,11 @@ test("the opening page's SAVE DATA tab: the Nintendo format named, what is loade
   assert.match(home, /quickBarArt\(SAVE_PLATES\.map/, "the game's own plates, relettered as the tabs are");
   assert.match(home, /quickBarArt\(\[\{ label: tr\(FULL_PLATE\.plate\) \}\], \{ w: P\.w \+ FULL_PLATE\.wider, h: P\.h \}\)/);
   assert.match(home, /SAVE_PLATES\.forEach\(\(s, i\) => row\.append\(savePlate\(s, i\)\)\);\n\s*row\.append\(savePlate\(FULL_PLATE, 0, fullSheet, P\.w \+ FULL_PLATE\.wider\)\);/, "in the row, after REMOVE DATA");
+  assert.match(home, /row\.append\(savePlate\(FULL_PLATE, 0, fullSheet, P\.w \+ FULL_PLATE\.wider\)\);[^\n]*\n\s*row\.append\(savePlate\(CIEL_PLATE, 0, cielSheet, P\.w \+ CIEL_PLATE\.wider\)\);/, "START CIEL ROUTE after it");
+  assert.match(home, /quickBarArt\(\[\{ label: tr\(CIEL_PLATE\.plate\) \}\], \{ w: P\.w \+ CIEL_PLATE\.wider, h: P\.h \}\)/);
+  assert.match(home, /ui\.dialog\(SAVE_TEXT\.askCiel, \(back\) => \{[\s\S]{0,260}load\(sys, bytes, \{ label: SAVE_TEXT\.ciel, keepSettings: true, note: SAVE_TEXT\.cielLoaded \}\);\n\s*\}, \(back\) => \{ back\(\); ui\.sel = NONE; \}, \{ startNo: true, three: true \}\);/,
+    "it says what it loads and asks in the game's window, starting on No, and loads the progress alone");
+  assert.match(home, /ciel: cielNow/);
   assert.match(home, /ui\.dialog\(SAVE_TEXT\.askFull, \(back\) => \{[\s\S]{0,260}load\(sys, bytes, \{ label: SAVE_TEXT\.full, keepSettings: true, note: SAVE_TEXT\.fullLoaded \}\);\n\s*\}, \(back\) => \{ back\(\); ui\.sel = NONE; \}, \{ startNo: true, three: true \}\);/,
     "it warns and asks in the game's window, starting on No, and loads the progress alone");
   // while a question is up the cursor is on its Yes / No, not on the page's plates: they are lit only by the page's own cursor

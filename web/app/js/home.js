@@ -22,6 +22,7 @@ import { tr, trBlock, localize } from "./sitewords.js";
 import { FILE_NAME, NOTE, dropBase, exportSaves, hasImported, importSaves, keepBase, loadBase, loadedData, readSaves, removeImported } from "./savefile.js";
 import { GAME } from "./gamesave.js";
 import { fullSaveFile } from "./fullsave.js";
+import { arcSaveFile } from "./arcsave.js";
 import { APP, HOST, toBase64 } from "./apphost.js";
 import { DOWNLOAD_PAGE, LANG_DIRS, LANG_NAMES, UPDATED, UPDATE_TEXT, checkUpdate, hasLang, langPlan, runUpdate } from "./update.js";
 
@@ -113,8 +114,9 @@ const SITE_TABS = [
     ["rows", [
       ["Export", "Saves the settings and progress shown above as savedata000: the flowchart, the gallery, what has been read."],
       ["Import", "Loads the settings and progress of a savedata000 here. Your own are put aside, not lost."],
-      ["Remove", "Takes the imported file, or the 100% save, out again, and your own settings and progress are back as they were. The saves you make here are yours throughout."],
+      ["Remove", "Takes the imported file, the 100% save or the Ciel route save out again, and your own settings and progress are back as they were. The saves you make here are yours throughout."],
       ["100% save", "Loads a finished game's progress, with everything open. It warns and asks first; your own progress is put aside, and your settings stay."],
+      ["Ciel route", "Loads a save in which Arcueid's route has been played to its end, which is what opens Ciel's route. It asks first; your own progress is put aside, and your settings stay."],
     ]],
   ] }] },
   LANGUAGE_TAB,
@@ -231,18 +233,24 @@ export const SAVE_PLATES = [{ act: "export", plate: "EXPORT SAVES" }, { act: "im
 // The 100% save's plate, next to REMOVE DATA: the same plate made `wider` than the others, for its longer words. Its warning is the question it asks
 // when pressed (SAVE_TEXT.askFull).
 export const FULL_PLATE = { act: "full", plate: "LOAD 100% SAVE", wider: 80 };
+// The Ciel route save's plate, after it, as wide: a game with Arcueid's route finished (arcsave.js), which is what opens Ciel's route (G003).
+export const CIEL_PLATE = { act: "ciel", plate: "START CIEL ROUTE", wider: 80 };
 const HERE = APP ? "app" : "browser";   // where the saves are kept, as the page calls it
 export const SAVE_TEXT_EN = {
   keys: "Keys: E exports, I imports.",
   now: `In this ${HERE} now`,
   empty: `No save data in this ${HERE} yet.`,
-  nothing: "Nothing to remove: no imported file or 100% save is loaded.",
+  nothing: "Nothing to remove: no imported file, 100% save or Ciel route save is loaded.",
   askRemove: "Remove the loaded save data?\nYour own save data comes back.",
   removed: "Removed. Your own save data is back.",
   // the 100% save (fullsave.js): its name on the page, the warning and question when its plate is pressed (three lines), the line after
   full: "The 100% save",
   askFull: "Not recommended.\nOnly do this if you have finished the game.\nLoad the 100% save?",
   fullLoaded: "Loaded the 100% save.",
+  // the Ciel route save (arcsave.js): its name on the page, its question (three lines), and the line after, which says where the route begins
+  ciel: "The Ciel route save",
+  askCiel: "Loads a save with Arcueid's route finished,\nwhich opens Ciel's route.\nLoad it?",
+  cielLoaded: "Loaded the Ciel route save. Ciel's route branches off on day 3 of a new game.",
   none: `Nothing to export yet: the game has not been played in this ${HERE}.`,
   exported: (name) => `Saved as ${name}.`,
   unsaved: "The file could not be saved there.",
@@ -286,9 +294,10 @@ export async function openHome(ui, { started = null } = {}) {
     .then((x) => (x.ok ? null : r.code)).catch(() => r.code)))).filter(Boolean) : []);
   const langTable = missing.size ? LANGUAGE_TABLE.filter((r) => !missing.has(r.code)) : LANGUAGE_TABLE;
   const langPlates = missing.size ? platesOf(langTable) : LANG_PLATES, langLine = missing.size ? langLineFor(APP, langTable) : LANG_LINE;
-  const [sheet, saveSheet, fullSheet, langSheet, updateSheet, enSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: tr(t.plate) })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: tr(t.plate) })), P),
+  const [sheet, saveSheet, fullSheet, langSheet, updateSheet, enSheet, cielSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: tr(t.plate) })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: tr(t.plate) })), P),
     quickBarArt([{ label: tr(FULL_PLATE.plate) }], { w: P.w + FULL_PLATE.wider, h: P.h }), quickBarArt(langPlates.map((l) => ({ label: l.plate })), P),
     quickBarArt([{ label: tr(UPDATE_PLATE.plate) }], { w: P.w + UPDATE_PLATE.wider, h: P.h }), quickBarArt(EN_PLATES.map((l) => ({ label: l.plate })), P),
+    quickBarArt([{ label: tr(CIEL_PLATE.plate) }], { w: P.w + CIEL_PLATE.wider, h: P.h }),
     ...ART.map((a) => { const i = new Image(); i.src = asset(`/assets/ui/${a}.webp`); return i.decode().catch(() => {}); })]);
   const official = await officialThere;
   return new Promise((done) => {
@@ -401,6 +410,19 @@ export async function openHome(ui, { started = null } = {}) {
         load(sys, bytes, { label: SAVE_TEXT.full, keepSettings: true, note: SAVE_TEXT.fullLoaded });
       }, (back) => { back(); ui.sel = NONE; }, { startNo: true, three: true });
     };
+    // Start Ciel route: a game with Arcueid's route played to its end (arcsave.js), loaded as the 100% save is (the settings stay the player's), so
+    // that Ciel's route is open in a new game. Pressed, it says what it loads and asks in the game's Yes / No window, starting on No.
+    const cielNow = () => {
+      if (leaving) return;
+      ui.audio.start();
+      ui.sound(1);
+      ui.dialog(SAVE_TEXT.askCiel, (back) => {
+        back();
+        let bytes, sys;
+        try { bytes = arcSaveFile(); sys = readSaves(bytes); } catch (e) { say(e.message, true); return; }
+        load(sys, bytes, { label: SAVE_TEXT.ciel, keepSettings: true, note: SAVE_TEXT.cielLoaded });
+      }, (back) => { back(); ui.sel = NONE; }, { startNo: true, three: true });
+    };
     // ---- the app's updates (update.js) ----
     // Looked for once the page is up, where there is a connection. One found is asked about in the game's Yes / No window, with its size; Yes
     // downloads it under the game's notice window, which counts the download and stops it when pressed, and then the page loads again in the new
@@ -493,7 +515,7 @@ export async function openHome(ui, { started = null } = {}) {
       updSay();
       return box;
     };
-    const saveActs = { export: exportNow, import: importPick, remove: removeNow, full: fullNow, update: updateNow };
+    const saveActs = { export: exportNow, import: importPick, remove: removeNow, full: fullNow, ciel: cielNow, update: updateNow };
     // What the browser holds now (savefile.js loadedData): four figures side by side across the page, as the page's other figures are (welcome.js
     // "facts"), counted as the game's own screens count them, and under them whether an imported file is loaded.
     const dataBlock = () => {
@@ -530,6 +552,7 @@ export async function openHome(ui, { started = null } = {}) {
       const row = el("div", "hm-save-row");
       SAVE_PLATES.forEach((s, i) => row.append(savePlate(s, i)));
       row.append(savePlate(FULL_PLATE, 0, fullSheet, P.w + FULL_PLATE.wider));   // next to REMOVE DATA
+      row.append(savePlate(CIEL_PLATE, 0, cielSheet, P.w + CIEL_PLATE.wider));   // and after it
       status = el("p", `hm-save-status${said?.bad ? " bad" : ""}`, said?.text ?? "");
       status.setAttribute("role", "status");
       box.append(row);

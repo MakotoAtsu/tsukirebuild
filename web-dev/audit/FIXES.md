@@ -1841,3 +1841,33 @@ that is about 1,500 pictures decoded a second time against 48.
   on Android 13.
 
 Tests: `touch.test.mjs` (the budgets by device). 644 tests, 641 pass, 3 skipped (in the working folder).
+
+## SAVE DATA: Start Ciel route, 2026-11-21
+
+The user: "In the save data page add another button that says start ciel route, and in description it should say that it loads Arc route
+completed file (rephrase it)", and, asked for such a file: "i dont have one you'll have to make one".
+
+- **What opens Ciel's route** (read from the scripts): `14_00_ARC14_1`, the last scene of Arcueid's route, sets G003 (op 5151) before its
+  Ciel-sensei episode. `03_00_ARC03_5B`'s last choice (choice 13) keeps its second row, "No... this is the reality I have wrought." (into
+  `03_01_CIEL03_3_2`), locked unless F057 is 1 (set in `03_01_CIEL03_2_3`, lunch in the tea ceremony room at `03_00_ARC03_4`'s choice 12) and G003
+  is 1. `07_00_ARC07_3_1`'s second row also waits for G003, but stays in Arcueid's route (a question about the Twenty-Seven Ancestors).
+- **The save** (`web/app/js/arcsave.js`, 9 KB, as `fullsave.js` is): made by `web-dev/tools/make_arcsave.mjs`, which plays the route with the
+  port's own VM in node (nothing drawn or heard, full speed as the smoke test runs, label Z commands and all): the opening 00_01, the first
+  launch's title (G002 = 0, G010 = 1), START_SCRIPT, every choice on its first open row unless that row ends in a bad end (a jump to QACALL from
+  any script but `14_00_ARC14_1`), the hint corner after the ending watched, back to the title (G002 = 1). Movies count as seen as main.js's
+  `playMovie` finish counts them; the voices' rows use audio.js's own lookup. Found in six tries (dead ends on days 4, 5 and 10); the 48 rows
+  are kept in the tool (`ROUTE`) and checked on every run. Result: 191 scenes started, 190 completed (560, the ending, started), 264 chart
+  lines, 519 pictures, 68 songs, op1_arc, 522 read blocks, G003 = 1; the game's first config, no records.
+- **Checked by the tool**: every scene, chart line, picture, song and global bit is also in the 100% reference save (G002 and G010 aside: the
+  title's stage, and the first launch's flag, which that save has clear). The read marks are not compared as a rule: that save numbers some
+  blocks two lower than the port's scripts (its 00_00 read to 255 / 133 in blocks 22 / 23, the port's to 255 / 132 in 24 / 25), so 45 blocks
+  are higher here. The native PC build on this folder's game files numbers them as the port does (the user's earlier native save,
+  `data/tsuki/user/savedata000.before-100-percent.2026-11-08`: 00_00 at 255 / 132 in blocks 24 / 25), so it is that save's game build, not the
+  port. Japanese's own scripts (Chinese shares them): all 9,062 messages of the 70 the route read whole count as read with this save. And a new game from the save, lunch in the tea ceremony room, reaches choice 13
+  with its second row open; from a new profile, locked.
+- **The page** (`home.js`): START CIEL ROUTE after LOAD 100% SAVE, as wide (`CIEL_PLATE`), its description in SAVE DATA's list ("Ciel route:
+  Loads a save in which Arcueid's route has been played to its end, which is what opens Ciel's route. ..."), and when pressed the game's Yes /
+  No window, starting on No: "Loads a save with Arcueid's route finished, / which opens Ciel's route. / Load it?". On Yes it loads as the 100%
+  save does (settings kept; REMOVE DATA takes it out), and the line after says "Ciel's route branches off on day 3 of a new game." The Remove
+  row and "Nothing to remove" name it too. Japanese, Chinese (西耶尔 / 爱尔奎特, the patch's names; every letter already in its cut-down faces)
+  and Portuguese for all of it. The plate only loads the save: it does not start the story.

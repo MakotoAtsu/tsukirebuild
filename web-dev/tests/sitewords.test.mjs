@@ -37,7 +37,7 @@ function pageStrings() {
   add(H.EN_LINE.head); add(H.EN_LINE.note);
   block(["rows", H.LANG_ROWS]);
   for (const v of Object.values(H.LANG_NOW)) add(v);
-  for (const p of [...H.SAVE_PLATES, H.FULL_PLATE, H.UPDATE_PLATE]) add(p.plate);
+  for (const p of [...H.SAVE_PLATES, H.FULL_PLATE, H.CIEL_PLATE, H.UPDATE_PLATE]) add(p.plate);
   for (const v of Object.values(U.LANG_NAMES)) add(v);
   return [...out];
 }
@@ -58,7 +58,7 @@ test("every string the opening page can show has its Japanese and its Chinese, o
 });
 
 test("a question in the game's Yes / No window stays within its rows in Japanese and Chinese (about 18 wide letters a row)", () => {
-  for (const s of [H.SAVE_TEXT_EN.askRemove, H.SAVE_TEXT_EN.askFull, U.UPDATE_TEXT.askShell]) {
+  for (const s of [H.SAVE_TEXT_EN.askRemove, H.SAVE_TEXT_EN.askFull, H.SAVE_TEXT_EN.askCiel, U.UPDATE_TEXT.askShell]) {
     for (const table of [SITE_JA, SITE_ZH]) for (const row of table[s].split("\n")) assert.ok([...row].length <= 18, `${row} (${[...row].length})`);
   }
   const ask = U.UPDATE_TEXT.askLang(tr("Japanese", "zh"), 101e6, true);
@@ -74,7 +74,7 @@ test("the hint bar in Portuguese: a word for every entry, and the mouse's part o
 });
 
 test("a question in the game's Yes / No window stays within its rows in Portuguese: no row wider than the English's widest", () => {
-  const asks = [H.SAVE_TEXT_EN.askRemove, H.SAVE_TEXT_EN.askFull, U.UPDATE_TEXT.askShell, U.UPDATE_TEXT.askLang("Japanese", 101e6, true), U.UPDATE_TEXT.ask(12_300_000)];
+  const asks = [H.SAVE_TEXT_EN.askRemove, H.SAVE_TEXT_EN.askFull, H.SAVE_TEXT_EN.askCiel, U.UPDATE_TEXT.askShell, U.UPDATE_TEXT.askLang("Japanese", 101e6, true), U.UPDATE_TEXT.ask(12_300_000)];
   const widest = Math.max(...asks.flatMap((s) => s.split("\n").map((r) => r.length)));
   for (const s of asks) for (const row of tr(s.replace("Japanese", tr("Japanese", "pt")), "pt").split("\n")) assert.ok(row.length <= widest, `${row} (${row.length} > ${widest})`);
 });
