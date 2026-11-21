@@ -164,18 +164,18 @@ test("the pictures' budget: by the device's memory; a 4096 limit means a small G
   const MB = 1024 * 1024;
   const A13 = { ...ANDROID, userAgent: "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Mobile Safari/537.36" };
   const WEBVIEW = { ...A13, userAgent: "Mozilla/5.0 (Linux; Android 13; SM-S908B Build/TP1A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/157.0.0.0 Mobile Safari/537.36" };
-  // Android 13 and before (4096 from the browser): 1400 MB with 8 GB, as the same phone on Android 14 (8192); it was 400 MB
+  // Android 13 and before (4096 from the browser): the phones' most with 8 GB, as the same phone on Android 14 (8192); it was 400 MB
   for (const nav of [A13, WEBVIEW]) {
-    assert.equal(pictureBudget(4096, { navigator: { ...nav, deviceMemory: 8 } }), 1400 * MB);
+    assert.equal(pictureBudget(4096, { navigator: { ...nav, deviceMemory: 8 } }), 1000 * MB);
     assert.equal(pictureBudget(4096, { navigator: { ...nav, deviceMemory: 4 } }), 700 * MB);
     assert.equal(pictureBudget(4096, { navigator: { ...nav, deviceMemory: 2 } }), 400 * MB);
     assert.equal(pictureBudget(4096, { navigator: { ...nav, deviceMemory: 1 } }), 400 * MB);
   }
-  for (const [memory, mb] of [[8, 1400], [4, 700], [2, 400]]) assert.equal(pictureBudget(8192, { navigator: { ...ANDROID, deviceMemory: memory } }), mb * MB, `Android 14 on, ${memory} GB`);
+  for (const [memory, mb] of [[8, 1000], [4, 700], [2, 400]]) assert.equal(pictureBudget(8192, { navigator: { ...ANDROID, deviceMemory: memory } }), mb * MB, `Android 14 on, ${memory} GB`);
   // Firefox on Android says nothing of the memory and gives the GPU's own limit: 4096 there is a small GPU
   const FIREFOX = { userAgent: "Mozilla/5.0 (Android 13; Mobile; rv:140.0) Gecko/140.0 Firefox/140.0", vendor: "", maxTouchPoints: 5 };
   assert.equal(pictureBudget(4096, { navigator: FIREFOX }), 400 * MB);
-  assert.equal(pictureBudget(8192, { navigator: FIREFOX }), 1400 * MB);
+  assert.equal(pictureBudget(8192, { navigator: FIREFOX }), 1000 * MB, "and on Android no more than a phone's most");
   // anywhere else the 4096 limit is the GPU's (an old laptop), and less than 4096 is small everywhere
   const LAPTOP = { userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36", vendor: "Google Inc.", maxTouchPoints: 0, deviceMemory: 8 };
   assert.equal(pictureBudget(4096, { navigator: LAPTOP }), 400 * MB);
@@ -187,6 +187,23 @@ test("the pictures' budget: by the device's memory; a 4096 limit means a small G
   assert.match(source("js/renderer.js"), /this\.dropBlurred\(this\.limit \/ 4\);/);
 });
 
+// An Android phone or tablet, the app's WebView too, keeps no more than PHONE_PICTURES: deviceMemory stops at 8, so a phone with 8 or 12 GB said
+// what a desktop says and kept 1400 MB (the measured re-decodes are in renderer.js). A desktop keeps its 1400 MB; the smaller tiers stay as they were.
+test("the pictures' budget on Android is a phone's: at most PHONE_PICTURES, whatever memory the device says", async () => {
+  const { pictureBudget, PHONE_PICTURES } = await import("../../web/app/js/renderer.js");
+  const MB = 1024 * 1024;
+  assert.equal(PHONE_PICTURES, 1000);
+  const APP = { ...ANDROID, userAgent: "Mozilla/5.0 (Linux; Android 16; CPH2749 Build/BP2A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/157.0.0.0 Mobile Safari/537.36" };
+  const TABLET = { ...ANDROID, userAgent: "Mozilla/5.0 (Linux; Android 15; SM-X920) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36" };
+  for (const nav of [ANDROID, APP, TABLET]) {
+    for (const side of [8192, 16384]) assert.equal(pictureBudget(side, { navigator: { ...nav, deviceMemory: 8 } }), PHONE_PICTURES * MB, `${nav.userAgent.slice(13, 40)} ${side}`);
+    assert.equal(pictureBudget(8192, { navigator: { ...nav, deviceMemory: 4 } }), 700 * MB);
+    assert.equal(pictureBudget(8192, { navigator: { ...nav, deviceMemory: 2 } }), 400 * MB);
+  }
+  assert.equal(pictureBudget(16384, { navigator: { ...MAC, deviceMemory: 8 } }), 1400 * MB, "a desktop");
+  assert.equal(pictureBudget(16384, { navigator: IPHONE }), 400 * MB, "an iPhone as before");
+});
+
 // ---- issue 8's follow-up: decoded sounds, the sound after an interruption, a page ended out of sight ----------------------
 test("decoded sounds are kept to a budget of bytes, the least recently used going first and what plays staying", async () => {
   const { Audio, soundBudget, soundBytes } = await import("../../web/app/js/audio.js");
@@ -194,7 +211,9 @@ test("decoded sounds are kept to a budget of bytes, the least recently used goin
   assert.equal(soundBudget({ navigator: IPHONE }), 256 * MB, "an iPhone says nothing of its memory: the least");
   assert.equal(soundBudget({ navigator: IPAD }), 256 * MB);
   assert.equal(soundBudget({ navigator: { ...ANDROID, deviceMemory: 4 } }), 384 * MB);
-  assert.equal(soundBudget({ navigator: ANDROID }), 768 * MB);
+  assert.equal(soundBudget({ navigator: ANDROID }), 384 * MB, "an Android phone that says 8 GB, as a desktop would: a phone's most");
+  assert.equal(soundBudget({ navigator: { ...ANDROID, deviceMemory: 2 } }), 256 * MB);
+  assert.equal(soundBudget({ navigator: MAC }), 768 * MB, "a desktop");
   assert.equal(soundBudget({}), 768 * MB, "a desktop");
   assert.equal(soundBytes({ length: 48000 * 180, numberOfChannels: 2 }), 69120000, "three minutes of stereo at 48 kHz");
   const a = new Audio();

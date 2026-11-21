@@ -121,9 +121,14 @@ const SOUNDS_KEPT = 80;  // decoded sounds kept at most, whatever their size
 // track of three minutes at 48 kHz in stereo takes 69 MB, and the longest (MOON01_BGM33, 308 s) 113 MB; with only a count to keep
 // them to, six tracks took a page on an iPhone from 237 to 826 MB, and an iPhone ends a page that takes much (GitHub issue 8). As the
 // pictures' budget (renderer.js), by what the device says of its memory, an iPhone or an iPad (which say nothing) as the least.
+// An Android phone or tablet keeps at most 384 MB (deviceMemory says 8 for a phone with 8 GB, as for a desktop). Replayed over the 549 scripts with
+// the look-ahead (2026-11-21), 384 MB decoded the music 624 times, against 617 with no budget at all: SOUNDS_KEPT, the count, is what lets the
+// music go there; 320 MB took 789, 256 MB 1753.
 export function soundBudget(win = globalThis) {
-  const memory = win.navigator?.deviceMemory || (appleTouch(win) ? 2 : 8);
-  return (memory <= 2 ? 256 : memory <= 4 ? 384 : 768) * 1024 * 1024;
+  const n = win.navigator;
+  const memory = n?.deviceMemory || (appleTouch(win) ? 2 : 8);
+  const mb = memory <= 2 ? 256 : memory <= 4 ? 384 : 768;
+  return (/Android/.test(n?.userAgent || "") ? Math.min(mb, 384) : mb) * 1024 * 1024;
 }
 // The bytes of a decoded sound.
 export const soundBytes = (buf) => (buf?.length || 0) * (buf?.numberOfChannels || 1) * 4;

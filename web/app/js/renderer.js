@@ -18,12 +18,19 @@ const MIN_TEXTURES = 192 * 1024 * 1024;   // the least the picture textures are 
 // the hardware (Chromium's gpu_driver_bug_list.json, entries 147 and 456), so a phone with 12 GB on Android 13 was kept to 400 MB, and the
 // heaviest scenes had their pictures decoded again and again (05_00_ARC05_9_2B: 49 to 70 times in 150 s, against one at 1400 MB). There
 // the device's memory alone decides, where the browser says it (Firefox does not: the limit it gives is the GPU's own).
+// An Android phone or tablet keeps at most PHONE_PICTURES (the app's WebView too). deviceMemory goes no higher than 8, so a phone with 8 GB or
+// 12 GB counted as a desktop and kept 1400 MB, and the textures are kept until they reach the budget, not let go as a scene ends: after enough
+// play the page holds that much whatever the scene needs. Replayed over the 549 scripts with the look-ahead (2026-11-21), the pictures decoded a
+// second time within one script: 56 at 1400 MB, 217 at 1000, 413 at 800, 599 at 700, 3253 at 400; those on screen at once take up to 412 MB.
+export const PHONE_PICTURES = 1000;
 export function pictureBudget(maxSide, win = globalThis) {
   const n = win.navigator;
   const memory = n?.deviceMemory || (appleTouch(win) ? 2 : 8);
-  const capped = !!n?.deviceMemory && /Android/.test(n.userAgent || "") && maxSide === 4096;   // (the browser's limit, not the GPU's)
+  const android = /Android/.test(n?.userAgent || "");
+  const capped = !!n?.deviceMemory && android && maxSide === 4096;   // (the browser's limit, not the GPU's)
   const small = maxSide <= 4096 && !capped;
-  return (small || memory <= 2 ? 400 : memory <= 4 ? 700 : 1400) * 1024 * 1024;
+  const mb = small || memory <= 2 ? 400 : memory <= 4 ? 700 : 1400;
+  return (android ? Math.min(mb, PHONE_PICTURES) : mb) * 1024 * 1024;
 }
 // STBR's number -> the shader that draws the layer, as positions in the engine's shader table (0x264668). The draw
 // (0x89ad0) looks the number up in 0x34dd70 (the identity for 0-39) and maps it with 0xa2790 to a shader; shaders of

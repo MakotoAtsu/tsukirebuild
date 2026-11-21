@@ -1871,3 +1871,36 @@ completed file (rephrase it)", and, asked for such a file: "i dont have one you'
   save does (settings kept; REMOVE DATA takes it out), and the line after says "Ciel's route branches off on day 3 of a new game." The Remove
   row and "Nothing to remove" name it too. Japanese, Chinese (西耶尔 / 爱尔奎特, the patch's names; every letter already in its cut-down faces)
   and Portuguese for all of it. The plate only loads the save: it does not start the story.
+
+## Android: a phone's picture and sound budgets, not a desktop's, 2026-11-21
+
+`navigator.deviceMemory` goes no higher than 8, so an Android phone with 8 GB or more said what a desktop says and kept a desktop's budgets:
+1400 MB of picture textures, a quarter of that again in blurred copies, and 768 MB of decoded sounds. The textures are let go only when they
+reach the budget (`renderer.js evict`), not as a scene ends, so after enough play the page holds that much whatever the scene needs; in the
+Android app the GPU's share of it is in the app's own process (the WebView runs its GPU service in-process). Two reports on 2026-11-21: an
+OPPO Find X8 (Mali GPU) whose app closes to the home screen after 3 to 5 minutes of its text lagging, and GitHub issue 14 (two Xiaomi phones,
+6 and 8 GB): slowdowns and an occasional crash in effect-heavy battle scenes, not on the website.
+
+- **Measured** with a replay of the 549 scripts in node (the page's VM and its own look-ahead, `preload.js`; the renderer's `load` / `evict`
+  and audio.js's `buffer` / `trim` on the real picture sizes from `images.json` at an 8192 limit and the real decoded sizes of the sound files;
+  scripts in index order, no choice taken (the stubbed text box refuses them, so a script reads straight on), a message as 3 s; the tool is
+  `web-dev/tools/cachesim.mjs`). It agrees with the browser run of 16 November in `05_00_ARC05_9_2B`: 70 pictures decoded again at 400 MB and 1
+  at 1400 MB, against 49 to 70 and one there (that entry's "about 1,500 against 48" over all scripts was counted another way, at the 4096
+  limit). Pictures decoded a second time within one script: 1400 MB 56 (14 scripts),
+  1200 MB 110, 1000 MB 217 (39 scripts), 900 MB 293, 800 MB 413, 700 MB 599, 600 MB 964, 500 MB 1651, 400 MB 3253; the pictures that layers hold
+  at once take up to 412 MB. No budget is a knee: the count falls steadily. Music decoded: 617 with no sound budget at all, 617 at 448 MB,
+  624 at 384 MB, 789 at 320 MB, 1753 at 256 MB: at 384 MB and above it is `SOUNDS_KEPT` (80 sounds) that lets music go, and the bytes kept peak
+  at 662 MB whatever the budget above that. From the prologue the pictures reach 700 MB after about 22 minutes of play and 1400 MB after 37.
+- **Change**: on Android (Chrome, Firefox and the app's WebView; a tablet too) the pictures' budget is at most `PHONE_PICTURES`, 1000 MB
+  (`renderer.js pictureBudget`), and the sounds' at most 384 MB (`audio.js soundBudget`). The 700 / 400 MB and 384 / 256 MB tiers for 4 GB and
+  2 GB are as they were, and desktops keep 1400 / 768 MB. On an 8 GB-class phone that is 400 MB fewer textures, 100 MB fewer blurred copies and
+  up to 278 MB fewer decoded sounds, for 161 more pictures decoded again within a script across the whole game (most in
+  `14_01B_01_CIEL14B_1D`: 46 against 20).
+- **Not settled by it**: whether these budgets are what ends the app on those phones, and what a picture decoded again costs on a weak one.
+  How soon a session reaches the budget depends on the scenes and the pace: from the prologue at 3 s a line the replay reaches 1000 MB of
+  pictures after about 33 minutes, but a browser run of `15_01A_CIEL15A_1` (isolated Chrome on the Mac, `deviceMemory` 8, a click every 0.35 s,
+  the old 1400 MB) held 1003 MB of pictures and 231 MB of blurred copies after 5.75 minutes and 1203 MB after 6.25, the JS heap steady at about
+  40 MB. A phone that says 4 GB (6 GB phones do) keeps 700 / 384 MB as before. Nothing was run on a Mali or a low-end Adreno phone, and the
+  Mac's process sizes do not show Metal's textures, so a leak on the GPU side is neither shown nor ruled out.
+
+Tests: `touch.test.mjs` (the budgets by device, the phones' cap). 720 tests, 717 pass, 3 skipped (in the working folder).
