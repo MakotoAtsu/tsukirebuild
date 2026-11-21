@@ -2069,3 +2069,28 @@ choice, the jump, the tools' runs, SPFC / SPRD, the chain of read scenes, the qu
 main.js), `frameskip.test.mjs` (a split and lines on, fading, faded out), `preload.test.mjs`. On the code as pushed that morning the
 tests of the faults fail (the line, the choice, the jump, SPFC / SPRD, the split), as do those of what is new (the black, `stopWaits`).
 737 tests, 734 pass, 3 skipped (in the working folder).
+
+## The Android app built again and replaced on the site; its build leaves out what its description leaves out, 2026-11-21
+
+At the user's word ("rebuild android app and replace"), after the day's pushes. The hosted APK was the 13 November build, which took the
+days since as updates on first run.
+
+- **The build's filter** (`web-dev/android/build_apk.sh`): the folders left out of the APK were written out by hand, `voice|se|ja|zh`, from
+  before Portuguese was added. `app_manifest.py` (`WITHOUT`: ja, zh, pt, voice, se) makes the description the app's updates are worked out
+  from, so a build would have carried Portuguese's files while the app, going by that description, asked to download them again when the
+  language was first chosen. The script now reads the list from `app_manifest.py`. The desktop build's filter (`web-dev/desktop/package.json`)
+  has the same gap and was left as it is: that app was not rebuilt.
+- **The build**: 2,804,506,187 bytes (sha256 0b1ff3db…c785), versionCode 26112115, version name 2026.11.21, from the working folder with
+  `web/app` identical to the site's (`v/8172d1b771bf`).
+- **Checked before the hosted file was touched**: the same signing certificate as the 13 November APK (ac5d3867…630b), so it installs over it
+  with the saves kept; `classes.dex` byte for byte the 13 November one (the wrapper has not changed); one permission (internet), not
+  debuggable, aligned; `bundled.json` names the site's version and the same 60 app files, each in the APK with that hash; the assets'
+  description is the site's own (md5 d416edcacc23…) and all 10,519 files it names are in the APK at their size, none besides; no `pt/`,
+  `ja/`, `zh/`, `voice/`, `se/`; nothing under `assets/` compressed. So a new install has nothing to update.
+- **Replaced** on R2 (`android/tsukihime.apk`): the old object deleted first (the bucket, 8.78 GB of 10, has no room for both), the new one
+  up in 42 parts of 64 MB, each with its MD5, the finished ETag as worked out from the parts; the address purged; then the whole file
+  downloaded through `https://arcueid.date/android/tsukihime.apk` and compared: identical. The link was down for about four minutes.
+- **Not done**: not installed or run on a phone (none was attached). The 13 November APK is kept beside the new one as
+  `web-dev/android/out/tsukihime-2026-11-13.apk`.
+
+Tests: `app-update.test.mjs` (the build reads its list from `app_manifest.py`). 737 tests, 734 pass, 3 skipped (in the working folder).

@@ -108,7 +108,12 @@ test("an app plays the language kept once its files were in, never one an addres
   // files that are not there after all (an update the app took out again): back to English before anything is drawn
   // (and an app not yet updated to have the official English's folder: back to the fan translation)
   assert.match(lang, /if \(APP && lists\.some\(\(list\) => !list\) && typeof location !== "undefined"\) \{\n(    \/\/ [^\n]*\n)+    if \(OFFICIAL\) chooseEnglish\("tsukihimates"\); else chooseLang\("en"\);\n    location\.reload\(\);/);
-  assert.match(read("web-dev/android/build_apk.sh"), /case "\$\(basename "\$f"\)" in voice\|se\|ja\|zh\) ;;/);
+  // the Android build leaves out what the bundle's description leaves out, read from the same list (app_manifest.py WITHOUT): written out by
+  // hand it kept ja and zh out and let Portuguese's folder in, which the app then asked to download again (2026-11-21)
+  const apk = read("web-dev/android/build_apk.sh");
+  assert.match(apk, /import app_manifest; print\(' '\.join\(app_manifest\.WITHOUT\)\)/);
+  assert.match(apk, /case "\$without" in \*" \$\(basename "\$f"\) "\*\) ;;/);
+  assert.doesNotMatch(apk, /in voice\|se\|ja\|zh\)/);
   const pack = JSON.parse(read("web-dev/desktop/package.json")).build;
   assert.deepEqual(pack.extraResources[1].filter, ["**/*", "!voice/**", "!se/**", "!ja/**", "!zh/**", "!**/.*"]);
   // and the list the updates compare leaves them out too: app_manifest.py reads the page's own table of languages (languages.js)

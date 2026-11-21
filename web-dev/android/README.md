@@ -1,6 +1,6 @@
 # Android app
 
-The web port as one APK that plays with no connection: `web/app`, and `web/assets` without the loose voices and sound effects (the packs in `assets/pack` carry all 17,753 of them) and without the languages' own folders `assets/ja` and `assets/zh`: the app is built in English, and Japanese and Chinese are downloaded into it when first chosen ([Updates](#updates)). The APK is 2.8 GB (2,801,384,376 bytes on 2026-11-13). It has one permission, the internet, which it uses only to bring itself up to date from arcueid.date ([Updates](#updates)); the game itself fetches nothing.
+The web port as one APK that plays with no connection: `web/app`, and `web/assets` without the loose voices and sound effects (the packs in `assets/pack` carry all 17,753 of them) and without the folders of the languages the app downloads when one is first chosen (`assets/ja`, `assets/zh`, `assets/pt`: the build reads which from `web-dev/tools/app_manifest.py`, the list its updates are worked out from): the app is built in English, and Japanese and Chinese are downloaded into it when first chosen ([Updates](#updates)). The APK is 2.8 GB (2,804,506,187 bytes on 2026-11-21). It has one permission, the internet, which it uses only to bring itself up to date from arcueid.date ([Updates](#updates)); the game itself fetches nothing.
 
 ```bash
 web-dev/android/build_apk.sh            # out/tsukihime.apk

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # build_apk.sh [--debug] [--install]: the web port as one Android APK with everything in it (web/app, and web/assets
-# but the loose voices and sound effects, which the packs carry, and Japanese's own files: the app is English only).
+# but the loose voices and sound effects, which the packs carry, and the folders of the languages the app downloads
+# when one is first chosen: app_manifest.py WITHOUT).
 # Writes web-dev/android/out/tsukihime.apk.
 #   --debug    the page can be inspected from chrome://inspect on the computer (USB debugging), and updates can be
 #              taken from a copy of the site on the computer (README, "Trying an update")
@@ -60,13 +61,18 @@ javac -nowarn --release 11 -cp "$jar" -d "$work/classes" \
 [ -n "$(find "$work/classes" -name '*.class')" ] || { echo "javac failed" >&2; exit 1; }
 "$bt/d8" --release --min-api 26 --lib "$jar" --output "$work" $(find "$work/classes" -name '*.class')
 
-# The game: assets/www = web/app, assets/www/assets = web/assets without voice/ and se/ (in the packs) and ja/ and zh/
-# (the app is English only). Linked, not copied; zip follows the links. Stored, not compressed, so the app can seek in them
+# The game: assets/www = web/app, assets/www/assets = web/assets without voice/ and se/ (in the packs) and the folders
+# of the languages downloaded when first chosen. Which folders those are is read from app_manifest.py (WITHOUT), the
+# list the description below is made from: written out here by hand it had ja and zh and not pt, so a build carried
+# Portuguese's files and the app, going by the description, asked to download them again (2026-11-21).
+# Linked, not copied; zip follows the links. Stored, not compressed, so the app can seek in them
 # (the files are compressed already). With them goes the description of what was packed, bundled.json and
 # bundled-assets.txt, which the app's updates are worked out from (web-dev/tools/app_manifest.py).
+without=" $(python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import app_manifest; print(' '.join(app_manifest.WITHOUT))" "$here/../tools") "
+[ -n "${without// /}" ] || { echo "app_manifest.py names nothing to leave out" >&2; exit 1; }
 for f in "$web/app"/*; do ln -s "$f" "$work/stage/assets/www/"; done
 for f in "$web/assets"/*; do
-    case "$(basename "$f")" in voice|se|ja|zh) ;; *) ln -s "$f" "$work/stage/assets/www/assets/" ;; esac
+    case "$without" in *" $(basename "$f") "*) ;; *) ln -s "$f" "$work/stage/assets/www/assets/" ;; esac
 done
 python3 "$here/../tools/app_manifest.py" --bundle "$work/stage/assets/www"
 cp "$work/base.apk" "$work/unsigned.apk"
