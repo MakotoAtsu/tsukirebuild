@@ -1991,3 +1991,24 @@ being drawn makes it write all its tiles out and read them back.
 
 Tests: `frameskip.test.mjs` (the key, the cases drawn every frame, `present`'s skip, the transition / context / visibility ends).
 726 tests, 723 pass, 3 skipped (in the working folder).
+
+## A slow frame catches up the game frames it lasted, up to half a second, 2026-11-21
+
+GitHub issue 14 after the day's updates: freezes shorter, but in the heaviest battle moments (the day-5 Vlov battle, Arcueid Lumina) the
+scenes "play in slow motion" on a Snapdragon 685 and a 7s Gen 4. `main.js gameFrames` counted any display frame of over a quarter of a second
+as one game frame: meant for the rotate screen, which holds the page's frames, it also took a phone's genuinely slow frames, so a heavy
+moment ran slower than real time and out of step with the music and voices, which run on the sound's own clock. The game's own clock takes
+up to half a second from a frame (0xef08c).
+
+- **Change**: a display frame gives the game frames it lasted, up to 30 (half a second, `frame`'s cap as before); no quarter-second cut. The
+  page not drawing at all says so itself: a hidden page started the count again already (`lastFrame = null` on visibilitychange), and now
+  the rotate screen does too as it goes (`touch.js` calls `touch.resumed`, which main.js sets).
+- **Checked** in an isolated Chrome: a 400 ms stall of the page inside a frame in `01_00_ARC01_1_2` moved the story's clock (`vm.gameTime`)
+  450 ms over it and three frames after, against 67 ms with the live site's code (the stall as one frame); four plain frames 67 ms on both;
+  the rotate screen held 2 s (touch layer, the window turned upright) moved it 100 ms from before the turn to three frames after, with no
+  half-second jump (the live site's code: 117 ms).
+- **Not settled by it**: nothing was run on those phones. A heavy moment now keeps its speed with fewer frames seen; the frames are as slow
+  as before.
+
+Tests: `frameskip.test.mjs` (the real `gameFrames` taken from main.js: 60 / 120 / 30 Hz, a 400 ms stall, the cap; the two resets).
+727 tests, 724 pass, 3 skipped (in the working folder).

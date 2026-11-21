@@ -93,3 +93,22 @@ test("the skip's other ends: no GL before the key, a transition and a new contex
   assert.match(src, /this\.uiGen = \(this\.uiGen \|\| 0\) \+ 1;/);
   assert.match(source("js/main.js"), /else gfx\.invalidate\?\.\(\);/);
 });
+
+// GitHub issue 14 (2026-11-21): heavy battles played in slow motion on weak phones. A display frame of over a quarter of a second counted as
+// one game frame (meant for the rotate screen); a stall now gives the game frames it lasted, up to half a second, as the game's own clock does
+// (0xef08c), and the page not drawing at all (hidden, the rotate screen) starts the count again instead.
+test("a slow display frame catches up the game frames it lasted, up to half a second; the rotate screen and a hidden page start again", () => {
+  const src = source("js/main.js");
+  const body = src.slice(src.indexOf("let frameDebt = 0;"), src.indexOf("async function frame(real)"));
+  const gameFrames = new Function(`${body}\nreturn gameFrames;`)();
+  assert.equal(gameFrames(1), 1, "60 Hz: one a frame");
+  assert.deepEqual([0.5, 0.5, 0.5, 0.5].map(gameFrames), [0, 1, 0, 1], "120 Hz: one every second frame");
+  assert.equal(gameFrames(2), 2, "30 Hz: two");
+  assert.equal(gameFrames(24), 24, "a 400 ms stall: 24 frames, not 1 (slow motion)");
+  assert.equal(gameFrames(30), 30, "half a second, the most a frame gives");
+  assert.match(src, /const dt = lastFrame === null \? 0 : Math\.min\(30, \(\(real - lastFrame\) \* 60\) \/ 1000\);/, "frame: dt at most 30 (half a second)");
+  assert.doesNotMatch(body, /dt > 15/, "no quarter-second cut any more");
+  assert.match(src, /touch\.resumed = \(\) => \{ lastFrame = null; \};/, "the rotate screen gone: no catching up on its time");
+  assert.match(src, /vm\.holdClocks\("hidden", document\.hidden\);\n\s*lastFrame = null;/, "nor on a hidden page's");
+  assert.match(source("js/touch.js"), /\} else \{\n\s*touch\.resumed\?\.\(\);/, "touch.js says so as the rotate screen goes");
+});

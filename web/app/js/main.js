@@ -491,12 +491,14 @@ function windowPictures(tx, ty) {
 }
 
 // The game's frames in a display frame of dt: one on a 60 Hz display, one on every second frame of a 120 Hz one, two on a 30 Hz one, and
-// so on. A display frame within a quarter of a whole one counts as it. A stall gives as many as it lasted (the game's own clock takes up to
-// half a second from a frame, 0xef08c), but a gap of over a quarter of a second is the page not drawing at all (the touch layer's rotate
-// screen holds the frames), not a slow frame, and counts as one.
+// so on. A display frame within a quarter of a whole one counts as it. A stall gives as many as it lasted, up to half a second (frame: dt
+// at most 30), as the game's own clock takes up to half a second from a frame (0xef08c): the story keeps its speed and its time with the
+// sound, only fewer of its frames are seen. A gap of over a quarter of a second used to count as one frame, for the rotate screen (which
+// holds the frames); a phone too slow for a heavy scene then played it in slow motion (GitHub issue 14, 2026-11-21: Snapdragon 685 and 7s
+// Gen 4, the day-5 Vlov battle and Arcueid Lumina). The page not drawing at all now says so itself: a hidden page and the rotate screen
+// start the count again (lastFrame = null: visibilitychange, touch.resumed).
 let frameDebt = 0;
 function gameFrames(dt) {
-  if (dt > 15) { dt = 1; frameDebt = 0; }
   frameDebt += dt;
   const n = Math.floor(frameDebt + 0.25);
   frameDebt -= n;
@@ -548,6 +550,8 @@ async function frame(real) {
 // after some minutes in the background, Chrome's tab discarding: issue 8): what pagehide saves is saved as the page goes out of
 // sight, as the apps' appSuspend does, and the decoded sounds not playing, the pictures no layer holds and the blurred copies are let go
 // (made again when next used), so that the page holds less while it waits.
+// The rotate screen gone (touch.js): the frames it held were the page not drawing, not a stall, so no catching up on them either.
+touch.resumed = () => { lastFrame = null; };
 document.addEventListener("visibilitychange", () => {
   vm.holdClocks("hidden", document.hidden);
   lastFrame = null;   // no catching up on the time the page was hidden

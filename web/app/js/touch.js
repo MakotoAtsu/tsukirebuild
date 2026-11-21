@@ -309,6 +309,7 @@ export function installTouch({ win = window, doc = document } = {}) {
         if (vm.autoUntil) { autoLeft = Math.max(0, vm.autoUntil - (vm.autoNow ? vm.autoNow() : now())); if (vm.cancelAuto) vm.cancelAuto(); else { win.clearTimeout(vm.autoTimer); vm.autoUntil = 0; } }
       }
     } else {
+      touch.resumed?.();   // main.js: the time under the rotate screen is no stall to catch up on
       if (vm) { vm.holdClocks("rotate", false); if (autoLeft !== null) vm.armAuto(autoLeft); }
       autoLeft = null;
       if (audio?.ctx && !doc.hidden) audio.ctx.resume();
