@@ -211,7 +211,7 @@ test("decoded sounds are kept to a budget of bytes, the least recently used goin
   assert.equal(soundBudget({ navigator: IPHONE }), 256 * MB, "an iPhone says nothing of its memory: the least");
   assert.equal(soundBudget({ navigator: IPAD }), 256 * MB);
   assert.equal(soundBudget({ navigator: { ...ANDROID, deviceMemory: 4 } }), 384 * MB);
-  assert.equal(soundBudget({ navigator: ANDROID }), 384 * MB, "an Android phone that says 8 GB, as a desktop would: a phone's most");
+  assert.equal(soundBudget({ navigator: ANDROID }), 768 * MB, "Android has no sound cap of its own (one of 384 MB was taken back: the Find X8's sound crackled)");
   assert.equal(soundBudget({ navigator: { ...ANDROID, deviceMemory: 2 } }), 256 * MB);
   assert.equal(soundBudget({ navigator: MAC }), 768 * MB, "a desktop");
   assert.equal(soundBudget({}), 768 * MB, "a desktop");

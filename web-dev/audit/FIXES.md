@@ -1924,3 +1924,15 @@ by least recent use alone it let go of ones the script showed again moments late
   a freeze there is that upload, the decode, or the effects' own drawing was not measured on a phone.
 
 Tests: `preload.test.mjs` (the order let go, the VM's list). 721 tests, 718 pass, 3 skipped (in the working folder).
+
+## Android's sound budget taken back to the device's, 2026-11-21
+
+The OPPO Find X8 player (Mali GPU) reported after the day's updates: no crash up to day 1's first choice, but the sound "crackles like crazy",
+which it had not done before. The only change to the sound in those updates was Android's own cap of 384 MB on decoded sounds (above); the
+replay had it decode the music 624 times against 617, so it is not shown to be the cause, but it is the one sound change and its gain was small
+(up to 278 MB). Taken back at the user's word ("yea fix it"): `audio.js soundBudget` is by the device's memory alone again (768 MB at 8 GB);
+the pictures keep their phone cap. If the crackling stays, the cause is elsewhere (the AudioContext asks for 48 kHz and the smallest buffer,
+`latencyHint: "interactive"`, since the first commit; more picture decoding once the lower picture budget fills).
+
+Tests: `touch.test.mjs`. 721 tests, 718 pass, 3 skipped (in the working folder). Checked in a browser posing as an 8 GB Android phone and as
+the app's WebView: 1000 MB of pictures, 768 MB of sounds.
