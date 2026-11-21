@@ -1936,3 +1936,28 @@ the pictures keep their phone cap. If the crackling stays, the cause is elsewher
 
 Tests: `touch.test.mjs`. 721 tests, 718 pass, 3 skipped (in the working folder). Checked in a browser posing as an 8 GB Android phone and as
 the app's WebView: 1000 MB of pictures, 768 MB of sounds.
+
+## A run that passes the script at once loads only the pictures on screen where it stops, 2026-11-21
+
+The OPPO Find X8 player: "the skip read text function results in an immediate crash". A run that passes the script at once (a read scene's
+instant run with read-scene skip on, a jump to a point such as `?pc=` or Return to Previous Scene, the smoke test's full speed) shows nothing
+on its way, but every STCH / SCH2 started its picture's decode and upload (`vm.js setImage`) and every commit waited for them. Measured in an
+isolated Chrome posing as an 8 GB Android phone: a read scene's run through `05_01_CIEL05_3E` (day 5, Vlov) asked for 114 pictures in 3.3 s
+and left 922 MB of textures, none of them shown but the last frame's; on a phone's slower decoding that is many seconds of decoding and
+uploading at the memory ceiling.
+
+- **Change** (`vm.js`): in such a run (`picturesSkipped`: skip with an instant run, a jump point or the smoke test's speed, never a restore,
+  which makes only the point's layers) `setImage` names the picture on the layer and loads nothing. Where the run stops (`endInstant`, and the
+  loop once the run is over), `loadDeferred` loads the pictures still on a layer (on screen, staged, left behind by a commit), the game's time
+  standing still (`waitImages`, "Loading" if it lasts) and `main.js` keeping the last frame drawn until they are in (`vm.holdingFrame`), as a
+  commit waits for its pictures. The gallery still counts each picture at its commit (by name). Paced fast forward (a line a frame) is not
+  such a run and loads as before.
+- **Checked**, the new code on the local server against the live site (the old code), same pose: the read scene's run through
+  `05_01_CIEL05_3E` took 130 ms against 3,329 ms, asked for 1 picture on its way against 114 and 9 where it stopped against 8, and held 239 MB
+  against 922 MB; both stopped at `05_01_CIEL05_3F` op 106 with the same 17 layers, all drawn; the stopped frames differ no more than two runs
+  of the old code do (mean 2.88 against 2.89 of 255; only the haze moves). `?script=05_01_CIEL05_3E&pc=3000`: 23 pictures asked for against
+  74, 180 MB against 776, the same 15 layers drawn at op 3146 (the battle's moving effects at another moment). No page errors.
+- **Not settled by it**: nothing was run on the Find X8; the frame-rate drops it shows in ordinary play are another matter.
+
+Tests: `preload.test.mjs` (the run names but does not load, the stop loads what layers hold, a restore and paced fast forward load as
+before). 722 tests, 719 pass, 3 skipped (in the working folder).

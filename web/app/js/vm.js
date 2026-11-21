@@ -222,6 +222,8 @@ export class VM {
     this.frameHooks = new Set(); // what moves a step each game frame on the story's screen (everyFrame)
     this.opCount = 0;            // commands run (settleScript)
     this.loadHold = 0;        // pictures loading: the game's time stands still (waitImages)
+    this.deferredPictures = false;   // a run passing the script at once left pictures on layers not loaded (setImage, loadDeferred)
+    this.picturesComing = 0;  // ... which are being loaded now that it has stopped: main.js holds the last frame (holdingFrame)
     this.sceneOf = null;      // the script whose pictures have all been read, from command sceneFrom on (sceneReady)
     this.sceneFrom = 0;
     // The delay slots' clock (0x65e50, run by the mixer 0x9b7f0 from the app's loop every frame in any state): it goes on while a menu or
@@ -706,12 +708,37 @@ export class VM {
     this.setImage(l, name);
   }
 
-  // A layer's picture starts loading at once; it is on screen only after the next commit.
+  // A layer's picture starts loading at once; it is on screen only after the next commit. Not in a run that passes the script at once
+  // (picturesSkipped): there it is named on the layer and loaded only if it is still on one where the run stops (loadDeferred).
   setImage(l, name) {
     l.image = name;
     l.ready = null;
+    if (this.picturesSkipped) { l.promise = null; l.deferred = true; this.deferredPictures = true; return; }
+    l.deferred = false;
     l.promise = this.gfx.load(name).then((e) => { if (l.image === name) l.ready = e; return e; }).catch((e) => { console.warn(e.message); return null; });
   }
+
+  // A run that passes the script at once (a read scene's instant run, a jump to a point, the smoke test's full speed) shows nothing on its way,
+  // so the pictures it puts on layers are not decoded or uploaded as it goes. Each commit waited for its pictures, so a read scene's run through
+  // 05_01_CIEL05_3E (day 5, Vlov) asked for 102 pictures, about 1 GB of textures, in two seconds on a Mac, none of them shown; an OPPO Find X8
+  // ended the app at once on skipping read text (2026-11-21). A restore is not such a run: it makes only the layers of the point it goes to.
+  get picturesSkipped() { return this.skip && (this.instant || !!this.skipUntil || !this.skipPaced) && !this.restoring; }
+
+  // Where such a run stops: the pictures still on a layer (on screen, staged, or left behind by a commit) are loaded now, the game's time standing
+  // still (waitImages) and main.js holding the last frame drawn (holdingFrame) until they are in, as a commit waits for its pictures.
+  loadDeferred() {
+    if (!this.deferredPictures || this.picturesSkipped) return null;
+    this.deferredPictures = false;
+    const waits = [];
+    for (const l of [...this.layers.values(), ...this.pending.values(), ...this.ghosts.values()]) {
+      if (!l.deferred) continue;
+      if (l.image) { this.setImage(l, l.image); if (l.promise) waits.push(l.promise); } else l.deferred = false;
+    }
+    if (!waits.length) return null;
+    this.picturesComing++;
+    return this.waitImages(waits).finally(() => { this.picturesComing--; });
+  }
+  get holdingFrame() { return this.picturesComing > 0; }
 
   async commit() {
     const waits = [];
@@ -935,6 +962,7 @@ export class VM {
       if (this.paused) await new Promise((r) => { this.resumeFn = r; });
       if (gen !== this.generation) return;
       if (this.skipUntil && this.pc >= this.skipUntil) { this.skip = false; this.skipUntil = 0; }
+      if (this.deferredPictures && !this.picturesSkipped) { await this.loadDeferred(); if (gen !== this.generation) return; }
       if (this.sceneDue()) { await this.sceneReady(); if (gen !== this.generation) return; }
       // The label Z commands just before this op run first: all of them when the script comes to them, from the
       // label a jump named when it jumps there (the interpreter starts at that label's command).
@@ -1120,6 +1148,7 @@ export class VM {
     // the run's end takes the page's earlier lines to their dim level at once (0x802c0: F859 + k = -1, N2-83)
     this.text.settleEarlier?.((this.getVar("F823") || 0) - 1);
     this.onInstant?.(false);
+    this.loadDeferred();   // the pictures the run left on layers (setImage)
   }
   // 0x328f0: every layer at its tweens' targets (motion tracks go on).
   finishTweens() {

@@ -516,6 +516,51 @@ test("the textures let go last are the ones the script is about to show again", 
   assert.match(source("js/vm.js"), /gfx\.soon = \(\) => this\.picturesAhead\(\);/);
 });
 
+// The Find X8's crash on skipping read text: a run that passes the script at once loads no pictures on its way, only those still on a layer
+// where it stops, the game's time held and the last frame kept until they are in.
+test("a run that passes the script at once names its pictures but loads only those still on a layer where it stops", async () => {
+  const { VM } = await import("../../web/app/js/vm.js");
+  const asked = [], waiting = [];
+  const finish = () => { for (const r of waiting.splice(0)) r(); };
+  const vm = Object.assign(Object.create(VM.prototype), { _skip: true, instant: true, skipPaced: true, skipUntil: 0, restoring: false,
+    layers: new Map(), pending: new Map(), ghosts: new Map(), deferredPictures: false, picturesComing: 0, loadHold: 0, onHold: null, holdClocks() {},
+    gfx: { load: (name) => { asked.push(name); return new Promise((r) => waiting.push(r)).then(() => ({ tex: {}, name })); } } });
+  const layer = (id) => ({ id, image: null, ready: null, promise: null });
+  const a = layer(1), b = layer(2), c = layer(3);
+  vm.setImage(a, "img0001"); vm.setImage(a, "img0002"); vm.setImage(b, "img0003"); vm.setImage(c, "img0004");
+  assert.deepEqual(asked, [], "nothing is loaded while the run passes");
+  assert.equal(a.image, "img0002", "the layer is named all the same (the gallery counts it at the commit)");
+  assert.ok(a.deferred && a.promise === null && a.ready === null);
+  vm.layers.set(1, a); vm.pending.set(2, b);   // c was replaced before the stop: no layer holds it
+  assert.equal(vm.loadDeferred(), null, "not while the run goes on");
+  vm.instant = false;
+  vm._skip = false;   // (the field behind vm.skip, whose setter needs a whole VM)
+  const held = vm.loadDeferred();
+  assert.deepEqual(asked, ["img0002", "img0003"], "where it stops, only what a layer holds");
+  assert.equal(vm.holdingFrame, true, "main.js keeps the last frame meanwhile");
+  assert.equal(vm.loadHold, 1, "and the game's time stands still");
+  assert.equal(vm.loadDeferred(), null, "once only");
+  finish(); await held;
+  assert.equal(vm.holdingFrame, false);
+  assert.equal(vm.loadHold, 0);
+  // outside such a run, and in a restore (it makes only the point's layers), a picture loads at once
+  const d = layer(4);
+  vm.setImage(d, "img0005");
+  assert.deepEqual(asked.at(-1), "img0005");
+  Object.assign(vm, { _skip: true, instant: true, restoring: true });
+  vm.setImage(d, "img0006");
+  assert.deepEqual(asked.at(-1), "img0006", "a restore loads its layers");
+  Object.assign(vm, { restoring: false, instant: false, skipUntil: 900 });
+  assert.equal(vm.picturesSkipped, true, "a jump to a point is such a run");
+  Object.assign(vm, { skipUntil: 0 });
+  assert.equal(vm.picturesSkipped, false, "paced fast forward is not: it shows each line");
+  // the run's end, the loop and the frame take it up
+  const src = source("js/vm.js");
+  assert.match(src, /this\.onInstant\?\.\(false\);\n\s*this\.loadDeferred\(\);/);
+  assert.match(src, /if \(this\.deferredPictures && !this\.picturesSkipped\) \{ await this\.loadDeferred\(\);/);
+  assert.match(source("js/main.js"), /if \(vm\.holdingFrame && lastDrawn\) \{ ui\.panelTick\(\); requestAnimationFrame\(frame\); return; \}/);
+});
+
 // ---- issue 8's follow-up: the blurred copies' bytes, the page out of sight, a lost context ----------------------------------
 const bareRenderer = (extra = {}) => {
   const freed = [];

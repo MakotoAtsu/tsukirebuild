@@ -528,6 +528,8 @@ async function frame(real) {
   }
   pollGamepads(real);
   if (!n && lastDrawn) { ui.panelTick(); requestAnimationFrame(frame); return; }
+  // where a run that passed the script at once stopped, its pictures are still coming (vm.loadDeferred): the last frame drawn stays until they are in
+  if (vm.holdingFrame && lastDrawn) { ui.panelTick(); requestAnimationFrame(frame); return; }
   lastDrawn = true;
   const now = vm.now();
   gfx.drawLayers([...vm.layers.values()], now, vm.layers);
