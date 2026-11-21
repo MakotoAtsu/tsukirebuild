@@ -98,7 +98,8 @@ const gfx = new Proxy({
   evict() {
     if (this.bytes < PIC_LIMIT) return;
     const live = this.liveNames();
-    const old = [...this.tex.entries()].filter(([k]) => !live.has(k)).sort((a, b) => a[1].used - b[1].used);
+    const soon = process.env.SOON === "0" ? new Set() : this.soon?.() || new Set();   // (vm.js picturesAhead, as renderer.js evict; SOON=0: used longest ago alone)
+    const old = [...this.tex.entries()].filter(([k]) => !live.has(k)).sort((a, b) => (soon.has(a[0]) - soon.has(b[0])) || a[1].used - b[1].used);
     for (const [k, v] of old) { if (this.bytes < PIC_LIMIT * 0.8) break; this.bytes -= v.bytes; this.tex.delete(k); }
   },
   hazes: undefined, hazeTable: null, effects: null, focusLines: null, split: null, lines: null, shake: null, textShake: null, fade: null,

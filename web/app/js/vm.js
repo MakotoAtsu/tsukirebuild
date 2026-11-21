@@ -169,6 +169,7 @@ export class VM {
       return !images || !name || name === image || !!images[String(name).toUpperCase()];
     });
     if (gfx) gfx.inUse = () => [...this.layers.values(), ...this.pending.values(), ...this.ghosts.values()];   // the pictures its textures must keep (renderer.js evict)
+    if (gfx) gfx.soon = () => this.picturesAhead();   // and those it lets go last (renderer.js evict)
     this.gfx = gfx; this.audio = audio; this.text = text; this.onChoice = onChoice; this.onConfirm = onConfirm; this.onWait = onWait; this.playMovie = playMovie; this.toast = toast;
     this.onChoiceCancel = onChoiceCancel; this.onSkipEnd = onSkipEnd;
     this.onAskSave = onAskSave; this.onSceneSkip = onSceneSkip; this.onLock = onLock; this.onCountdown = onCountdown; this.popup = popup;
@@ -896,6 +897,18 @@ export class VM {
     for (const f of waiting) f();
     this.syncSpeed();
     if (this.waitResolve) { const r = this.waitResolve; this.waitResolve = null; r(); }
+  }
+
+  // The pictures the script names within the next `n` commands (the look-ahead's NEAR, preload.js), branches and all, as the renderer keys them:
+  // when it has to let textures go (renderer.js evict) these go last, the story being about to show them again.
+  picturesAhead(n = 300) {
+    const out = new Set(), ops = this.script?.ops;
+    if (!ops) return out;
+    for (let i = this.pc; i < ops.length && i < this.pc + n; i++) {
+      const o = ops[i];
+      if ((o[0] === "STCH" || o[0] === "SCH2") && o[2]) out.add(String(o[2]).toUpperCase());
+    }
+    return out;
   }
 
   // Fetch what comes next, so that first use does not wait on the conversion. With main.js's look-ahead (preload.js ahead) that is the pictures, the

@@ -870,12 +870,15 @@ export class Renderer {
 
   // The pictures used longest ago go when there are more than the GPU is given (`limit`; all of them with `all`), but none that a layer
   // holds: on screen, staged for the next commit, or left behind by one (vm.js inUse), nor the rule picture a transition is going through.
+  // Those the script names within the look-ahead's reach (vm.js picturesAhead) go last: used longest ago alone, the heaviest scenes let go of
+  // pictures they showed again moments later. Replayed over the 549 scripts (web-dev/tools/cachesim.mjs, 2026-11-21) that cut the pictures
+  // decoded a second time within a script from 599 to 426 at 700 MB and from 217 to 153 at 1000 MB (05_01_CIEL05_3E, day 5's Vlov: 41 to 20).
   evict(all = false) {
     const limit = this.limit;
     if (all) this.dropBlurred(0);   // (no room on the GPU: the blurred copies not on screen go too)
     if (!all && this.bytes < limit) return;
-    const live = this.liveNames();
-    const old = [...this.tex.entries()].filter(([k, v]) => v.tex && !live.has(k)).sort((a, b) => a[1].used - b[1].used);
+    const live = this.liveNames(), soon = this.soon?.() || new Set();
+    const old = [...this.tex.entries()].filter(([k, v]) => v.tex && !live.has(k)).sort((a, b) => (soon.has(a[0]) - soon.has(b[0])) || a[1].used - b[1].used);
     for (const [k, v] of old) {
       if (!all && this.bytes < limit * 0.8) break;
       this.gl.deleteTexture(v.tex);

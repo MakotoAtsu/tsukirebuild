@@ -490,6 +490,32 @@ test("the textures let go are never ones a layer holds: on screen, staged for th
   assert.match(source("js/vm.js"), /gfx\.inUse = \(\) => \[\.\.\.this\.layers\.values\(\), \.\.\.this\.pending\.values\(\), \.\.\.this\.ghosts\.values\(\)\];/);
 });
 
+// Issue 14 (freezes in the heaviest battle scenes): of the textures no layer holds, those the script names within the look-ahead's reach go last,
+// used longest ago first within each kind.
+test("the textures let go last are the ones the script is about to show again", async () => {
+  const { VM } = await import("../../web/app/js/vm.js");
+  const mb = 1048576, entry = (used) => ({ tex: { used }, w: 1024, h: 1024, used });   // 4 MB each
+  const r = Object.assign(Object.create(Renderer.prototype), { gl: { deleteTexture() {} }, limit: 21 * mb, bytes: 24 * mb, ruleSlot: null,
+    tex: new Map([["SHOWN", entry(0)], ["AGAIN", entry(1)], ["DONE", entry(2)], ["LATER", entry(3)], ["RECENT", entry(5)], ["NEWEST", entry(6)]]),
+    inUse: () => [{ image: "shown" }], soon: () => new Set(["AGAIN", "LATER"]) });
+  r.evict();
+  assert.deepEqual([...r.tex.keys()], ["SHOWN", "AGAIN", "LATER", "NEWEST"], "DONE and RECENT went, though AGAIN and LATER were used longer ago");
+  assert.equal(r.bytes, 16 * mb, "down to under 80% of the limit");
+  r.limit = 12 * mb;
+  r.evict();
+  assert.deepEqual([...r.tex.keys()], ["SHOWN", "LATER"], "when the others are gone, the soonest-named go too, used longest ago first");
+  // without the VM's list, used longest ago alone, as before
+  const plain = Object.assign(Object.create(Renderer.prototype), { gl: { deleteTexture() {} }, limit: 8 * mb, bytes: 12 * mb, ruleSlot: null,
+    tex: new Map([["A", entry(1)], ["B", entry(2)], ["C", entry(3)]]), inUse: () => [] });
+  plain.evict();
+  assert.deepEqual([...plain.tex.keys()], ["C"]);
+  // the VM's list: STCH and SCH2 pictures within the next n commands, upper case, from where the script is
+  const ops = [["STCH", "1", "img0001"], ["MSG", "x"], ["SCH2", "2", "img0002"], ["STCH", "3", ""], ["STCH", "4", "img0004"], ["STCH", "5", "img0005"]];
+  assert.deepEqual([...VM.prototype.picturesAhead.call({ script: { ops }, pc: 1 }, 4)], ["IMG0002", "IMG0004"]);
+  assert.deepEqual([...VM.prototype.picturesAhead.call({ script: null, pc: 0 })], []);
+  assert.match(source("js/vm.js"), /gfx\.soon = \(\) => this\.picturesAhead\(\);/);
+});
+
 // ---- issue 8's follow-up: the blurred copies' bytes, the page out of sight, a lost context ----------------------------------
 const bareRenderer = (extra = {}) => {
   const freed = [];

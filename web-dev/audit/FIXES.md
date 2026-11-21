@@ -1904,3 +1904,23 @@ OPPO Find X8 (Mali GPU) whose app closes to the home screen after 3 to 5 minutes
   Mac's process sizes do not show Metal's textures, so a leak on the GPU side is neither shown nor ruled out.
 
 Tests: `touch.test.mjs` (the budgets by device, the phones' cap). 720 tests, 717 pass, 3 skipped (in the working folder).
+
+## The textures let go last are the ones the script is about to show again, 2026-11-21
+
+GitHub issue 14, after the phones' budgets: the crashes stopped, but the game still freezes in the Vlov battle on day 5 (both routes) and in Ciel's
+true ending against Arcueid Lumina (Snapdragon 685 with 6 GB, Snapdragon 7s Gen 4 with 8 GB). Those are the heaviest scenes for pictures in the
+replay (`web-dev/tools/cachesim.mjs`): `05_01_CIEL05_3E` 63 pictures, 1.35 GB of textures; `14_01B_01_CIEL14B_1D` 94, 1.38 GB;
+`14_01B_01_CIEL14B_1G` 109, 1.15 GB; `05_00_ARC05_9_2B` 64, 749 MB. More than either phone's budget, so `evict` let pictures go mid-scene, and
+by least recent use alone it let go of ones the script showed again moments later, which were then decoded and uploaded a second time.
+
+- **Change**: `vm.js picturesAhead` lists the pictures STCH and SCH2 name within the next 300 commands (the look-ahead's NEAR), and
+  `renderer.js evict` lets those go last (`gfx.soon`), least recently used first within each kind. What a layer holds is still never let go.
+- **Replayed** (all 549 scripts, the real VM method): pictures decoded a second time within a script 599 -> 426 at 700 MB, 217 -> 153 at
+  1000 MB, 56 -> 44 at 1400 MB. Ciel day 5: 41 -> 20 at 700 MB, 13 -> 8 at 1000 MB; `14_01B_01_CIEL14B_1D` 72 -> 50 and 46 -> 31.
+- **Checked** in an isolated Chrome posing as an 8 GB Android phone, `05_01_CIEL05_3E` with the budget forced to 400 MB, a click every 0.35 s
+  for 120 s, with the rule and with `gfx.soon` removed: the same 78 pictures and the same progress (pc 2841 / 2835); 5 uploaded twice with
+  the rule, 10 without; every layer drawn, no page errors.
+- **Not settled by it**: the first upload of 60 to 110 large pictures per scene is the larger share of the work in those scenes, and whether
+  a freeze there is that upload, the decode, or the effects' own drawing was not measured on a phone.
+
+Tests: `preload.test.mjs` (the order let go, the VM's list). 721 tests, 718 pass, 3 skipped (in the working folder).
