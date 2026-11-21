@@ -552,6 +552,7 @@ document.addEventListener("visibilitychange", () => {
   vm.holdClocks("hidden", document.hidden);
   lastFrame = null;   // no catching up on the time the page was hidden
   if (document.hidden) { globalThis.appSuspend(); audio.trim(0); gfx.release(); }
+  else gfx.invalidate?.();   // back in sight: the next frame is drawn whatever it shows (the canvas may not have kept it)
   if (document.hidden && appleTouch()) audio.stale = true;   // the first press back makes the sound again (audio.renew)
   if (!audio.ctx) return;
   if (document.hidden) audio.ctx.suspend();

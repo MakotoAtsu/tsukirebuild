@@ -1961,3 +1961,33 @@ uploading at the memory ceiling.
 
 Tests: `preload.test.mjs` (the run names but does not load, the stop loads what layers hold, a restore and paced fast forward load as
 before). 722 tests, 719 pass, 3 skipped (in the working folder).
+
+## A frame is not drawn again when nothing it is drawn from has changed, 2026-11-21
+
+The OPPO Find X8 player (Mali GPU): the game lags from Ciel's introduction on the train (`01_00_ARC01_1_2`) and stays so; the phone does not
+get hot (their answer). The port drew every frame from scratch, 60 a second, whatever was on screen: the scene into its buffer, a full-screen
+copy of the frame before each layer with a blend shader, then two more full-screen passes to the canvas. On a Mac (isolated Chrome posing as
+the app, GPU timer queries) the train conversation keeps two such copies every frame while the game only waits for the next press, and while
+reading, 80 to 100 % of the frames drawn were the frame before. A tile-based mobile GPU pays most for exactly that: every copy of the frame
+being drawn makes it write all its tiles out and read them back.
+
+- **Change** (`renderer.js`): `drawLayers` works out what the scene is drawn from (`frameKey`: every layer as viewed, placed and sampled
+  this frame, its texture by number (`texId`), its effects' and panel's shift, the shake, the rule picture, and `uiGen`, which counts the
+  interface art that has come in) before any GL call, and leaves the scene buffer as it is when that is the last frame's. `present` does the
+  same for what it lays over the scene (window pictures and whether they have loaded, the menu's backdrop, the save picture's window flag)
+  and leaves the canvas as it is (`preserveDrawingBuffer`). Every frame is drawn while something changes with the frame's own time (film
+  grain, a haze, the speed lines, the split, a transition), at least every 2 s whatever (`STALE_MS`), and after a transition starts (the
+  buffers swap), a new context, or the page coming back in sight (`invalidate`, main.js).
+- **Checked byte for byte**: in a check mode (`gfx.verifySkip`) the renderer draws every frame anyway and the test compares each frame it
+  would have skipped with the frame before, the scene buffer and the canvas both, in an isolated Chrome on the local server: the train scene,
+  day 1's morning, both day-5 Vlov battles, `14_01B_01_CIEL14B_1G` from its first SHOK, a haze (`04_00_ARC04_10` from STRA), grain
+  (`14_01_CIEL14_1` from STNS), speed lines (`QA_24` from FCLN), the split (`13_00_ARC13_3` from FADE 40), Arcueid's last scene with its
+  linked panels and `15_01A_CIEL15A_1`, the menu opened and closed in some. One difference was found and fixed: a panel's edge gradation
+  (`BORDER_PARTS/alphagradation…`) comes in a few frames after the panel is first drawn and moves its feathered edge by up to 3 of 255, which
+  the key did not see (now `uiGen`). After that, no difference in any skipped frame.
+- **Measured** (the train scene, a press every 2.5 s, 90 s, the same point reached): GPU time 299 ms a second with every frame drawn, 10.8 ms
+  with the skip; draw calls 477 a second against 14; full-frame copies 120 a second against 2.3.
+- **Not settled by it**: nothing was run on the Find X8. Scenes that move all the time (battles, haze, grain) are drawn every frame as before.
+
+Tests: `frameskip.test.mjs` (the key, the cases drawn every frame, `present`'s skip, the transition / context / visibility ends).
+726 tests, 723 pass, 3 skipped (in the working folder).

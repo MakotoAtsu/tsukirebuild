@@ -1,7 +1,7 @@
 // renderer.js - the game's picture with WebGL2: layers with zoom, rotation, alpha, blend modes and blur; crossfades.
 // Screen: 1920 x 1080. Script coordinates are 480 x 272 from the top left (4 and 1080/272 pixels per unit).
 // The game's logical screen is 1280 wide: a stored image is drawn at 1.5 screen pixels per stored pixel, times its zoom.
-import { layerState } from "./animation.js";
+import { layerState, Value } from "./animation.js";
 import { clipShift, hazeConstants, impactPixels, layerShiftPixels } from "./effects.js";
 import { place, clipGeometry, panelRuns, groupModes, plainGroups, groupCoverage, groupNeedsBuffer, groupOpacity, groupRelative, blurSigma, blurName } from "./transform.js";
 import { grainSample, linesSample, splitSample } from "./screenfx.js";
@@ -59,6 +59,45 @@ export const GAUSS = (() => {
 })();
 export function menuBlurAlpha(frame) {
   return frame < 2 ? 0 : Math.trunc(Math.min(1, 0.001 + frame / 12) * 255) / 255;
+}
+
+// A frame is not drawn again when nothing it is drawn from has changed since the last one drawn (drawLayers: frameKey; present: its own key):
+// the scene buffer keeps the last scene and the canvas what it shows (preserveDrawingBuffer). A visual novel shows the same picture most of the
+// time: while reading 01_00_ARC01_1_2 (Ciel's train), 80 to 100 % of the frames drawn were the frame before, all of them redrawn 60 times a
+// second, so a phone's GPU never rested (2026-11-21: an OPPO Find X8 lagged from Ciel's train on and stayed so, as a phone does once it is
+// hot). Whatever changes by the frame's own time keeps every frame drawn: film grain, a haze, the speed lines, the split, a transition.
+// A drawing is made at least every STALE_MS all the same (real time).
+const STALE_MS = 2000;
+const texIds = new WeakMap();
+let texNext = 1;
+export function texId(t) {
+  if (!t) return 0;
+  let n = texIds.get(t);
+  if (!n) { n = texNext++; texIds.set(t, n); }
+  return n;
+}
+// What a layer, its state or its place is, as text: every value it carries (a view's own and its layer's), a texture as its number, another
+// layer met inside it (a panel's owner, a parent) as its number; its tweens (Value) and its track are left out, their values this frame
+// being in its state.
+export function keyOf(v, seen = new Set(), depth = 0) {
+  if (v === null || v === undefined) return "-";
+  const t = typeof v;
+  if (t === "number" || t === "string" || t === "boolean") return String(v);
+  if (t !== "object") return "";
+  if (v instanceof Value || v instanceof Promise) return "";
+  if (Array.isArray(v) || ArrayBuffer.isView(v)) return "[" + Array.from(v, (x) => keyOf(x, seen, depth + 1)).join(",") + "]";
+  if (depth > 0 && "id" in v && "image" in v) return "L" + v.id;
+  if (seen.has(v)) return "^";
+  seen.add(v);
+  let s = "{";
+  for (const k in v) {
+    if (k === "promise" || k === "motion") continue;
+    if (k === "ready") { s += "r" + texId(v.ready?.tex) + ";"; continue; }
+    const x = v[k];
+    if (typeof x === "function") continue;
+    s += k + ":" + keyOf(x, seen, depth + 1) + ";";
+  }
+  return s + "}";
 }
 
 // Whether a placed layer is drawn: z 1 or more (0x3bba0: cmp w8, #1; b.lt), its picture loaded, some alpha.
@@ -685,6 +724,7 @@ export class Renderer {
   // from the frame as it is now.
   restore() {
     this.setup();
+    this.invalidate();
     for (const k of ["panelTarget", "groupTarget", "groupCopy", "ownerTarget", "menuA", "menuB", "displayTarget", "fadeBuffer", "blank"]) this[k] = null;
     this.blurCache.clear();
     this.blurRefused.clear();
@@ -904,6 +944,7 @@ export class Renderer {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
         for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.REPEAT], [gl.TEXTURE_WRAP_T, gl.REPEAT]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
         bmp.close();
+        this.uiGen = (this.uiGen || 0) + 1;   // a frame drawn before it came differs from one drawn now (frameKey, present)
       })
       .catch((err) => console.warn("no interface art", err.message));
     return null;
@@ -1001,22 +1042,10 @@ export class Renderer {
   drawLayers(layers, now, all) {
     const gl = this.gl;
     this.liveLayers = layers;
-    if (this.held) return;
+    if (this.held) { this.sceneSame = true; return; }
     // While a shake or a split is on, what this frame shows is kept for the next transition's old picture (beginFade): the commands before a FADS have changed the
     // live layers by then (STCP hiding them, for example), and the native redraw reads the records, which those changes only reach at the commit.
     this.shown = !this.noSplit && (this.shake || this.split) ? { now, layers: layers.map((l) => ({ ...l, effects: { ...l.effects } })) } : null;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.scene.fbo);
-    gl.viewport(0, 0, 1920, 1080);
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.enable(gl.BLEND);
-    // the frame being drawn must not stay bound to any texture unit the layer shader samples
-    gl.useProgram(this.layerProg.p);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, this.backTex.tex);
-    gl.uniform1i(this.layerProg.u.back, 1);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, null);
     // Each layer is drawn as its motion leaves it this frame (animation.js): besides position, zoom, rotation, opacity
     // and blur, which the state carries, a track writes depth, blend, colour, brightness, contrast, grain, the panel
     // and the pivot (0x97b80). A view puts those over the layer for placing and drawing; parents and links are viewed
@@ -1037,6 +1066,25 @@ export class Renderer {
     // (0x391a0, 0xafeb9c). A clip also moves with its owner's quake and shake (0x32050), and so do the layers linked
     // to it (0x37f50 adds the clip's origin) unless SACL; each layer adds its own as 0x34440 chooses (effects.js).
     const [sx, sy] = impactPixels(this.shake, now);
+    // Nothing the scene is drawn from has changed since the last one drawn: the scene buffer still holds it (frameKey).
+    const key = this.frameKey(sorted, states, placed, byId, now, sx, sy), real = performance.now();
+    const same = key !== null && key === this.sceneKey && real - (this.sceneDrawn || 0) < STALE_MS;
+    this.sceneKey = key;
+    this.sceneSame = same;
+    if (same && !this.verifySkip) return;
+    this.sceneDrawn = real;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.scene.fbo);
+    gl.viewport(0, 0, 1920, 1080);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    // the frame being drawn must not stay bound to any texture unit the layer shader samples
+    gl.useProgram(this.layerProg.p);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.backTex.tex);
+    gl.uniform1i(this.layerProg.u.back, 1);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, null);
     const moved = new Map();
     const clipAt = (clip) => {
       if (!clip) return clip;
@@ -1299,6 +1347,33 @@ export class Renderer {
     this.drawLines(now);
     gl.disable(gl.BLEND);
   }
+
+  // What this frame's scene is drawn from, as text (keyOf): every layer as viewed and placed this frame, its state, its effects' shift and its
+  // panel's, the shake, the rule picture; null when something in it changes with the frame's own time whatever the layers say (film grain,
+  // a haze, the speed lines, the split), so that every frame is drawn.
+  frameKey(sorted, states, placed, byId, now, sx, sy) {
+    if (this.lines || (this.split && !this.noSplit)) return null;
+    const seen = new Set();
+    // (uiGen: interface art drawn into the scene comes when first asked for, a panel's edge gradation for one: a frame drawn before it differs)
+    let s = `${sx},${sy},${this.ruleSlot},${this.uiGen || 0}|`;
+    for (const v of sorted) {
+      if (v.grain > 0) return null;
+      const h = this.hazes ? this.hazes[v.id] : null;
+      if (h && this.hazeTable && this.hazeTable[h.n]) return null;
+      const at = placed.get(v);
+      const [qx, qy] = layerShiftPixels(v, byId, now);
+      const link = v.link >= 0 && v.link !== v.id ? byId.get(v.link) : null;
+      const [cx, cy] = link ? clipShift(link, byId, now) : [0, 0];
+      const [gx, gy] = at?.clip?.group ? clipShift(at.clip.group, byId, now) : [0, 0];
+      const ruleName = this.ruleSlot === undefined ? v.rule?.name : this.ruleSlot;
+      s += `${keyOf(v, seen)}${keyOf(states.get(v), seen)}${keyOf(at, seen)}${qx},${qy},${cx},${cy},${gx},${gy},${texId(ruleName ? this.tex.get(ruleName)?.tex : null)}\n`;
+    }
+    return s;
+  }
+
+  // The next frame is drawn whatever its key: the scene buffer or the canvas may no longer hold what was last drawn (a context made again,
+  // the page back in sight).
+  invalidate() { this.sceneKey = this.presentKey = null; }
 
   drawLines(now) {
     const list = linesSample(this.lines, this.focusLines, now);
@@ -1685,6 +1760,7 @@ export class Renderer {
       const shake = this.shake;
       this.shake = null;
       this.noSplit = true;
+      this.sceneKey = null;
       this.drawLayers(shown.layers, shown.now, new Map(shown.layers.map((l) => [l.id, l])));
       this.noSplit = false;
       this.shake = shake;
@@ -1692,6 +1768,7 @@ export class Renderer {
     const t = this.prev;
     this.prev = this.scene;
     this.scene = t;
+    this.sceneKey = null;   // the scene buffer is now the older one: the next frame is drawn into it
     this.fade = { start: now, ms, rule: ruleTex || null };
   }
 
@@ -1724,6 +1801,15 @@ export class Renderer {
   // window: false leaves the text window out (a save's picture has none).
   present(now, window = true) {
     const gl = this.gl;
+    // The scene as last time, and what is laid over it too (no transition, the menu's backdrop as it was, the same window pictures): the canvas
+    // still shows this very frame. The window's pictures count with whether each has loaded.
+    const menuK = this.menu ? menuBlurAlpha(this.menu.frame) : 0;
+    const key = this.fade || (this.menu && !this.menu.ready) ? null
+      : `${window}|${menuK}|${this.uiGen || 0}|` + (this.windowPics || []).map((w) => `${w.path},${w.full},${w.x},${w.y},${w.alpha},${w.dx},${w.dy},${texId(this.ui.get(w.path)?.tex)}`).join(";");
+    const same = !!this.sceneSame && key !== null && key === this.presentKey;
+    this.presentKey = key;
+    this.presentSame = same;
+    if (same && !this.verifySkip) return;
     // the menu's blur is made once, from the frame frozen when it opened
     if (this.menu && !this.menu.ready) { this.menuGaussian(); this.menu.ready = true; }
     if (!this.displayTarget) this.displayTarget = this.target(1920, 1080);
