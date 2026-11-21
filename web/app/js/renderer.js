@@ -4,7 +4,7 @@
 import { layerState, Value } from "./animation.js";
 import { clipShift, hazeConstants, impactPixels, layerShiftPixels } from "./effects.js";
 import { place, clipGeometry, panelRuns, groupModes, plainGroups, groupCoverage, groupNeedsBuffer, groupOpacity, groupRelative, blurSigma, blurName } from "./transform.js";
-import { grainSample, linesSample, splitSample } from "./screenfx.js";
+import { grainSample, linesDone, linesSample, splitDone, splitSample } from "./screenfx.js";
 import { asset } from "./lang.js";
 import { appleTouch } from "./touch.js";
 import { Shrinker } from "./shrink.js";
@@ -1351,8 +1351,13 @@ export class Renderer {
   // What this frame's scene is drawn from, as text (keyOf): every layer as viewed and placed this frame, its state, its effects' shift and its
   // panel's, the shake, the rule picture; null when something in it changes with the frame's own time whatever the layers say (film grain,
   // a haze, the speed lines, the split), so that every frame is drawn.
+  // A split that has been stopped and has faded out, and speed lines that have, draw nothing more (drawSplit, drawLines) but stay as they
+  // are until a new story or a load (FADE 41 and FCSP keep the record, vm.js): they count as none. Taken as on, a sitting drew every frame
+  // again from the prologue's first FADE 41 (00_00, command 1372) to its next load, and 18 more scripts end a split, both of day 5's Vlov
+  // battles among them (2026-11-21: at 00_00's command 1389, 0 of 180 frames left undrawn after the split, 179 where none had been).
   frameKey(sorted, states, placed, byId, now, sx, sy) {
-    if (this.lines || (this.split && !this.noSplit)) return null;
+    if (this.lines && !linesDone(this.lines, now)) return null;
+    if (this.split && !this.noSplit && !splitDone(this.split, this.splitTime ? this.splitTime() : now)) return null;
     const seen = new Set();
     // (uiGen: interface art drawn into the scene comes when first asked for, a panel's edge gradation for one: a frame drawn before it differs)
     let s = `${sx},${sy},${this.ruleSlot},${this.uiGen || 0}|`;

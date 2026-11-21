@@ -53,6 +53,44 @@ test("a frame's key is none (drawn every frame) when something in it changes wit
   assert.notEqual(r.frameKey([plain], st(plain), new Map([[plain, { x: 1 }]]), new Map([[3, plain]]), 1000, 2, 0), one(plain), "the shake: another key");
 });
 
+// A split that was stopped (FADE 41) and speed lines that were faded (FCSP with a time) stay on the renderer as records until a new story or a
+// load. Taken as on, they kept every frame drawn for the rest of the sitting: from the prologue's first FADE 41 (00_00, command 1372) the skip
+// did nothing until the next load (2026-11-21: 0 of 180 frames left undrawn at command 1389, against 179 where no split had been).
+test("a split that has faded out and speed lines that have count as none: the frames after them are left undrawn again", async () => {
+  const { startSplit, stopSplit, splitDone, startLines, stopLines, linesDone } = await import("../../web/app/js/screenfx.js");
+  const r = Object.assign(Object.create(Renderer.prototype), { tex: new Map(), hazes: [], hazeTable: [], lines: null, split: null, noSplit: false, ruleSlot: undefined, uiGen: 0 });
+  const l = layer(3, { ready: { tex: {} } });
+  const key = (now) => r.frameKey([l], new Map([[l, { x: 1, y: 2, alpha: 255 }]]), new Map([[l, { x: 1 }]]), new Map([[3, l]]), now, 0, 0);
+  const none = key(5000);
+  assert.equal(typeof none, "string");
+  // the split: on, stopped and fading out over 60 frames at most, then gone but still a record
+  r.split = startSplit(0, 0, 0, null);
+  assert.equal(key(4000), null, "on: drawn every frame");
+  r.split = stopSplit(r.split, 4000);
+  assert.ok(r.split && r.split.end === 4000, "FADE 41 keeps the record");
+  assert.equal(key(4500), null, "fading out: still drawn every frame");
+  assert.ok(splitDone(r.split, 5100));
+  assert.equal(key(5100), none, "faded out: the key of a frame with no split at all");
+  assert.equal(key(900000), none, "and so for the rest of the sitting");
+  r.splitTime = () => 4500;   // the split runs on its own clock (vm.js frameClock): that one decides
+  assert.equal(key(900000), null);
+  r.splitTime = () => 900000;
+  assert.equal(key(4100), none);
+  r.splitTime = undefined;
+  r.split = startSplit(0, 0, 6000, r.split);
+  assert.equal(key(6100), null, "a new split after it: drawn every frame again");
+  r.split = null;
+  // the speed lines the same
+  r.lines = startLines(4, 0);
+  assert.equal(key(1000), null);
+  r.lines = stopLines(r.lines, 500, 1000);
+  assert.ok(r.lines && r.lines.end === 1000, "FCSP with a time keeps the record");
+  assert.equal(key(1400), null, "fading: drawn every frame");
+  assert.ok(linesDone(r.lines, 1500));
+  assert.equal(key(1500), none);
+  assert.equal(key(900000), none);
+});
+
 test("present: nothing drawn when the scene and what is laid over it are as last time", () => {
   let calls = 0;
   const gl = new Proxy({}, { get: (t, k) => (k in t ? t[k] : () => { calls++; return null; }) });

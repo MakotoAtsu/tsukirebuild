@@ -224,6 +224,7 @@ export class VM {
     this.loadHold = 0;        // pictures loading: the game's time stands still (waitImages)
     this.deferredPictures = false;   // a run passing the script at once left pictures on layers not loaded (setImage, loadDeferred)
     this.picturesComing = 0;  // ... which are being loaded now that it has stopped: main.js holds the last frame (holdingFrame)
+    this.comingIn = null;     // ... and the promise of their being in, which the script waits on where it stops (loadDeferred, stopWaits)
     this.sceneOf = null;      // the script whose pictures have all been read, from command sceneFrom on (sceneReady)
     this.sceneFrom = 0;
     // The delay slots' clock (0x65e50, run by the mixer 0x9b7f0 from the app's loop every frame in any state): it goes on while a menu or
@@ -714,6 +715,11 @@ export class VM {
     l.image = name;
     l.ready = null;
     if (this.picturesSkipped) { l.promise = null; l.deferred = true; this.deferredPictures = true; return; }
+    this.loadImage(l);
+  }
+  // The picture named on the layer, asked of the renderer now.
+  loadImage(l) {
+    const name = l.image;
     l.deferred = false;
     l.promise = this.gfx.load(name).then((e) => { if (l.image === name) l.ready = e; return e; }).catch((e) => { console.warn(e.message); return null; });
   }
@@ -726,19 +732,35 @@ export class VM {
 
   // Where such a run stops: the pictures still on a layer (on screen, staged, or left behind by a commit) are loaded now, the game's time standing
   // still (waitImages) and main.js holding the last frame drawn (holdingFrame) until they are in, as a commit waits for its pictures.
-  loadDeferred() {
-    if (!this.deferredPictures || this.picturesSkipped) return null;
-    this.deferredPictures = false;
-    const waits = [];
-    for (const l of [...this.layers.values(), ...this.pending.values(), ...this.ghosts.values()]) {
-      if (!l.deferred) continue;
-      if (l.image) { this.setImage(l, l.image); if (l.promise) waits.push(l.promise); } else l.deferred = false;
+  // Returns the promise of everything so asked for being in (comingIn; null when nothing is on its way), which the script waits on before it
+  // shows anything at the stop (stopWaits, askPictures): the run's end starts the loading from inside a command and cannot wait itself, and
+  // with nothing waiting the stop's line typed and spoke, and its choice came up, over the frame from before the run (2026-11-21).
+  // force: inside a run that still passes the script (askPictures).
+  loadDeferred(force = false) {
+    if (this.deferredPictures && (force || !this.picturesSkipped)) {
+      this.deferredPictures = false;
+      const waits = [];
+      for (const l of [...this.layers.values(), ...this.pending.values(), ...this.ghosts.values()]) {
+        if (!l.deferred) continue;
+        if (l.image) { this.loadImage(l); waits.push(l.promise); } else l.deferred = false;
+      }
+      if (waits.length) {
+        this.picturesComing++;
+        const loaded = this.waitImages(waits).finally(() => { this.picturesComing--; });
+        const all = this.comingIn = Promise.all([this.comingIn, loaded]).then(() => { if (this.comingIn === all) this.comingIn = null; });
+      }
     }
-    if (!waits.length) return null;
-    this.picturesComing++;
-    return this.waitImages(waits).finally(() => { this.picturesComing--; });
+    return this.comingIn;
   }
   get holdingFrame() { return this.picturesComing > 0; }
+  // Whether the script waits here for a stop's pictures: not while a run that shows nothing goes on, nor while a read scene's skip counts down
+  // to the next such run (RDAS: nothing of this stop will be seen, and a chain of read scenes would wait at every one of them).
+  get stopWaits() { return !this.picturesSkipped && !this.sceneSkip && (this.deferredPictures || !!this.comingIn); }
+  // A choice or a question waits for the player wherever the script comes to it, so the pictures under it come first: also inside a jump to a
+  // point (?pc=), which still passes the script there and had shown its choice over layers with no pictures at all. Not in the tools' runs at
+  // full speed (skipPaced false), which answer by themselves and show nothing.
+  // Returns what to wait on, or null with nothing on its way: in ordinary play nothing is waited for, not even a turn of the queue.
+  askPictures() { return this.loadDeferred(this.skipPaced); }
 
   async commit() {
     const waits = [];
@@ -908,6 +930,7 @@ export class VM {
     this.passedHere = false;
     this.skipPaused = null;
     this.sceneSkip = null;
+    this.deferredPictures = false;   // what a run left unloaded belonged to the story that stops here (loadDeferred)
     this.cancelDelayed();
     this.running = false;
     this.restoring = false;
@@ -962,7 +985,9 @@ export class VM {
       if (this.paused) await new Promise((r) => { this.resumeFn = r; });
       if (gen !== this.generation) return;
       if (this.skipUntil && this.pc >= this.skipUntil) { this.skip = false; this.skipUntil = 0; }
-      if (this.deferredPictures && !this.picturesSkipped) { await this.loadDeferred(); if (gen !== this.generation) return; }
+      // Where a run that passed the script at once has stopped, its pictures come before the next command, as a commit's do (loadDeferred).
+      // An RDAS goes first: it may be about to pass this scene too, and then nothing of this stop is seen (stopWaits).
+      if (this.stopWaits && ops[this.pc][0] !== "RDAS") { await this.loadDeferred(); if (gen !== this.generation) return; }
       if (this.sceneDue()) { await this.sceneReady(); if (gen !== this.generation) return; }
       // The label Z commands just before this op run first: all of them when the script comes to them, from the
       // label a jump named when it jumps there (the interpreter starts at that label's command).
@@ -971,6 +996,8 @@ export class VM {
         const from = this.zFrom ? zl.findIndex((e) => e[1] === this.zFrom) : 0;
         if (zl.length > Math.max(0, from)) this.ringClose();   // a label's Z command closes the layer changes too (0x78f0c)
         for (let k = Math.max(0, from); k < zl.length; k++) this.zStep(zl[k][0]);
+        // (a label not read yet ends an instant run there, zStep: the stop's pictures first, as above)
+        if (this.stopWaits && ops[this.pc][0] !== "RDAS") { await this.loadDeferred(); if (gen !== this.generation) return; }
       }
       this.zFrom = null;
       this.zSkip = -1;
@@ -1083,6 +1110,8 @@ export class VM {
     await this.nextFrame();
     if (gen !== this.generation) return;
     if (this.skipConfirm) {
+      // asked over the picture the last run stopped on, where one did (loadDeferred; the script itself does not wait while this is pending)
+      if (this.comingIn) { await this.comingIn; if (gen !== this.generation) return; }
       const go = this.onSceneSkip ? await this.onSceneSkip(true) : true;
       if (!go || gen !== this.generation) return;
     }
@@ -1320,6 +1349,8 @@ export class VM {
     // 0x7f6bc asks when F1118 is 0 (0x85bf0); 0x92930 then passes only during a load's silent run (0x5afb0 reads
     // 0x146e638, not the skip toggle), so skipping does not pass it. Test jumps (?pc=) still do.
     if (this.skipUntil || this.getVar("F1118") !== 0 || !this.onAskSave) return;
+    const gen = this.generation, coming = this.askPictures();   // the question is asked over the stop's pictures
+    if (coming) { await coming; if (gen !== this.generation) return; }
     const question = this.system?.messages?.["216"] || "Save Progress?";
     this.choosing = { pc: this.pc - 1, list: [question], confirm: true, save: true };
     const yes = await this.onAskSave(question);
@@ -1332,6 +1363,8 @@ export class VM {
   // 1445 + F027. Yes is 1. QACALL asks it before each Ciel-sensei episode. Saved and rewound like a choice.
   async op_SELS(v) {
     this.endInstant();   // 0x92800 clears the instant run
+    const gen = this.generation, coming = this.askPictures();   // the question is asked over the stop's pictures
+    if (coming) { await coming; if (gen !== this.generation) return; }
     const question = this.gallery?.endings?.hint?.[this.getVar("F027")] || "Enter hint corner?";
     this.choices = [];   // a restored question leaves its text here; it is not one of the next choice's options
     this.choosing = { pc: this.pc - 1, list: [question], confirm: true };
@@ -1345,6 +1378,8 @@ export class VM {
   // soon as the choice is shown, so the branches not taken appear in the flowchart too.
   async op_SELD(v, id) {
     this.endInstant();
+    const gen = this.generation, coming = this.askPictures();   // the choice comes up over the stop's pictures, in a jump to a point too
+    if (coming) { await coming; if (gen !== this.generation) return; }
     if (this.flowChart) this.flow.choice(num(id), this.flowChart.choiceFlags?.[num(id)], this.replay);
     const rows = this.choiceRows();
     this.choices = [];
@@ -1451,6 +1486,8 @@ export class VM {
       // the instant run stops at a line not read yet when fast forward is on "Read", or while F998 is set (case Z)
       if (this.instant && ((this.fastForwardRead && unread) || this.getVar("F998"))) this.endInstant();
     }
+    // The line an instant run stopped at waits for the stop's pictures before it types or speaks, as it would have for a commit's (loadDeferred).
+    if (this.stopWaits) { await this.loadDeferred(); if (gen !== this.generation) return; }
     // MSG / MSAD record the checkpoint only on a page's first line (0x6e0d0 with F823 < 2, and no task holding records back): here, at
     // that page's first wait for the player, so a load shows the page from its first line. An MSAD copies the newest record again
     // (0x6e950 makes none of its own), and after an @n MSG that is still the MSG's: nothing makes a record until the next MSG (0x146e644).
@@ -2121,9 +2158,11 @@ export class VM {
   }
   op_FCSP(ms) { this.ringLayer(); this.gfx.lines = this.fast ? null : stopLines(this.gfx.lines, num(ms) || 0, this.now()); }
   // SPFC(slot, picture, ...) and SPRD(slot, picture, ...) have the engine prepare a processed copy of a picture in one
-  // of 30 cache slots, so a later STCH shows it at once; SPRC empties them. Here they load the picture early.
-  op_SPFC(_slot, image) { if (image) this.gfx.load(image).catch(() => {}); }
-  op_SPRD(_slot, image) { if (image) this.gfx.load(image).catch(() => {}); }
+  // of 30 cache slots, so a later STCH shows it at once; SPRC empties them. Here they load the picture early. Not in a run that passes the
+  // script at once (picturesSkipped): the STCH they warm is itself not loaded there, and a read scene's run through 14_01B_01_CIEL14B_1D
+  // still asked for 31 pictures this way and took the textures from 366 to 843 MB (2026-11-21).
+  op_SPFC(_slot, image) { if (image && !this.picturesSkipped) this.gfx.load(image).catch(() => {}); }
+  op_SPRD(_slot, image) { if (image && !this.picturesSkipped) this.gfx.load(image).catch(() => {}); }
   op_SPRC() { }
   // XSTP .. XRSM: the player's controls are off in between (native task type 1 at slot 1: 0x40b70 turns skip and auto
   // off, masks the input flags 0x71c0, blocks the mode panel and menus and keeps the screen from dimming; XRSM's

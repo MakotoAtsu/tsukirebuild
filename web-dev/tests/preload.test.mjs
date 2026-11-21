@@ -523,7 +523,7 @@ test("a run that passes the script at once names its pictures but loads only tho
   const asked = [], waiting = [];
   const finish = () => { for (const r of waiting.splice(0)) r(); };
   const vm = Object.assign(Object.create(VM.prototype), { _skip: true, instant: true, skipPaced: true, skipUntil: 0, restoring: false,
-    layers: new Map(), pending: new Map(), ghosts: new Map(), deferredPictures: false, picturesComing: 0, loadHold: 0, onHold: null, holdClocks() {},
+    layers: new Map(), pending: new Map(), ghosts: new Map(), deferredPictures: false, picturesComing: 0, comingIn: null, loadHold: 0, onHold: null, holdClocks() {},
     gfx: { load: (name) => { asked.push(name); return new Promise((r) => waiting.push(r)).then(() => ({ tex: {}, name })); } } });
   const layer = (id) => ({ id, image: null, ready: null, promise: null });
   const a = layer(1), b = layer(2), c = layer(3);
@@ -539,10 +539,12 @@ test("a run that passes the script at once names its pictures but loads only tho
   assert.deepEqual(asked, ["img0002", "img0003"], "where it stops, only what a layer holds");
   assert.equal(vm.holdingFrame, true, "main.js keeps the last frame meanwhile");
   assert.equal(vm.loadHold, 1, "and the game's time stands still");
-  assert.equal(vm.loadDeferred(), null, "once only");
+  assert.equal(vm.loadDeferred(), held, "asked for once; what is coming is what the script waits on (skipstop.test.mjs)");
+  assert.deepEqual(asked, ["img0002", "img0003"]);
   finish(); await held;
   assert.equal(vm.holdingFrame, false);
   assert.equal(vm.loadHold, 0);
+  assert.equal(vm.comingIn, null);
   // outside such a run, and in a restore (it makes only the point's layers), a picture loads at once
   const d = layer(4);
   vm.setImage(d, "img0005");
@@ -554,10 +556,9 @@ test("a run that passes the script at once names its pictures but loads only tho
   assert.equal(vm.picturesSkipped, true, "a jump to a point is such a run");
   Object.assign(vm, { skipUntil: 0 });
   assert.equal(vm.picturesSkipped, false, "paced fast forward is not: it shows each line");
-  // the run's end, the loop and the frame take it up
+  // the run's end starts the loading and the frame is kept meanwhile; what the script does at the stop is in skipstop.test.mjs, run for real
   const src = source("js/vm.js");
   assert.match(src, /this\.onInstant\?\.\(false\);\n\s*this\.loadDeferred\(\);/);
-  assert.match(src, /if \(this\.deferredPictures && !this\.picturesSkipped\) \{ await this\.loadDeferred\(\);/);
   assert.match(source("js/main.js"), /if \(vm\.holdingFrame && lastDrawn\) \{ ui\.panelTick\(\); requestAnimationFrame\(frame\); return; \}/);
 });
 

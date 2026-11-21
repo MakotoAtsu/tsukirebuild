@@ -2012,3 +2012,60 @@ up to half a second from a frame (0xef08c).
 
 Tests: `frameskip.test.mjs` (the real `gameFrames` taken from main.js: 60 / 120 / 30 Hz, a 400 ms stall, the cap; the two resets).
 727 tests, 724 pass, 3 skipped (in the working folder).
+
+## The day's review: what a run's stop waits for, a choice inside a jump, the pre-warm commands, the skip after a split, 2026-11-21
+
+The user asked for the day's seven updates to be checked. All were live as pushed and the tests passed; the review (three read-throughs of the
+code by fresh agents, and runs in an isolated Chrome) found two things the skipped-run change had broken and two places the day's fixes did
+not reach. Fixed in the working folder at the user's word ("Yes, fix them").
+
+- **A line or a choice at an instant run's stop came before its pictures** (from "A run that passes the script at once ...", above).
+  `endInstant` started the loading from inside the command and nothing waited for it: the line the run stopped at was put up and spoke, the
+  wait for the player was armed and the choice's rows came up, all over the frame kept from before the run. Only a stop followed by a timed
+  command waited, by accident (the load holds the story's clock). With pictures taking 1.5 s (a delay put into `gfx.upload`), the choice of
+  `05_00_ARC05_9B` stood over the previous scene's picture for a second and a line of `05_01_CIEL05_3E` typed over a half-made frame; at 4x
+  slower CPU the black hid it.
+  **Change** (`vm.js`): `loadDeferred` returns the promise of what it asked for being in (`comingIn`), and the script waits on it wherever
+  it goes on to show something at a stop (`stopWaits`): the loop before the next command and after a label's Z command, `message` after
+  its own Z command, SELD / SELS / SELA before they ask (`askPictures`), and a read scene's "Jump to Next Scene?" before it comes up. Not
+  while a run that shows nothing goes on, nor while a read scene's skip is counting down, and an RDAS straight after the stop runs first:
+  a chain of read scenes still does not wait at each of them. In ordinary play none of these waits, not even a turn of the queue.
+  `stop()` drops what a run left unloaded (a load or Return to Title in the middle of one loaded the abandoned layers).
+  **The black** (`main.js drawSkipBlack`, the port's own): it does not lift while the run goes on or its stop's pictures are coming; the
+  game lifts it 12 frames after the run off a stop that is whole, and lifting on its own count here it showed the frame from before the
+  run until the pictures were in. A black already lifting is not brought back, and over a movie the run stopped at (TOMP) it keeps the
+  game's count: the pictures still coming are under the movie.
+- **A jump to a point that met a choice showed it over layers with no pictures at all** (`/?script=01_00_ARC01_4&pc=125`: three layers,
+  none drawn; all three with the code from before that change). Such a run still passes the script at the choice, so nothing loaded what
+  its layers held. SELD and SELS now load them there (`askPictures`: `loadDeferred(true)`), and ask once they are in; the tools' runs at
+  full speed (`skipPaced` false: the smoke test, fit.js, make_arcsave.mjs) answer by themselves and load nothing, as before.
+- **SPFC / SPRD still loaded their pictures during such a run** (36 scripts, 523 calls): they only warm a later STCH, which the run does
+  not load either. A read scene's run through `14_01B_01_CIEL14B_1D`: 31 pictures asked for during the run and the textures from 366 to
+  843 MB; now 1 (the rule picture) and 525 MB. `05_01_CIEL05_3E` has none of these commands, which is why the day's measurement did not show it.
+- **The frame skip switched itself off for the rest of a sitting once a split had ended** (from "A frame is not drawn again ...", above).
+  FADE 41 leaves the stopped split on the renderer as a record (so does FCSP with a time for the speed lines) until a new story or a load,
+  and `frameKey` took any record as "on": every frame drawn again. 19 scripts end a split, the prologue first (`00_00`, command 1372 of
+  8,432) and both of day 5's Vlov battles among them; the day's measurement on the train entered that scene directly, where no split has
+  been. At `00_00`'s command 1389: 0 of 180 frames left undrawn after playing through the FADE 41, 179 entered past it; now 179 after it
+  too. `frameKey` asks `splitDone` / `linesDone` (screenfx.js, which nothing called): a split or lines that have faded out count as none.
+- **Checked** in an isolated Chrome on the working folder: the jump to the choice, three layers drawn; the stops with 1.5 s pictures: black
+  with the game's "Loading" until they are in, then the line / the choice over its own picture (the choice 1.6 s after the stop, where it
+  had come at once); a scene skip at 4x slower CPU to `05_00_ARC05_9B`'s choice: no frame with a picture missing under a lifted black; the
+  frames the skip leaves alone against a forced redraw of the same frame (the skip really on): 440 samples across the prologue's split,
+  148 on the train, 88 in `05_00_ARC05_9_2B`, none different; an ordinary jump (`?script=6&pc=300`) as before. "Read scenes auto skip"
+  over two finished scenes in a row (`01_00_ARC01_1_2` into `01_00_ARC01_2`, to its choice, pictures at 1.2 s): with the question off the
+  choice comes up over its pictures 3.3 s from the start, no wait added at the stop between the scenes (the second scene's first FADS
+  waits for its own pictures there, as it did); with the question on, the second scene's "Jump to Next Scene?" comes up over that
+  scene's picture, once it is in. The stop at a movie was not run in a browser (the black's count over a movie is in the test).
+- **Left as found** (risks the review named, none reproduced): the end of a picture hold is caught up as a stall (up to half a second into
+  a transition; with 300 ms uploads the look-ahead had the pictures in before two scenes' commits needed them); the group machine's
+  `lastMask` is not in the frame key (a replay of all 549 scripts through the real interpreter and renderer on a recording GL stub: 66,865
+  frames the skip would leave, none drawn differently from the frame before); a blurred copy on screen is stamped only by a drawn
+  frame; a picture request that never answers holds the frame with no limit. "Return to Previous Scene", listed above as a run that
+  passes the script at once, is a restore and was never one.
+
+Tests: `skipstop.test.mjs` (new: the real interpreter through its own loop with pictures that come when the test says: the line, the
+choice, the jump, the tools' runs, SPFC / SPRD, the chain of read scenes, the question, a stop in mid-run; the black's count taken from
+main.js), `frameskip.test.mjs` (a split and lines on, fading, faded out), `preload.test.mjs`. On the code as pushed that morning the
+tests of the faults fail (the line, the choice, the jump, SPFC / SPRD, the split), as do those of what is new (the black, `stopWaits`).
+737 tests, 734 pass, 3 skipped (in the working folder).

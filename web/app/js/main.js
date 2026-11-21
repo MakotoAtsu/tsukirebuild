@@ -431,6 +431,10 @@ let lastFrame = null, lastDrawn = false;
 // the scene, under the popups and the skip indicator, 0x3c510): each countdown frame sets the level to 1.5 + v / -30
 // (v the frames left after it) and shows the indicator's ">>|" (0x3b5b0(4)); it is drawn at min(level, 1) and falls
 // 0.04 a frame, so after the run the screen stays black about 12 frames and comes back over 25.
+// The port's own: it does not lift while the run still goes on or the pictures of its stop are still coming (vm.holdingFrame). The game has
+// its pictures at once and lifts the black off the finished stop; here they take as long as the device needs, and the black lifting on its
+// own count showed the frame from before the run, or one half made, until they were in (2026-11-21). Not over a movie the run stopped at
+// (TOMP): the pictures still coming are under the movie, which is not kept waiting for them.
 let skipBlack = 0;
 function countdownFrame(v) {
   skipBlack = 1.5 + v / -30;
@@ -447,7 +451,7 @@ function drawSkipBlack() {
     stage.insertBefore(el, $("popup"));
   }
   el.style.opacity = String(Math.max(0, Math.min(1, skipBlack)));
-  if (skipBlack > 0) skipBlack = Math.max(0, skipBlack - 0.04);
+  if (skipBlack > 0) skipBlack = Math.max(skipBlack >= 1 && (vm.instant || vm.holdingFrame) && !moviesDone ? 1 : 0, skipBlack - 0.04);
   // the indicator goes back to what the skip toggle shows once the countdown's black starts to lift
   const m = $("mode-skip");
   if (m.classList.contains("countdown") && !(skipBlack > 1)) m.className = m.dataset.before || "";
