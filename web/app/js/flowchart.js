@@ -2,14 +2,22 @@
 // authored rows and interface atlas.
 import { sprite } from "./ui.js";
 import { reflowNote } from "./reflow.js";
-import { chapterLine, flowChapter } from "./chapters.js";
+import { chapterLine, flowChapter, localizedChapter } from "./chapters.js";
 import { DragFlick, FLOW_SCROLL_TIME, FLOW_VIEW, PadRepeat, STICK_DEAD, layoutChart, moveCursor, panFor, panMax, reselect, scrollFor, stickTarget, titleSize, viewHeight, viewWidth, wheelZoom, zoomScrollMax, zoomStep, zoomView } from "./flowchart-model.js";
 import { EASE, MenuBgFade, Tween, fadeIn, fadeOut, wheelPixels } from "./uifx.js";
 import { GuideFx, REPLAY_MENU_BG, cgCursorLight, fadeMusicOut, scrollBar } from "./gallery.js";
-import { ORIG, asset } from "./lang.js";
+import { ORIG, RU, asset } from "./lang.js";
 import { pinch } from "./touch.js";
 
 const PACK = "MENU_PARTS_JA";
+
+// A Russian note that does not fit its box as the translators broke it: its single breaks go (the browser wraps it; a doubled one, a paragraph's, stays),
+// and where it still does not fit it is set smaller. From Living FLCL's patch.
+export function fitRussianNote(note, text) {
+  if (note.scrollHeight <= note.clientHeight) return;
+  note.textContent = text.replace(/(?<!\^)\^(?!\^)/g, " ").replace(/\^/g, "\n");
+  if (note.scrollHeight > note.clientHeight) { note.style.fontSize = "22px"; note.style.lineHeight = "28px"; }
+}
 
 const TITLE_FONT = '24px Helvetica, Arial, "Arimo Bundled", sans-serif';   // the size and --flow-font of .fc-preview-title
 let titleRuler = null;
@@ -122,7 +130,7 @@ export async function openFlowchart(ui, vm, jump, keep = null, opts = {}) {
     // written out (chapters.js) where the game has a picture of each (flow_phasetitle: cells of 200 x 32, the words set
     // right in them), larger than the picture's, ending where the picture's words ended
     for (const label of d.labels) {
-      const r = chart.phaseRects[label.phase], c = flowChapter(r);
+      const r = chart.phaseRects[label.phase], c = localizedChapter(flowChapter(r));   // (Russian: its Russian name)
       if (!c) continue;
       // Japanese: the game's own picture of the chapter (flow_phasetitle), where the cell is
       if (ORIG) { group.append(sprite(PACK, "flow_phasetitle", label.x, label.y, r[2], r[3], r[0], r[1])); continue; }
@@ -195,6 +203,7 @@ export async function openFlowchart(ui, vm, jump, keep = null, opts = {}) {
     const note = place(element("div", "fc-preview-note", ORIG ? p.note.replace(/\^/g, "\n") : reflowNote(p.note)), 1392, 452, 400, 200);
     title.style.opacity = note.style.opacity = quick ? "1" : "0";
     panel.append(image, title, note);
+    if (RU) fitRussianNote(note, p.note);
     if (!quick) fades.push({ els: [title, note], text: true, tw: new Tween(0, 1, PREVIEW_FADE, EASE.quad.in) });
     shown = { image, title, note, preview: p.preview };
   }

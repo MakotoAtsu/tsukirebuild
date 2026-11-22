@@ -16,7 +16,7 @@ const read = (rel) => JSON.parse(readFileSync(new URL(rel, ASSETS), "utf8"));
 const there = (rel) => existsSync(new URL(rel, ASSETS));
 
 test("the language is English unless Japanese or Chinese was chosen; the address can name one for a visit", () => {
-  assert.deepEqual(LANGS, ["en", "ja", "zh", "pt"]);
+  assert.deepEqual(LANGS, ["en", "ja", "zh", "pt", "ru"]);
   assert.equal(LANG, "en");
   assert.equal(ORIG, false);
   assert.deepEqual(LAYERS, []);
@@ -110,7 +110,7 @@ test("Portuguese: a fourth language, its lines only, a Portuguese device's own; 
   assert.equal(scriptsOf("zh"), "zh", "Chinese is still carried from Japanese's scripts as before");
   assert.match(readFileSync(new URL("../../web/app/js/vm.js", import.meta.url), "utf8"), /if \(scriptsOf\(s\.lang\) !== scriptsOf\(LANG\)\) s = await this\.carry\(s\);/);
   const H = await import("../../web/app/js/home.js");
-  assert.deepEqual(H.LANG_PLATES.at(-1), { lang: "pt", plate: "PORTUGUÊS" }, "last, so the others keep their places on the plate sheet");
+  assert.deepEqual(H.LANG_PLATES.at(3), { lang: "pt", plate: "PORTUGUÊS" }, "after the first three, which keep their places on the plate sheet");
   // only those who play it fetch it (the user, 2026-11-17: "make sure only people who select that download it"): the opening page asks nothing of
   // pt/, the site fetches its lines only as a layer of the language in use, and the apps are built without it and download it when it is chosen
   const home = readFileSync(new URL("../../web/app/js/home.js", import.meta.url), "utf8");
@@ -119,7 +119,7 @@ test("Portuguese: a fourth language, its lines only, a Portuguese device's own; 
   const U = await import("../../web/app/js/update.js");
   assert.deepEqual(U.LANG_DIRS.pt, ["pt"]);
   assert.equal(U.LANG_NAMES.pt, "Portuguese");
-  assert.deepEqual((await import("../../web/app/js/languages.js")).foldersOf(), ["ja", "zh", "pt"], "the apps are built without it (app_manifest.py reads the same table)");
+  assert.deepEqual((await import("../../web/app/js/languages.js")).foldersOf(), ["ja", "zh", "pt", "ru"], "the apps are built without it (app_manifest.py reads the same table)");
   assert.ok(H.LANG_NOW.pt);
 });
 
@@ -420,4 +420,55 @@ test("the Controls page has a Chinese word for each of its own words, and keeps 
   const ui = readFileSync(new URL("../../web/app/js/ui.js", import.meta.url), "utf8");
   for (const s of ['head(say("Keyboard")', 'line(say(a.label)', 'cap(say(what)', 'say(keyLabel(k))', 'say("Press a key")', 'say(how)', 'say("Touch")'])
     assert.ok(ui.includes(s), s);
+});
+
+// ---- Russian (web-dev/tools/build_ru.py: Living FLCL's translation, from their patch for the Windows app) -------------------------------------------
+test("Russian: a fifth language with scripts of its own, played in English where it is not translated; a save carries both ways by its line", { skip: !there("ru/index.json") }, async () => {
+  const T = await import("../../web/app/js/languages.js");
+  const { deviceLang } = await import("../../web/app/js/lang.js");
+  const { VM } = await import("../../web/app/js/vm.js");
+  assert.equal(T.scriptsOf("ru"), "ru", "its own scripts: a record made in English is carried to its commands (vm.js restore)");
+  assert.deepEqual(T.layersOf("ru"), ["ru"]);
+  assert.equal(T.isOriginal("ru"), false, "set as the English is, wrapped by the text box (reflow.js)");
+  assert.equal(deviceLang({ languages: ["ru-RU", "en"] }), "ru");
+  const files = read("ru/index.json").files, names = read("scripts/index.json").names;
+  const own = files.filter((f) => /^scripts\/\d+\.json$/.test(f)).map((f) => Number(f.match(/\d+/)[0]));
+  assert.ok(own.length > 100 && own.length < names.length, String(own.length));
+  for (const f of ["text.json", "system.json", "flowchart.json", "gallery.json", "fonts/Russian-Story.woff2", "movie/prologue.mp4", "ui/TITLE_PARTS_JA/titlemenu.webp"]) assert.ok(files.includes(f), f);
+  // the patch's own face is Microsoft's (cut from Calibri): never in the folder; nor the Q&A corners' balloons, which are the English ones with the English corners
+  assert.deepEqual(files.filter((f) => /Mahoyo|\.ttf$|tw_t_L/.test(f)), []);
+  // every line: Russian or the English one, nothing left in Japanese (the patch leaves its untranslated scenes in Japanese), no mark gone Cyrillic
+  const ru = read("ru/text.json"), en = read("text.json");
+  assert.equal(ru.length, en.length);
+  const japanese = /[぀-ヿ一-鿿]/, cyrillic = /[Ѐ-ӿ]/;
+  assert.deepEqual(ru.map((line, k) => (japanese.test(line) && line !== en[k] ? k : -1)).filter((k) => k >= 0), []);
+  assert.deepEqual(ru.filter((line) => /@[Ѐ-ӿ]/.test(line)), []);
+  assert.ok(ru.filter((line) => cyrillic.test(line)).length > 35000);
+  const ids = (op) => ((op[0] === "MSG" || op[0] === "MSAD") ? [...(op[1] || "").matchAll(/\$(\d+)/g)].map((m) => Number(m[1])) : []);
+  // a scene is Russian whole or English whole: an English scene keeps the English script (none of its own), and no line of it is Russian
+  const qa = names.indexOf("QA_02"), late = names.indexOf("15_01A_CIEL15A_1");
+  for (const i of [qa, late]) {
+    assert.equal(own.includes(i), false, names[i]);
+    for (const op of read(`scripts/${i}.json`).ops) for (const k of ids(op)) assert.equal(ru[k], en[k], `${names[i]} line ${k}`);
+  }
+  let checked = 0, unknown = new Set();
+  const known = new Set(Object.getOwnPropertyNames(VM.prototype).filter((n) => n.startsWith("op_")).map((n) => n.slice(3)));
+  for (const i of own) {
+    const a = read(`scripts/${i}.json`), b = read(`ru/scripts/${i}.json`);
+    assert.equal(a.name, b.name);
+    assert.deepEqual([...new Set(b.ops.flatMap(ids))].sort((x, y) => x - y), [...new Set(a.ops.flatMap(ids))].sort((x, y) => x - y), `${a.name}: the same lines`);
+    for (const op of b.ops) if (!known.has(op[0]) && !a.ops.some((o) => o[0] === op[0])) unknown.add(op[0]);
+    a.ops.forEach((op, at) => {
+      const line = ids(op)[0];
+      if (line === undefined) return;
+      // waiting at the English message: the Russian script's message that shows the line, run again; and back
+      const there2 = carryPoint({ script: i, pc: at + 1, waiting: true, html: "x", page: ["x"] }, a, b, (t) => t, "ru");
+      assert.ok(there2.msgStart && ids(b.ops[there2.pc]).includes(line), `${a.name} line ${line}`);
+      const back = carryPoint({ ...there2, lang: "ru" }, b, a, (t) => t, "en");
+      assert.ok(ids(a.ops[back.pc]).includes(line), `${a.name} line ${line} back`);
+      checked++;
+    });
+  }
+  assert.ok(checked > 10000, String(checked));
+  assert.deepEqual([...unknown], [], "every command of the Russian scripts is one the game runs (DMMY: passed over, vm.js op_DMMY)");
 });

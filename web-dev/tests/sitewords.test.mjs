@@ -12,6 +12,7 @@ const W = await import("../../web/app/js/welcome.js");
 const U = await import("../../web/app/js/update.js");
 const { tr, trBlock, localize } = await import("../../web/app/js/sitewords.js");
 const { SITE_JA, SITE_ZH, SITE_PT, SAME } = await import("../../web/app/js/sitewords-table.js");
+const { SITE_RU } = await import("../../web/app/js/sitewords-ru.js");
 const { deviceLang, langOf, uiLangOf, chosenLang } = await import("../../web/app/js/lang.js");
 const read = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), "utf8");
 
@@ -50,6 +51,11 @@ test("every string the opening page can show has its Japanese and its Chinese, o
   for (const [en, ja] of Object.entries(SITE_JA)) assert.ok(/[぀-ヿ一-鿿]/.test(ja) || /^\d/.test(ja) || ja === "ENGLISH", `Japanese for ${en}`);
   for (const [en, zh] of Object.entries(SITE_ZH)) assert.ok(/[一-鿿]/.test(zh), `Chinese for ${en}`);
   assert.deepEqual(Object.keys(SITE_PT), Object.keys(SITE_JA), "Portuguese has every entry the other two have");
+  // Russian's table is a file of its own (sitewords-ru.js, from the translators' patch, with the game's screens' words too): every page string is in it
+  const noRussian = all.filter((s) => !SAME.has(s) && !Object.hasOwn(SITE_RU, s));
+  assert.deepEqual(noRussian, [], "add these to web/app/js/sitewords-ru.js");
+  for (const k of Object.keys(SITE_JA)) assert.ok(/[\u0400-\u04ff]/.test(SITE_RU[k] ?? "") || /^\d/.test(SITE_RU[k] ?? "") || SITE_RU[k] === k, `Russian for ${k}`);
+  assert.equal(tr("Language", "ru"), SITE_RU["Language"]);
   const samePt = Object.entries(SITE_PT).filter(([en, pt]) => en === pt).map(([en]) => en);
   assert.deepEqual(samePt, ["Extras"], "every other entry is in Portuguese");
   for (const [en, pt] of Object.entries(SITE_PT)) assert.equal(pt.split("\n").length, en.split("\n").length, `the same rows: ${en}`);

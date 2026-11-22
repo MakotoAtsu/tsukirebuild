@@ -5,7 +5,7 @@ The game's own files (pictures, music, voices, movies, scripts, tables: about 2.
 this brings them from there, so that web/server.py, the tests and the app builds have them:
 
     python3 web-dev/tools/fetch_assets.py            everything
-    python3 web-dev/tools/fetch_assets.py --tables   only the scripts and tables (about 66 MB, Japanese's own included): what the tests read
+    python3 web-dev/tools/fetch_assets.py --tables   only the scripts and tables (about 93 MB, Japanese's and Russian's own included): what the tests read
     python3 web-dev/tools/fetch_assets.py --check    downloads nothing; says what is missing or different
 
 web-dev/assets-manifest.txt lists every file: its MD5, its size, its path under web/assets. A file already there with that size and MD5 is
@@ -30,7 +30,7 @@ MEDIA = ("img/", "ui/", "bgm/", "movie/", "pack/", "sys/", "fonts/")   # (and th
 
 
 def is_media(path):
-    return path.removeprefix("ja/").removeprefix("zh/").startswith(MEDIA)
+    return path.removeprefix("ja/").removeprefix("zh/").removeprefix("ru/").startswith(MEDIA)
 
 
 def manifest(path=MANIFEST):

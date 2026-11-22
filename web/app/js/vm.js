@@ -442,7 +442,9 @@ export class VM {
   async scriptIn(lang, i) {
     if (lang === LANG) return this.getScript(i);
     const get = (url) => fetchOwn(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);   // (Japanese's, from its pack in the apps)
-    return (lang === "ja" || lang === "zh" ? await get(`/assets/ja/scripts/${i}.json`) : null) || get(`/assets/scripts/${i}.json`);
+    // (a language with scripts of its own has them in its folder, where they are not the shared ones: Japanese's, Russian's)
+    const folder = lang === "zh" ? "ja" : scriptsOf(lang) === lang && lang !== "en" ? lang : null;
+    return (folder ? await get(`/assets/${folder}/scripts/${i}.json`) : null) || get(`/assets/scripts/${i}.json`);
   }
   async carry(s) {
     try {
@@ -2141,6 +2143,9 @@ export class VM {
   op_STQK() { }
   op_MSQK(...args) { if (!this.fast) this.gfx.textShake = makeEffect("text", args.map(num), this.now()); }
   op_NOP_() { }
+  // DMMY: no command of the game's. The Russian translation's scripts (ru/scripts, web-dev/tools/build_ru.py) have it where the English ones pause
+  // between two glued lines (WNTY, WKAD F823) and the Russian sentence reads on: the command is passed over with its arguments.
+  op_DMMY() { }
   // FADE(kind, ms, ...): screen colour modes (0x5f420). The scripts use 40 (an RGB split: level, preset) and 41 (off).
   op_FADE(kind, a, b) {
     // the split counts the display's frames, fast forward or not (0x2f910 has no step): frameNow

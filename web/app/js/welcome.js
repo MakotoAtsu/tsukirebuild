@@ -125,6 +125,8 @@ export const SECTIONS = [
     ["link", "tsukihimates.com", "https://tsukihimates.com/"],
     "PORTUGUÊS is the Brazilian Portuguese fan translation by HanabiWorks. It is finished up to Ciel's day 5, so the rest of the story is in the Tsukihimates English.",
     ["link", "hanabiworks.github.io/tsukihime", "https://hanabiworks.github.io/tsukihime/"],
+    "РУССКИЙ is the Russian fan translation by Living FLCL, with its own interface art, chapter titles and prologue. It is finished for Arcueid's route and for Ciel's up to the first branch on day 14, so the rest of the story is in the Tsukihimates English.",
+    ["link", "livingflcl.evanotend.com", "https://livingflcl.evanotend.com/"],
     ["h", "Tools this was built on"],
     "The native port is based on the SuperMarioWonderRecomp recompilation framework by BelmanteGu. Ryujinx's shader translator was used offline. Ghidra was used for decompilation, FFmpeg, SVT-AV1 and Pillow for the conversions. Some menus are set in Inter, under the SIL Open Font License.",
     ["h", "How it was written"],

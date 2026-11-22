@@ -3,7 +3,8 @@
 // controls section"). Every other language, and every other page, keeps the English. The terms are the Chinese patch's own where it has one (its system
 // messages: 快进, 自动模式, 快速保存, 快速加载, 回到前面的场景, 跳到下一个场景, 日志, 倒带; its help bar: 确定, 返回, 移动, 页面变更, 滚动; its
 // gallery: 图像的切换, 扩大・缩小). The Chinese faces keep only the letters Chinese uses, and this file is read for them (build_zh.py used_letters).
-import { ZH } from "./lang.js";
+import { RU, ZH } from "./lang.js";
+import { tr } from "./sitewords.js";
 
 export const CONTROLS_ZH = {
   // the page's headings and notes
@@ -72,4 +73,5 @@ export const CONTROLS_ZH = {
 };
 
 // The Controls page's words in the language in use: Chinese where the table has them, else the English as it is.
-export const say = (text) => (ZH && CONTROLS_ZH[text]) || text;
+// Russian's are among its page words (sitewords-ru.js), with the hint bar's and the quick bar's.
+export const say = (text) => (RU ? tr(text, "ru") : (ZH && CONTROLS_ZH[text]) || text);

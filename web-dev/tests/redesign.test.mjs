@@ -358,8 +358,9 @@ test("Chapter titles are written out, one line each, from what the two picture s
   for (let i = 0; i < 38; i++) assert.equal(system.saves.saveTitleCells[i][2] - system.saves.saveTitleCells[i][0] > 1, !!menuChapter(cells[i]), `entry ${i}`);
   const ui = source("js/ui.js");
   assert.match(ui, /chapter = menuChapter\(T\.phaseCells\[Math\.max\(0, Math\.min\(37, f23\(rec\)\)\)\]\);/);
-  // (Japanese and Chinese keep the game's own pictures of the chapters, which need no fitting: lang.js. Those lines are the ones that name JA or ORIG.)
-  const english = (text) => text.split("\n").filter((l) => !/\b(JA|ORIG)\b/.test(l)).join("\n");
+  // (Japanese and Chinese keep the game's own pictures of the chapters, which need no fitting: lang.js. Those lines are the ones that name JA or ORIG.
+  // Russian's translators redrew the two sheets, so it draws their cells too: the lines that name `drawn`.)
+  const english = (text) => text.split("\n").filter((l) => !/\b(JA|ORIG|drawn)\b/.test(l)).join("\n");
   assert.doesNotMatch(english(ui), /SAVE_TITLES|saveTitleCells/);
   assert.doesNotMatch(source("style.css"), /savetitle\.webp/);
   // drawn as text: no cell of either picture any more

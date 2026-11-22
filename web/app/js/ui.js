@@ -8,9 +8,9 @@ import { LogoDust, LogoShards, MenuCursor, MENU_COLUMN, MENU_FADE, drawTitlePart
   SCROLLBAR, ScrollBarFx, BACKLOG, logPages, CONFIG, ConfigScroll, configFollow, configMove, configStep, sliderValue,
   SampleFx, NOTICE, NoticeFx, voiceScrollMax, wheelPixels, hitBoxPixels, STORY_HIT, SYSTEM_HIT } from "./uifx.js";
 import { ACTIONS, MENU_KEYS, MOUSE, SLOTS, canBind, keyLabel, keyName } from "./keys.js";
-import { chapterNamed, menuChapter } from "./chapters.js";
+import { chapterNamed, localizedChapter, menuChapter, sceneName } from "./chapters.js";
 import { TOUCH, TOUCH_CONTROLS, TOUCH_HINTS, barPlace } from "./touch.js";
-import { JA, ZH, PT, ORIG, LANG, asset } from "./lang.js";
+import { JA, ZH, PT, RU, ORIG, LANG, asset, has } from "./lang.js";
 import { say } from "./words.js";
 const PHASES = {
   // script prefix -> [column, row] in system_phasetitle_ja. The route of each is inferred from the script names.
@@ -110,7 +110,13 @@ export const NOTE_LABEL = { cap: 13, width: 43, base: 26, stem: 2, word: "Note."
   font: '"Eurostile", "Microgramma", "DIN Alternate", "Bahnschrift", "Inter", system-ui, sans-serif' };
 // A word in that lettering, as a small picture drawn at twice its size: { el, width, pad } with the word's right end `pad`
 // short of the picture's and its baseline NOTE_LABEL.base down. Null where there is no canvas.
-function noteLabel(text) {
+// A chapter's picture with its name for readers of the page, where the language has one for it (Russian: chapters.js localizedChapter).
+function named(el, chapter) {
+  if (chapter?.art) { el.setAttribute("role", "img"); el.setAttribute("aria-label", chapter.name); }
+  return el;
+}
+// (trim: the strokes pared to the game's light lettering; Russian's words are drawn as the face has them, pared Cyrillic loses its thin strokes)
+function noteLabel(text, trim = true) {
   const T = NOTE_LABEL, K = 2, pad = 4;
   try {
     const el = document.createElement("canvas"), probe = el.getContext("2d");
@@ -133,7 +139,7 @@ function noteLabel(text) {
     g.textBaseline = "alphabetic";
     g.fillStyle = T.colour;
     g.fillText(text, 0, 0);
-    if (pare > 0.05) {
+    if (trim && pare > 0.05) {
       g.globalCompositeOperation = "destination-out";
       g.lineJoin = "round";
       g.lineWidth = pare;
@@ -704,8 +710,9 @@ export class UI {
       // on a touch device, what a finger does instead (touch.js TOUCH_HINTS); an entry with nothing to say is left out
       const keys = this.touch ? TOUCH_HINTS[label] : own ? own : label === "Replay voice" ? [this.keys?.label("voice") || "V", ...HINTS[label].slice(1)] : HINTS[label] || [];
       if (!keys) continue;
-      for (const key of keys) hint.append(Object.assign(document.createElement("kbd"), { textContent: HINT_KEYS[key] || key }));
-      hint.append(Object.assign(document.createElement("span"), { className: "hint-label", textContent: HINT_WORDS[label] || label }));
+      // (Russian's words for the keys and the entries are among its page words: words.js say)
+      for (const key of keys) hint.append(Object.assign(document.createElement("kbd"), { textContent: RU ? say(key) : HINT_KEYS[key] || key }));
+      hint.append(Object.assign(document.createElement("span"), { className: "hint-label", textContent: RU ? say(label) : HINT_WORDS[label] || label }));
       bar.append(hint);
     }
     page.appendChild(bar);
@@ -1168,16 +1175,18 @@ export class UI {
     s.className = "scene-name";
     let chapter;
     if (T) {
-      chapter = menuChapter(T.phaseCells[f23 >= 0 && f23 < 38 ? f23 : 0]);
-      s.textContent = f22 >= 1 ? T.sceneNames[f22] || "" : "";
+      chapter = localizedChapter(menuChapter(T.phaseCells[f23 >= 0 && f23 < 38 ? f23 : 0]));
+      s.textContent = f22 >= 1 ? sceneName(T.sceneNames[f22]) || "" : "";
     } else {
       const [c, r] = phaseOf(this.vm.script ? this.vm.script.name : "00_00");
-      chapter = chapterNamed(PHASE_NAMES[c][r]);
-      s.textContent = PHASE_NAMES[c][r] || "";
+      chapter = localizedChapter(chapterNamed(PHASE_NAMES[c][r]));
+      s.textContent = chapter?.name || PHASE_NAMES[c][r] || "";
     }
-    // Japanese and Chinese: the game's own picture of the chapter, its cell of the sheet (the names are written out only because the translation's did not fit)
-    const cell = ORIG && T ? T.phaseCells[f23 >= 0 && f23 < 38 ? f23 : 0] : null;
-    if (ORIG && cell) { if (cell[2] - cell[0] > 1) page.append(sprite("MENU_PARTS_JA", "system_phasetitle_ja", 8, 0, cell[2] - cell[0], cell[3] - cell[1], cell[0], cell[1], "chapter-art")); }
+    // Japanese and Chinese: the game's own picture of the chapter, its cell of the sheet (the names are written out only because the translation's did not
+    // fit). Russian too, where its sheet has the chapter (its translators redrew the sheet, the names fitted to the cells).
+    const drawn = ORIG || (chapter?.art && has("ui/MENU_PARTS_JA/system_phasetitle_ja.webp"));
+    const cell = drawn && T ? T.phaseCells[f23 >= 0 && f23 < 38 ? f23 : 0] : null;
+    if (drawn && cell) { if (cell[2] - cell[0] > 1) page.append(named(sprite("MENU_PARTS_JA", "system_phasetitle_ja", 8, 0, cell[2] - cell[0], cell[3] - cell[1], cell[0], cell[1], "chapter-art"), chapter)); }
     else this.chapterTitle(page, chapter);
     page.append(s);
     this.nowPlaying(page, s);
@@ -1245,7 +1254,7 @@ export class UI {
     page.append(box);
     // "Audio Track" over it, above the band's line, as "Note." stands over the scene name: its right end set in from the
     // title's by as much, in that label's lettering (noteLabel)
-    const label = noteLabel(N.label);
+    const label = noteLabel(RU ? say(N.label) : N.label, !RU);
     if (!label) return;
     label.el.className = "np-label";
     label.el.setAttribute("aria-hidden", "true");
@@ -1782,15 +1791,17 @@ export class UI {
           chapter = menuChapter(T.phaseCells[Math.max(0, Math.min(37, f23(rec)))]);
           const scene = document.createElement("div");
           scene.className = "slotscene";
-          scene.textContent = T.sceneNames[Number(rec.vars?.F022) || 0] || "";
+          scene.textContent = sceneName(T.sceneNames[Number(rec.vars?.F022) || 0]) || "";
           r.append(scene);
         } else {
           const [c, rr] = phaseOf(rec.name);
           chapter = chapterNamed(PHASE_NAMES[c][rr]);
         }
-        // Japanese and Chinese: the row's own picture of the chapter (SAVE_PARTS_JA/savetitle, its cell by F023: 0x4f240)
-        const art = ORIG && T ? T.saveTitleCells?.[Math.max(0, Math.min(37, f23(rec)))] : null;
-        if (ORIG && art) { if (art[2] - art[0] > 1) r.append(sprite("SAVE_PARTS_JA", "savetitle", 359, 121, art[2] - art[0], art[3] - art[1], art[0], art[1], "slottitle-art")); }
+        chapter = localizedChapter(chapter);
+        // Japanese and Chinese: the row's own picture of the chapter (SAVE_PARTS_JA/savetitle, its cell by F023: 0x4f240); Russian where its sheet has it
+        const drawn = ORIG || (chapter?.art && has("ui/SAVE_PARTS_JA/savetitle.webp"));
+        const art = drawn && T ? T.saveTitleCells?.[Math.max(0, Math.min(37, f23(rec)))] : null;
+        if (art) { if (art[2] - art[0] > 1) r.append(sprite("SAVE_PARTS_JA", "savetitle", 359, 121, art[2] - art[0], art[3] - art[1], art[0], art[1], "slottitle-art")); }
         else if (chapter) {
           const t = document.createElement("div");
           t.className = "slottitle";
@@ -3241,7 +3252,7 @@ export class UI {
   buildPanel() {
     const E = this.env, vm = this.vm;
     const story = () => vm.running && !vm.choosing;
-    const defs = [
+    const english = [
       // The game's first and fifth buttons (0x4e170 results 3 and 7, run by 0x40ed0): see main.js.
       { id: "prevScene", art: 0, label: "Prev Scene", tip: "Return to Previous Scene", fn: () => E.previousScene(), can: () => !!vm.previousScene(false) },
       { id: "rewind", art: 1, label: "Rewind", tip: "Previous Message", fn: () => E.rewind(false), can: () => vm.canRewind(false) },
@@ -3262,6 +3273,11 @@ export class UI {
       { id: "fullscreen", label: "Full", tip: "Full Screen: ON / OFF", fn: () => E.fullscreen(), on: () => !!document.fullscreenElement },
       { id: "menu", label: "Menu", tip: "System Menu", fn: () => E.menu() },
     ];
+    // (Russian: the buttons' names and captions in its words; the plates themselves are its own art. Its two plates with words on them, Quick Save
+    // and Quick Load, have wider words than the English sheet's, which a plate cut to the bar's width would clip: on the bar those two are lettered
+    // as the plates the game has none for are; on a touch device's panel too, whose plates take only the columns the English words lie in.)
+    const lettered = (d) => PANEL_ART.words.includes(d.art);
+    const defs = RU ? english.map((d) => ({ ...d, label: say(d.label), tip: say(d.tip), art: lettered(d) ? undefined : d.art })) : english;
     // A touch device's control panel (touch.js TOUCH.bar): the same buttons, the game's plates uncut and larger, in three rows
     // of five on the strip made as high, each with its name under it (there is no pointer to rest on a button for a caption).
     const TB = this.touch ? TOUCH.bar : null;
@@ -3277,7 +3293,7 @@ export class UI {
       b.setAttribute("aria-label", d.tip);
       const [bx, by] = TB ? barPlace(i, TB) : [x0 + i * B.pitch, B.y];
       b.style.cssText = `left:${bx}px;top:${by}px;width:${B.w}px;height:${B.h}px;`;
-      if (TB) b.append(Object.assign(document.createElement("div"), { className: "qname", textContent: TOUCH.names[d.id] || d.tip }));
+      if (TB) b.append(Object.assign(document.createElement("div"), { className: "qname", textContent: RU ? say(TOUCH.names[d.id] || d.tip) : TOUCH.names[d.id] || d.tip }));
       // the cell under the cursor again, added, at the arrival flash
       const lit = document.createElement("div");
       lit.className = "sp fx-add";

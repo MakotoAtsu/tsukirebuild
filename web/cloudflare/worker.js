@@ -14,8 +14,8 @@ function getRange(value, size) {
 // tables and the interface art, which do change with the code, keep the short lifetime and so update by themselves.
 // A media file that is ever converted again reaches players who have it within those 30 days, or at once under a new name.
 // The sound packs and their index are named by their content (assets/pack/<kind>-<hash>.pack, index-<hash>.json): kept as long. The one
-// file that names the index in use, assets/pack/index.json, is not. A language's own folder (assets/ja/, assets/zh/) goes by the same rule.
-const MEDIA = /^assets\/((ja|zh)\/)?((voice|img|se|bgm|movie|sys|fonts)\/|pack\/[a-z]+-[0-9a-f]{10}\.)/;
+// file that names the index in use, assets/pack/index.json, is not. A language's own folder (assets/ja/, assets/zh/, assets/ru/) goes by the same rule.
+const MEDIA = /^assets\/((ja|zh|ru)\/)?((voice|img|se|bgm|movie|sys|fonts)\/|pack\/[a-z]+-[0-9a-f]{10}\.)/;
 const MEDIA_CACHE = "public, max-age=2592000, immutable";
 
 export default {

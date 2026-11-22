@@ -13,7 +13,7 @@ import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
 import { welcomeDue, markWelcomed } from "./welcome.js";
 import { openHome, homeDue, showNoGl } from "./home.js";
-import { LANG, ORIG } from "./lang.js";
+import { LANG, ORIG, RU } from "./lang.js";
 import { HOST } from "./apphost.js";
 import { savesReplaced } from "./savefile.js";
 import { Preloader, RANK, movieUrl, fontsFor } from "./preload.js";
@@ -1274,12 +1274,14 @@ async function loadingScreen() {
   const wanted = CANVAS_FONTS.filter((f) => !f.system.some(installedFont)).map((f) => f.backup);
   // Japanese and Chinese: the game's own text face (style.css html.ja, html.zh), fetched before the first line is set so that no letter is drawn in another
   if (ORIG) wanted.push(fontsFor(LANG).story[0]);
+  if (RU) wanted.push('44px "Russian Story"');   // (Russian's story face, style.css html[lang="ru"])
   await Promise.race([Promise.all(wanted.map((f) => document.fonts?.load?.(f)?.catch(() => {}))), new Promise((r) => setTimeout(r, 3000))]);
   // The quick bar's art is made here, on the black before the first screen, so that its first opening looks like every other.
   ui.buildPanel();
   // the System page's words at one size (confart.js), ready before the config is first opened: the translation's art only (the original's pictures keep
   // their words as they were drawn)
-  if (!ORIG) relettered().then((art) => { ui.confArt = art; });
+  // (nor Russian's: its translators drew the config's pictures again, words and all)
+  if (!ORIG && !RU) relettered().then((art) => { ui.confArt = art; });
   await ui.panel.ready;
   const q = new URLSearchParams(location.search);
   const firstVisit = welcomeDue(q);   // (marked as made once the first screens have loaded, below)

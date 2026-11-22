@@ -24,7 +24,7 @@ export function cells(s) {
   let n = 0;
   for (const ch of s.replace(/<([^|>]*)\|[^>]*>/g, "$1")) {
     const c = ch.codePointAt(0);
-    n += c >= 0xE000 || c <= 256 ? 1 : 2;
+    n += c >= 0xE000 || c <= 256 || (c >= 0x400 && c <= 0x52F) ? 1 : 2;   // (Cyrillic: the Russian translation's lines, wrapped the same way)
   }
   return n;
 }

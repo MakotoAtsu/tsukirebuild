@@ -1,15 +1,16 @@
 // sitewords-table.js - the opening page's words in Japanese (SITE_JA), Chinese (SITE_ZH) and Portuguese (SITE_PT), by their English; SAME lists the
 // ones shown as they are in every language (paths, commands, names). sitewords.js looks them up; web-dev/tests/sitewords.test.mjs checks that every
 // string the page can show is in all three or in SAME. Chinese is simplified, as the Chinese patch is; Portuguese is Brazil's, as HanabiWorks' is.
-export const SAME = new Set(["ENGLISH", "web/app", "web/server.py", "web-dev/tools", "web-dev/tests", "web-dev/audit", "web-dev/android", "web-dev/desktop", "github.com/waifwu/TsukiREbuild", "hanabiworks.github.io/tsukihime", "tsukihimates.com", "PORTUGUÊS", "ESPAÑOL", "/?script=00_02", "/?script=89", "/?script=04_00_ARC04_4_1&pc=500", "/?script=04_00_ARC04_3&label=LBL_008", "&mute", "TT_TsukuMin-D", "ja/TT_TsukuMin-D.ttf", "TT_TsukuGo-D", "ja2/TT_TsukuGo-D.ttf", "FOT-SeuratPro-M", "ja3/FOT-SeuratPro-M.otf", "exfont_nx01", "web-dev/tools/dev_server.py", "web-dev/tools/check_assets.py", "Windows", "Android", "Tsukihime-win-x64.zip  ·  2.9 GB", "Tsukihime.apk  ·  2.8 GB", "Chrome", "Edge", "Firefox", "Brave"]);
+export const SAME = new Set(["ENGLISH", "web/app", "web/server.py", "web-dev/tools", "web-dev/tests", "web-dev/audit", "web-dev/android", "web-dev/desktop", "github.com/waifwu/TsukiREbuild", "hanabiworks.github.io/tsukihime", "livingflcl.evanotend.com", "tsukihimates.com", "PORTUGUÊS", "ESPAÑOL", "/?script=00_02", "/?script=89", "/?script=04_00_ARC04_4_1&pc=500", "/?script=04_00_ARC04_3&label=LBL_008", "&mute", "TT_TsukuMin-D", "ja/TT_TsukuMin-D.ttf", "TT_TsukuGo-D", "ja2/TT_TsukuGo-D.ttf", "FOT-SeuratPro-M", "ja3/FOT-SeuratPro-M.otf", "exfont_nx01", "web-dev/tools/dev_server.py", "web-dev/tools/check_assets.py", "Windows", "Android", "Tsukihime-win-x64.zip  ·  2.9 GB", "Tsukihime.apk  ·  2.8 GB", "Chrome", "Edge", "Firefox", "Brave"]);
 export const SITE_JA = {
   "The Tsukihimates fan translation, or Aniplex's official one.": "Tsukihimates のファン翻訳、または Aniplex の公式翻訳。",
   "The original game's text.": "元のゲームのテキスト。",
   "The Chinese fan translation.": "中国語のファン翻訳。",
   "HanabiWorks' Brazilian Portuguese fan translation, finished up to Ciel's day 5: the rest is in English.": "HanabiWorks によるブラジルポルトガル語のファン翻訳（シエルの5日目まで完成：残りは英語）。",
+  "Living FLCL's Russian fan translation, finished for Arcueid's route and for Ciel's up to the day 14 branch: the rest is in English.": "Living FLCL によるロシア語のファン翻訳（アルクェイドルートと、シエルルートの14日目の分岐まで完成：残りは英語）。",
   "Taikutsu Translations' Spanish fan translation is in the works, expected in early 2027.": "Taikutsu Translations によるスペイン語のファン翻訳が制作中で、2027年初めの公開が予定されています。",
   "Saves and progress carry over between languages. L changes it.": "セーブと進行状況は、どの言語でも共通です。L キーでも切り替えられます。",
-  "日本語, 中文 and PORTUGUÊS are downloaded the first time they are chosen.\nSaves and progress carry over between languages. L changes it.": "日本語、中文、PORTUGUÊS は、初めて選んだときにダウンロードされます。\nセーブと進行状況は、どの言語でも共通です。L キーでも切り替えられます。",
+  "日本語, 中文, PORTUGUÊS and РУССКИЙ are downloaded the first time they are chosen.\nSaves and progress carry over between languages. L changes it.": "日本語、中文、PORTUGUÊS、РУССКИЙ は、初めて選んだときにダウンロードされます。\nセーブと進行状況は、どの言語でも共通です。L キーでも切り替えられます。",
   "Tsukihimates (the fan translation) is recommended. Aniplex is the official translation.": "おすすめはファン翻訳の Tsukihimates です。Aniplex は公式の翻訳です。",
   "ABOUT": "概要",
   "Tsukihime remake in a browser": "ブラウザーで遊ぶ月姫リメイク",
@@ -227,6 +228,7 @@ export const SITE_JA = {
   "The game starts in 日本語, the original game's text.": "ゲームは日本語（元のゲームのテキスト）で始まります。",
   "The game starts in 中文, the Chinese fan translation.": "ゲームは中文（中国語のファン翻訳）で始まります。",
   "The game starts in PORTUGUÊS, HanabiWorks' Brazilian Portuguese fan translation.": "ゲームは PORTUGUÊS（HanabiWorks によるブラジルポルトガル語のファン翻訳）で始まります。",
+  "The game starts in РУССКИЙ, Living FLCL's Russian fan translation.": "ゲームは РУССКИЙ（Living FLCL によるロシア語のファン翻訳）で始まります。",
   "LANGUAGE changes it.": "「言語」で変更できます。",
   "EXPORT SAVES": "セーブ書き出し",
   "IMPORT SAVES": "セーブ読み込み",
@@ -237,7 +239,7 @@ export const SITE_JA = {
   "English": "英語",
   "Japanese": "日本語",
   "Chinese": "中国語",
-  "Portuguese": "ポルトガル語",
+  "Portuguese": "ポルトガル語", "Russian": "ロシア語",
   "scenes completed": "クリアしたシーン",
   "songs": "曲",
   "save made here": "ここで作ったセーブ",
@@ -254,15 +256,17 @@ export const SITE_JA = {
   "Translations": "翻訳",
   "The English script comes from the Tsukihimates fan translation patch; the official English, chosen on LANGUAGE, is Aniplex's, from the game's global edition. 中文 is the Chinese fan translation 月姬REMAKE汉化补丁, by Letdo1945.": "英語のスクリプトは、Tsukihimates のファン翻訳パッチによるものです。「言語」で選べる公式の英語は、ゲームのグローバル版に収録された Aniplex のものです。中文は、Letdo1945 による中国語のファン翻訳「月姬REMAKE汉化补丁」です。",
   "PORTUGUÊS is the Brazilian Portuguese fan translation by HanabiWorks. It is finished up to Ciel's day 5, so the rest of the story is in the Tsukihimates English.": "PORTUGUÊS は、HanabiWorks によるブラジルポルトガル語のファン翻訳です。シエルの5日目まで完成しているので、それ以降の物語は Tsukihimates の英語で表示されます。",
+  "РУССКИЙ is the Russian fan translation by Living FLCL, with its own interface art, chapter titles and prologue. It is finished for Arcueid's route and for Ciel's up to the first branch on day 14, so the rest of the story is in the Tsukihimates English.": "РУССКИЙ は、Living FLCL によるロシア語のファン翻訳です。インターフェースの画像、章タイトル、プロローグも独自のものです。アルクェイドルートと、シエルルートの14日目の最初の分岐まで完成しているので、それ以降の物語は Tsukihimates の英語で表示されます。",
 };
 export const SITE_ZH = {
   "The Tsukihimates fan translation, or Aniplex's official one.": "Tsukihimates 的粉丝翻译，或 Aniplex 的官方翻译。",
   "The original game's text.": "原版游戏的文本。",
   "The Chinese fan translation.": "中文粉丝翻译。",
   "HanabiWorks' Brazilian Portuguese fan translation, finished up to Ciel's day 5: the rest is in English.": "HanabiWorks 的巴西葡萄牙语粉丝翻译（已完成至西耶尔第5天：其余为英语）。",
+  "Living FLCL's Russian fan translation, finished for Arcueid's route and for Ciel's up to the day 14 branch: the rest is in English.": "Living FLCL 的俄语粉丝翻译（已完成爱尔奎特线，以及西耶尔线至第14天的分支：其余为英语）。",
   "Taikutsu Translations' Spanish fan translation is in the works, expected in early 2027.": "Taikutsu Translations 的西班牙语粉丝翻译正在制作中，预计 2027 年初发布。",
   "Saves and progress carry over between languages. L changes it.": "存档和进度在各语言之间通用。也可以按 L 切换。",
-  "日本語, 中文 and PORTUGUÊS are downloaded the first time they are chosen.\nSaves and progress carry over between languages. L changes it.": "日本語、中文和 PORTUGUÊS 在第一次选择时下载。\n存档和进度在各语言之间通用。也可以按 L 切换。",
+  "日本語, 中文, PORTUGUÊS and РУССКИЙ are downloaded the first time they are chosen.\nSaves and progress carry over between languages. L changes it.": "日本語、中文、PORTUGUÊS 和 РУССКИЙ 在第一次选择时下载。\n存档和进度在各语言之间通用。也可以按 L 切换。",
   "Tsukihimates (the fan translation) is recommended. Aniplex is the official translation.": "推荐使用粉丝翻译 Tsukihimates。Aniplex 是官方翻译。",
   "ABOUT": "关于",
   "Tsukihime remake in a browser": "在浏览器中运行的月姬重制版",
@@ -480,6 +484,7 @@ export const SITE_ZH = {
   "The game starts in 日本語, the original game's text.": "游戏将以日本語（原版游戏的文本）开始。",
   "The game starts in 中文, the Chinese fan translation.": "游戏将以中文（中文粉丝翻译）开始。",
   "The game starts in PORTUGUÊS, HanabiWorks' Brazilian Portuguese fan translation.": "游戏将以 PORTUGUÊS（HanabiWorks 的巴西葡萄牙语粉丝翻译）开始。",
+  "The game starts in РУССКИЙ, Living FLCL's Russian fan translation.": "游戏将以 РУССКИЙ（Living FLCL 的俄语粉丝翻译）开始。",
   "LANGUAGE changes it.": "可在“语言”中更改。",
   "EXPORT SAVES": "导出存档",
   "IMPORT SAVES": "导入存档",
@@ -490,7 +495,7 @@ export const SITE_ZH = {
   "English": "英语",
   "Japanese": "日语",
   "Chinese": "中文",
-  "Portuguese": "葡萄牙语",
+  "Portuguese": "葡萄牙语", "Russian": "俄语",
   "scenes completed": "已完成的场景",
   "songs": "首歌曲",
   "save made here": "个在这里做的存档",
@@ -507,6 +512,7 @@ export const SITE_ZH = {
   "Translations": "翻译",
   "The English script comes from the Tsukihimates fan translation patch; the official English, chosen on LANGUAGE, is Aniplex's, from the game's global edition. 中文 is the Chinese fan translation 月姬REMAKE汉化补丁, by Letdo1945.": "英文脚本来自 Tsukihimates 的粉丝翻译补丁；在“语言”中可选的官方英文是 Aniplex 的，取自游戏的全球版。中文来自 Letdo1945 的粉丝翻译《月姬REMAKE汉化补丁》。",
   "PORTUGUÊS is the Brazilian Portuguese fan translation by HanabiWorks. It is finished up to Ciel's day 5, so the rest of the story is in the Tsukihimates English.": "PORTUGUÊS 是 HanabiWorks 的巴西葡萄牙语粉丝翻译。已完成至西耶尔第5天，其余剧情为 Tsukihimates 的英文。",
+  "РУССКИЙ is the Russian fan translation by Living FLCL, with its own interface art, chapter titles and prologue. It is finished for Arcueid's route and for Ciel's up to the first branch on day 14, so the rest of the story is in the Tsukihimates English.": "РУССКИЙ 是 Living FLCL 的俄语粉丝翻译，带有它自己的界面图片、章节标题和序章。已完成爱尔奎特线，以及西耶尔线至第14天的第一个分支，其余剧情为 Tsukihimates 的英文。",
 };
 
 export const SITE_PT = {
@@ -514,9 +520,10 @@ export const SITE_PT = {
   "The original game's text.": "O texto do jogo original.",
   "The Chinese fan translation.": "A tradução de fãs para o chinês.",
   "HanabiWorks' Brazilian Portuguese fan translation, finished up to Ciel's day 5: the rest is in English.": "A tradução de fãs da HanabiWorks para o português do Brasil, concluída até o dia 5 da Ciel: o resto fica em inglês.",
+  "Living FLCL's Russian fan translation, finished for Arcueid's route and for Ciel's up to the day 14 branch: the rest is in English.": "A tradução de fãs da Living FLCL para o russo, concluída na rota da Arcueid e, na da Ciel, até a ramificação do dia 14: o resto fica em inglês.",
   "Taikutsu Translations' Spanish fan translation is in the works, expected in early 2027.": "A tradução de fãs da Taikutsu Translations para o espanhol está em andamento, com lançamento previsto para o começo de 2027.",
   "Saves and progress carry over between languages. L changes it.": "Saves e progresso são os mesmos em todos os idiomas. A tecla L troca o idioma.",
-  "日本語, 中文 and PORTUGUÊS are downloaded the first time they are chosen.\nSaves and progress carry over between languages. L changes it.": "日本語, 中文 e PORTUGUÊS são baixados na primeira vez que forem escolhidos.\nSaves e progresso são os mesmos em todos os idiomas. A tecla L troca o idioma.",
+  "日本語, 中文, PORTUGUÊS and РУССКИЙ are downloaded the first time they are chosen.\nSaves and progress carry over between languages. L changes it.": "日本語, 中文, PORTUGUÊS e РУССКИЙ são baixados na primeira vez que forem escolhidos.\nSaves e progresso são os mesmos em todos os idiomas. A tecla L troca o idioma.",
   "Tsukihimates (the fan translation) is recommended. Aniplex is the official translation.": "Recomendamos a Tsukihimates (a tradução de fãs). A Aniplex é a tradução oficial.",
   "ABOUT": "SOBRE",
   "Tsukihime remake in a browser": "O remake de Tsukihime no navegador",
@@ -734,6 +741,7 @@ export const SITE_PT = {
   "The game starts in 日本語, the original game's text.": "O jogo começa em 日本語, o texto do jogo original.",
   "The game starts in 中文, the Chinese fan translation.": "O jogo começa em 中文, a tradução de fãs para o chinês.",
   "The game starts in PORTUGUÊS, HanabiWorks' Brazilian Portuguese fan translation.": "O jogo começa em PORTUGUÊS, a tradução de fãs da HanabiWorks para o português do Brasil.",
+  "The game starts in РУССКИЙ, Living FLCL's Russian fan translation.": "O jogo começa em РУССКИЙ, a tradução de fãs da Living FLCL para o russo.",
   "LANGUAGE changes it.": "Dá para trocar em IDIOMA.",
   "EXPORT SAVES": "EXPORTAR SAVES",
   "IMPORT SAVES": "IMPORTAR SAVES",
@@ -744,7 +752,7 @@ export const SITE_PT = {
   "English": "inglês",
   "Japanese": "japonês",
   "Chinese": "chinês",
-  "Portuguese": "português",
+  "Portuguese": "português", "Russian": "russo",
   "scenes completed": "cenas concluídas",
   "songs": "músicas",
   "save made here": "save feito aqui",
@@ -761,6 +769,7 @@ export const SITE_PT = {
   "Translations": "Traduções",
   "The English script comes from the Tsukihimates fan translation patch; the official English, chosen on LANGUAGE, is Aniplex's, from the game's global edition. 中文 is the Chinese fan translation 月姬REMAKE汉化补丁, by Letdo1945.": "O roteiro em inglês vem do patch de tradução de fãs da Tsukihimates; o inglês oficial, que se escolhe em IDIOMA, é o da Aniplex, da edição global do jogo. 中文 é a tradução de fãs para o chinês 月姬REMAKE汉化补丁, de Letdo1945.",
   "PORTUGUÊS is the Brazilian Portuguese fan translation by HanabiWorks. It is finished up to Ciel's day 5, so the rest of the story is in the Tsukihimates English.": "PORTUGUÊS é a tradução de fãs para o português do Brasil feita pela HanabiWorks. Ela está concluída até o dia 5 da Ciel, então o resto da história fica no inglês da Tsukihimates.",
+  "РУССКИЙ is the Russian fan translation by Living FLCL, with its own interface art, chapter titles and prologue. It is finished for Arcueid's route and for Ciel's up to the first branch on day 14, so the rest of the story is in the Tsukihimates English.": "РУССКИЙ é a tradução de fãs para o russo feita pela Living FLCL, com sua própria arte de interface, títulos de capítulo e prólogo. Ela está concluída na rota da Arcueid e, na da Ciel, até a primeira ramificação do dia 14, então o resto da história fica no inglês da Tsukihimates.",
 };
 // Words made of parts: [the English's shape, its words in the language (m: the match, t: tr in that language)]. Tried in order.
 const LIST_JA = { "in the list": "一覧", automatic: "自動", quick: "クイック" }, LIST_ZH = { "in the list": "列表", automatic: "自动", quick: "快速" };

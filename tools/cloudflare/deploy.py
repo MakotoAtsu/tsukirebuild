@@ -61,7 +61,7 @@ CONTENT_TYPES = {
 # picture, face and movie of a Japanese or Chinese visit asked about again). Everything else, the app included, is kept 5 minutes so
 # that a deployment reaches players by itself; the versioned copy of the app (VERSIONED) is kept 30 days, since a new version is a
 # new folder. A file kept 30 days that is ever made again needs a new address (web/app/js/lang.js REVISED).
-# (the languages with pictures, movies and faces of their own: app_manifest.PACKED; Portuguese has only its lines)
+# (the languages with pictures, movies and faces of their own: app_manifest.PACKED, Japanese, Chinese and Russian; Portuguese has only its lines)
 MEDIA = re.compile(r"^(assets/((%s)/)?((voice|img|se|bgm|movie|sys|fonts)/|pack/[a-z]+-[0-9a-f]{10}\.)|v/[0-9a-f]{12}/)" % "|".join(app_manifest.PACKED))
 
 

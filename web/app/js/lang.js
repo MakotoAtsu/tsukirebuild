@@ -18,6 +18,11 @@
 // two as it stands (scriptsOf). Its folder is fetched only by those who play it: on the site once it is the language, in the apps when it is first
 // chosen (update.js LANG_DIRS). A device in Portuguese starts in it (deviceLang), and the opening page's own words are in Portuguese too (SITE_PT).
 //
+// Russian is Living FLCL's fan translation (web-dev/tools/build_ru.py, from their patch for the port's Windows app): of the English's kind too, but with
+// scripts of its own where its sentences are split otherwise than the English ones (ru/scripts: a save is carried between the two by its line, as
+// between English and Japanese), its own interface art, chapter titles and prologue, and a face of its own for the story (style.css html[lang="ru"]).
+// It is unfinished: the scenes it has not (Ciel's day 14 after the branch, day 15, the Q&A corners) are the English ones, script and lines.
+//
 // The language is chosen on the opening page (home.js, LANGUAGE) and kept in this browser; until one is chosen it is the device's (deviceLang: the
 // browser's own list of languages), English where that is none of the three. It is read once, as the page loads: every table is fetched in that language
 // from the start, so changing it loads the page again. `?lang=ja` (or en) in the address chooses it for that visit. The opening page is in the same
@@ -58,6 +63,7 @@ export const LANG = langOf(globalThis.location?.search || "");
 export const JA = LANG === "ja";
 export const ZH = LANG === "zh";
 export const PT = LANG === "pt";
+export const RU = LANG === "ru";
 export const ORIG = isOriginal(LANG);   // (Japanese and Chinese)
 // The scripts a language plays (the table's `scripts`): Portuguese's are the English ones (its folder has only lines), so a record made in one of the two
 // stands at the same command in the other and is not carried (vm.js restore).
@@ -232,6 +238,10 @@ export const langReady = (async () => {
     // html.ja: the original's way of setting text (style.css), in both; html.zh: Chinese's faces over it
     document.documentElement.classList.add("ja");
     if (ZH) document.documentElement.classList.add("zh");
+    localizeStyles();
+  }
+  if (RU && typeof document !== "undefined") {
+    // Russian's own interface art where the style sheets name the shared one (its story face: style.css html[lang="ru"], fetched in main.js)
     localizeStyles();
   }
 })();

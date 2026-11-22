@@ -19,6 +19,7 @@
 //   start     PLAY's line when the game starts in it
 //   layers    the folders laid over the shared files, lowest first (lang.js LAYERS); none for English
 //   scripts   whose scripts it plays: "en" for text laid over the English (a save goes between the two as it stands, vm.js restore), else its own
+//             (Russian's: the English ones but for the scripts under ru/scripts, vm.js scriptIn)
 //   html      the page's lang attribute
 //   original  set as the original game sets its text (Japanese, and Chinese over it: style.css html.ja)
 //   device    a device in this language starts in it (lang.js deviceLang)
@@ -40,6 +41,10 @@ export const LANGUAGE_TABLE = /* languages: */ [
     "row": "HanabiWorks' Brazilian Portuguese fan translation, finished up to Ciel's day 5: the rest is in English.",
     "start": "The game starts in PORTUGUÊS, HanabiWorks' Brazilian Portuguese fan translation.", "layers": ["pt"], "scripts": "en", "html": "pt-BR",
     "device": true, "download": true },
+  { "code": "ru", "plate": "РУССКИЙ", "name": "Russian",
+    "row": "Living FLCL's Russian fan translation, finished for Arcueid's route and for Ciel's up to the day 14 branch: the rest is in English.",
+    "start": "The game starts in РУССКИЙ, Living FLCL's Russian fan translation.", "layers": ["ru"], "scripts": "ru", "html": "ru",
+    "device": true, "download": true, "packs": true },
   { "code": "es", "plate": "ESPAÑOL", "row": "Taikutsu Translations' Spanish fan translation is in the works, expected in early 2027.", "coming": true }
 ] /* :languages */;
 // (ESPAÑOL: the user, 2026-11-17, "mention Spanish ... expected to release by early 2027"; no link on LANGUAGE: "too big link")
@@ -66,7 +71,7 @@ export const namesOf = (table = LANGUAGE_TABLE) => Object.fromEntries(playable(t
 export const platesOf = (table = LANGUAGE_TABLE) => playable(table).map((r) => ({ lang: r.code, plate: r.plate }));
 export const rowsOf = (table = LANGUAGE_TABLE) => table.map((r) => [r.plate, r.row]);
 export const startLinesOf = (table = LANGUAGE_TABLE) => Object.fromEntries(playable(table).map((r) => [r.code, r.start]));
-// "日本語, 中文 and PORTUGUÊS are downloaded the first time they are chosen." (null where none is)
+// "日本語, 中文, PORTUGUÊS and РУССКИЙ are downloaded the first time they are chosen." (null where none is)
 export function downloadNoteOf(table = LANGUAGE_TABLE) {
   const p = playable(table).filter((r) => r.download).map((r) => r.plate);
   if (!p.length) return null;

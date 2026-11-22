@@ -502,3 +502,21 @@ html.ja .confsample { font-family: var(--ja-font); }
 html.zh { --ja-font: "TsukuMinZh", "TsukuGoZh", "PingFang SC", "Microsoft YaHei", "Noto Serif SC", serif;
   --flow-font: Helvetica, Arial, "Arimo Bundled", "TsukuGoZh", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; --gallery-font: Inter, "TsukuGoZh", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; }
 html.zh #text.balloon { font-family: "SeuratProZh", var(--ja-font); }
+
+/* ---- Russian (lang.js: html[lang="ru"], Living FLCL's translation) --------------------------------------------------------------------------------------
+   The story's lines are set as the translators' patch sets them: a humanist sans at 44px with a black outline in place of the shadow. Their patch's own
+   face is Microsoft's Calibri cut down to its Cyrillic; this is Carlito, the free face made to Calibri's widths, cut down under a name of its own (web-dev/tools/build_ru.py: SIL OFL 1.1, web/app/fonts/Carlito-OFL.txt),
+   with the Latin the English scenes need (the translation is unfinished, and those scenes play in English, in the same lettering). The Q&A corners'
+   balloons are among them and keep the game's balloon face. The page's own words keep theirs. */
+@font-face { font-family: "Russian Story"; src: url("/assets/ru/fonts/Russian-Story.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+html[lang="ru"] { --ru-font: "Russian Story", "Arimo Bundled", "Segoe UI", sans-serif; }
+html[lang="ru"] :is(#text:not(.balloon), .logpage, .choice) { font-family: var(--ru-font); font-size: 44px; font-kerning: normal; letter-spacing: 0.15px; paint-order: stroke fill; -webkit-text-stroke: 3.6px #000; }
+html[lang="ru"] :is(#text:not(.balloon), .logpage) { text-shadow: none; }
+html[lang="ru"] :is(#text:not(.balloon), .logpage) :is(.edge6, .edge7, .edge8, .edge9) { -webkit-text-stroke-color: var(--edge); text-shadow: none; }
+html[lang="ru"] :is(#text:not(.balloon), .logpage) :is(.glyph, .blockrun, .dashrun) { -webkit-text-stroke-width: 0; }
+html[lang="ru"] .confsample { font-family: var(--ru-font); }
+html[lang="ru"] .helpbar { gap: 24px; }
+/* The Russian logo keeps the game's canvas (560 x 648) with its lettering in the lower part only (from 337 down: the large calligraphy over it is
+   gone), so the opening page shows that part and not the empty half above it. */
+html[lang="ru"] .wl-logo { height: 187px; background-size: 336px 389px; background-position: 0 100%; }
+html[lang="ru"] .rt-logo { top: 200px; height: 233px; background-size: 420px 486px; background-position: 0 100%; }   /* (the phone's rotate screen, touch.css) */
