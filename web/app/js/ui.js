@@ -13,6 +13,7 @@ import { chapterNamed, localizedChapter, menuChapter, sceneName } from "./chapte
 import { TOUCH, TOUCH_CONTROLS, TOUCH_HINTS, barPlace } from "./touch.js";
 import { JA, ZH, PT, RU, ORIG, LANG, asset, has } from "./lang.js";
 import { say } from "./words.js";
+import { KeptArt } from "./kept.js";
 const PHASES = {
   // script prefix -> [column, row] in system_phasetitle_ja. The route of each is inferred from the script names.
   "00": [2, 7], "01": [0, 1], "02": [0, 2], "03": [0, 3], "04": [0, 4], "05_00": [2, 8], "05_01": [0, 5],
@@ -43,6 +44,13 @@ export function sprite(pack, name, x, y, w, h, sx = 0, sy = 0, cls = "") {
   d.className = `sp ${cls}`;
   d.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;background-image:url("${url(pack, name)}");background-position:${-sx}px ${-sy}px;`;
   return d;
+}
+
+// The system menu's large pictures (kept.js): in the Android app a canvas the page keeps drawn, once it has been read; else, and everywhere else, the
+// picture as a sprite of its own size w x h from the sheet's corner, as before.
+export const kept = new KeptArt({ url: (p) => asset(`/assets/ui/${p}.webp`) });
+function picture(pack, name, x, y, w, h, cls = "") {
+  return kept.take(`${pack}/${name}`, x, y, cls) || sprite(pack, name, x, y, w, h, 0, 0, cls);
 }
 
 // A button with normal, hover and pressed art side by side in the atlas.
@@ -1187,8 +1195,8 @@ export class UI {
   // Config and Load run without them (0x8e200 calls the config's 0x2b460 / 0x2c810 and the save screen itself). Without
   // the exported tables, the chapter by the script's name.
   header(page) {
-    page.append(sprite("MENU_PARTS_JA", "system_titlebg", 0, 0, 1920, 392));
-    page.append(sprite("MENU_PARTS_JA", "system_scenebg", 752, 0, 1168, 80));
+    page.append(picture("MENU_PARTS_JA", "system_titlebg", 0, 0, 1920, 392));
+    page.append(picture("MENU_PARTS_JA", "system_scenebg", 752, 0, 1168, 80));
     page.append(sprite("MENU_PARTS_JA", "underline", MENU_COLUMN.underline[0], MENU_COLUMN.underline[1], 1920, 16));
     const T = this.vm.system?.saves;
     const story = this.vm.running || this.vm.restoring;
@@ -1298,7 +1306,7 @@ export class UI {
   column(page, active) {
     const M = MENU_COLUMN;
     const gap = this.touch ? TOUCH.columnStep - M.step : 0;   // a touch device: the same rows, further apart
-    page.append(sprite("MENU_PARTS_JA", "menu_window", M.window[0], M.window[1], 312, 1080));
+    page.append(picture("MENU_PARTS_JA", "menu_window", M.window[0], M.window[1], 312, 1080));
     // The cursor (native 0x4c370): systemcursor_line's strip (16, 8)-(344, 32), drawn after the buttons, added,
     // anchored at its top centre (flags 0x11) at (66, 56.41 + 31.11 r) of 640 x 448, so its bright row lies along the
     // label's baseline (the strip runs past the 224-px picture; that part is empty); systemcursor_light from its top
@@ -1404,11 +1412,11 @@ export class UI {
   menuBackground(page, { settled = false, fade = null } = {}) {
     const bg = document.createElement("div");
     bg.className = "menubg";
-    const base = sprite("DISP_PARTS_JA", "menuBG01_upscale", 0, 0, 1920, 1080);
+    const base = picture("DISP_PARTS_JA", "menuBG01_upscale", 0, 0, 1920, 1080);
     bg.append(base);
     const bands = MENU_BANDS.map((band) => {
       const [name] = band;
-      const el = sprite("DISP_PARTS_JA", name, 0, 0, 0, 0);
+      const el = picture("DISP_PARTS_JA", name, 0, 0, 0, 0);
       el.dataset.name = name;
       bg.append(el);
       return { band, el };

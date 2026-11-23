@@ -6,7 +6,7 @@ import { Renderer } from "./renderer.js";
 import { Audio } from "./audio.js";
 import { TextBox } from "./textbox.js";
 import { VM, markSaved } from "./vm.js";
-import { QUICK_BAR, UI } from "./ui.js";
+import { QUICK_BAR, UI, kept as menuPictures } from "./ui.js";
 import { KeyMap, keyName } from "./keys.js";
 import { GamepadDriver } from "./gamepad.js";
 import { advanceRandom, textShakePixels } from "./effects.js";
@@ -1035,6 +1035,14 @@ function systemMenu(row = null) {
   setSkip(false);
   ui.system(row === null ? {} : { open: row });
 }
+// The Android app: the system menu's large pictures kept drawn by the page (ui.js picture, kept.js), read once what the story's first screens use is
+// in (or after 20 s regardless). Until then the menu draws them as before. Elsewhere nothing.
+function holdMenuPictures() {
+  if (!menuPictures.on) return;
+  let waited = 0;
+  const look = () => { if (preload.settled(RANK.story) || (waited += 500) > 20000) menuPictures.hold(); else setTimeout(look, 500); };
+  look();
+}
 const choosing = () => $("choices").style.display === "block";
 // The text and its window out of the way, to look at the picture; any click or key brings them back.
 function hideText() {
@@ -1287,6 +1295,7 @@ async function loadingScreen() {
   window.preload = preload;
   // The opening page (home.js): About, GitHub, the downloads, and PLAY ONLINE, whose press is the click the browser wants before it will play sound.
   if (homeDue(q)) await openHome(ui, { started: gameStarted });
+  holdMenuPictures();
   homeUp = false;
   touch.reorient?.();   // the game's own stage again, and in portrait the rotate screen
   fitStage();

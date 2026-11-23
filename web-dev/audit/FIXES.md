@@ -2184,3 +2184,49 @@ blurs of 4 to 8, both of which change the blurred pixels; a size cap by each pic
 the same four free parts on Android. Frames after the corrections: 5 points entered and 3 stops played in, all the same as the build before.
 The build as it stands (the four parts, the limit at 400, the review's corrections), one run at each pace: fast forward 1,290 MB median,
 peak 1,721; reading pace 1,102, peak 1,544, the story's waits 21 (2.4 s, longest 0.31 s); two frames checked again, the same.
+
+**Measured and not built, 2026-11-22: only the playing music track and one more kept decoded** (the user: "do this", of the review's proposal).
+The rule was applied in the page (`audio.trim` wrapped) on the build as pushed, in the same Mac window, 焦躁:
+
+| | fast forward: page median | peak | reading pace: page median | peak | sounds held (median) | music starts late |
+|---|---|---|---|---|---|---|
+| without | 1,230 - 1,290 | 1,607 - 1,721 | 1,078 - 1,102 | 1,544 - 1,550 | 203 / 185 MB | 1 of 6 (0.84 s) / 0 of 3 |
+| with | 1,211 - 1,297 | 1,648 - 1,660 | 1,049 | 1,557 | 163 - 199 / 141 MB | 0 of 6 / 0 of 3 |
+
+Nothing outside the runs' own spread. The replay of all 549 scripts says why (with the replaced track counted as no longer playing once it
+has faded, as in the game): the cache as it is already lets idle music go first, being the sounds used longest ago, and holds 104 MB of music
+on average (one track and a third); the rule makes that 96 (peak 229 -> 203), for 26 music starts not decoded in time instead of 24 of 615 and
+811 music decodes instead of 789. What it frees, other sounds take: the cache fills to its 256 MB either way. The earlier guess of "100 MB or
+more" was wrong. No code was changed.
+
+## The Android app keeps the system menu's large pictures drawn, 2026-11-23
+
+**Report** (an AYN Odin 2 Portal player, relayed by the user): in the Android app the system menu opens late and stutters every time, by the
+pad's left face button and by a press held on the screen alike, from the opening scene on; Chrome on the same device is smooth.
+
+**Measured** on the Pixel_10_Pro emulator (Android 17, WebView 157, Chrome 158, the same files served to both; scripts in
+`local-tools/webview-menu-trace`, outside the repository):
+- The app's `LOAD_NO_CACHE` and `Cache-Control: no-cache` are not the cause (a proposal from another tool): opening the menu again asks the app
+  for none of its pictures (a log line in `shouldInterceptRequest`), because `preload.js art()` keeps an `Image` of each for the whole sitting.
+- The WebView lets go of the decoded pictures 20 to 30 s after the menu closes: opened again after 5, 12 or 20 s nothing is decoded, after 30 or
+  90 s all 19 (283 - 494 ms of decoding there, on one thread, at about half the Odin's size). Chrome on the same emulator still had them after 30 s.
+  Going to the background frees them in both. Asking for `img.decode()` every 10 s does not keep them (each call decodes again, and the opening
+  still decodes).
+- Not explained by this: a menu opened again within seconds (the emulator draws in software, so its frame times, 0.3 - 0.8 s stalls on every
+  opening in both builds, say nothing about a device).
+
+**Change** (`kept.js`, `ui.js picture`, `main.js holdMenuPictures`): in the Android app only, the menu's pictures shown whole and never shifted,
+the sky and its eight bands (`menuBackground`, also the gallery's), `system_titlebg`, `system_scenebg` and `menu_window`, are read once the story's
+first screens are in, decoded away from the page's thread (`createImageBitmap`) and drawn into canvases the page keeps; the menu puts the same
+canvas back at each opening (a copy where one is still on the page). Until they are in, or where one will not come, the sprite is made as before.
+A lost GPU context redraws them. The site, the desktop app and iPhones are unchanged. About 27 MB of canvases held in the app.
+
+**Checked:** in the app on the emulator, the menu opened 40 s after it closed decodes 7 small pictures (12 - 24 ms) instead of 19 (283 - 494 ms);
+the GPU thread's time is the same. Against the CSS sprites, in headless Chromium (`pixeldiff.mjs`; CSS against CSS: 0 pixels differ): at 1920 x
+1080 and 2560 x 1440, 41 - 47 % of pixels differ by 1 - 4 levels of 255 (the canvases blended as layers of their own); at 1280 x 720, 15 pixels
+by 9 - 11. With them on, the menu after Save, Load and Config and back is the same to the pixel as its first opening, in the mouse layout and
+the touch layout (`walkdiff.mjs`; one canvas a picture, no copies; the flowchart does not open from the menu in that headless page, with or
+without the change, so it was not walked; nor were Return to Title and the gallery). In the app on the emulator, sent home with
+`am send-trim-memory COMPLETE` and brought back, the menu showed all its pictures (no context was lost there, so the redraw after a lost
+context is checked by the unit test only). `kept.test.mjs`; `node --test web-dev/tests/*.test.mjs` 789 passed, 3 skipped. Not run on an Odin
+or any real device.
