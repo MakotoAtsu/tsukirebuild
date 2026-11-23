@@ -760,6 +760,10 @@ export class Renderer {
     this.targetUsed?.clear();
     // (the loads begun in the old context see this and make nothing: load)
     const gen = (this.gen = (this.gen || 0) + 1);
+    // (and those that stood waiting for this context go on: back)
+    const told = this.backDone;
+    this.backWait = this.backDone = null;
+    told?.();
     for (const [key, e] of [...this.tex]) {
       e.tex = null;
       e.extra = 0;
@@ -768,7 +772,9 @@ export class Renderer {
       e.promise = (async () => {
         const blob = await this.file(key), done = await this.turn(key, false);
         try {
-          if (!mine() || (await this.upload(e, blob, key, mine)) === false) return this.tex.get(key) === e && this.gen !== gen ? e.promise : e;
+          if (!(await this.uploadOrWait(e, blob, key, mine))) return this.tex.get(key) === e && this.gen !== gen ? e.promise : e;
+          // (a picture whose first load the loss cut short never had its size: it would be drawn 0 wide)
+          if (e.nw === undefined) this.sized(e, key);
           this.bytes += e.w * e.h * 4;
         } finally { done(); }
         return e;
@@ -778,6 +784,30 @@ export class Renderer {
     }
     // a menu open meanwhile froze the frame as it was while they came back: frozen again once they are all there
     return Promise.allSettled(back).then(() => { if (this.menu) this.menu.ready = false; });
+  }
+
+  // Resolves when a lost context has been made again (restore has begun, and has taken over the entries layers hold).
+  back() { return (this.backWait ||= new Promise((res) => { this.backDone = res; })); }
+
+  // An entry's texture made from its file, for load and restore. True when this call made it; false when it is no longer this call's
+  // to make (mine) or the context is lost: lost before the upload or during it, the call waits for the context to be made again and
+  // makes nothing, restore taking the entry over with a load of its own if a layer holds it. A loss used to fail the load ("no room
+  // for image"), which dropped the entry before restore could see it, and the layer that asked stayed without its picture.
+  async uploadOrWait(e, blob, key, mine) {
+    if (this.gl.isContextLost()) { await this.back(); return false; }
+    try { return mine() && (await this.upload(e, blob, key, mine)) !== false; }
+    catch (err) {
+      if (!this.gl.isContextLost()) throw err;
+      await this.back();
+      return false;
+    }
+  }
+
+  // A picture's size as the game lays it out: the image table's, else its texture's own.
+  sized(e, key) {
+    const info = this.images ? this.images[key] : null;
+    e.nw = info ? info[0] : e.w;
+    e.nh = info ? info[1] : e.h;
   }
 
   // The pictures layers hold (on screen, staged, left behind by a commit: vm.js inUse) and the rule picture a transition goes through.
@@ -886,10 +916,8 @@ export class Renderer {
     e.promise = (async () => {
       const blob = await this.file(key), done = await this.turn(key, e.ahead);
       try {
-        if (!mine() || (await this.upload(e, blob, key, mine)) === false) return (this.gen || 0) !== gen && this.tex.get(key) === e ? e.promise : e;
-        const info = this.images ? this.images[key] : null;
-        e.nw = info ? info[0] : e.w;
-        e.nh = info ? info[1] : e.h;
+        if (!(await this.uploadOrWait(e, blob, key, mine))) return (this.gen || 0) !== gen && this.tex.get(key) === e ? e.promise : e;
+        this.sized(e, key);
         this.bytes += e.w * e.h * 4;
       } finally { done(); }
       this.evict();

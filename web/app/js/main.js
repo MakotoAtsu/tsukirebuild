@@ -949,6 +949,9 @@ let hasQuick = false;
 try { hasQuick = !!localStorage.getItem(QUICK); } catch { /* none */ }
 
 function rewind(toChoice) {
+  // Not under a movie: the story would go back to the point before it with the movie still up, every press then the movie's
+  // (passMovie), and the point's music over the movie's sound. (The quick bar does not come down there either: canPanel.)
+  if (moviesDone) return;
   if (vm.locked || !vm.canRewind(toChoice)) return;
   audio.start();
   setSkip(false);
@@ -1123,7 +1126,7 @@ stage.addEventListener("wheel", (e) => {
   const up = wheelSum < 0;
   wheelSum = 0;
   wheelUsed = true;
-  if (up) ui.backlog();
+  if (up) { if (!moviesDone) ui.backlog(); }   // (no log over a movie, as its key has it: its Quick Jump would leave the movie up over the story)
   else if (!moviesDone && !showText()) vm.press();
 }, { passive: true });
 
@@ -1223,7 +1226,7 @@ function pollGamepads(now) {
 }
 
 // What a finger does on the story's screen goes through the same actions (touch.js).
-touch.bind({ ui, vm, audio, act: { fast: fastForwardKey, log: () => ui.backlog(), hide: hideText, choosing, movie: () => !!moviesDone, refit: fitStage } });
+touch.bind({ ui, vm, audio, act: { fast: fastForwardKey, log: () => { if (!moviesDone) ui.backlog(); }, hide: hideText, choosing, movie: () => !!moviesDone, refit: fitStage } });
 
 // After START on the first page: the game's own "Loading" window, with how far along it is, until what the next screen and the story's first
 // screen use has been read (preload.js: the start-up list's first two ranks, which have the first voices, sounds and pictures) and the movie

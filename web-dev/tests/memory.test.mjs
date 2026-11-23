@@ -299,6 +299,67 @@ test("a context lost while pictures wait their turn: those loads make no texture
   assert.ok(upload.lastIndexOf("await ") < upload.indexOf("if (alive && !alive())"), "no wait after it");
 });
 
+// Reported 2026-11-23 and reproduced with these stand-ins: around a lost context a layer could be left without its picture.
+const lostSetup = (r) => Object.assign(r, { setup() {}, invalidate() {}, menu: null, groupState: { first: true }, windowReady: false, targetUsed: new Map(), inUse: () => [{ image: "held" }] });
+
+test("a picture whose first load a lost context cut short has its size once restore has made it again", async () => {
+  const { r, finish } = painter({ sizes: { HELD: 60 } });
+  lostSetup(r);
+  const held = r.load("HELD");
+  await tick();
+  const entry = r.tex.get("HELD");
+  const back = r.restore();    // lost and made again while HELD is being decoded: the old load stops before it has set the size
+  await finish("HELD"); await tick(); await finish("HELD"); await back;
+  assert.equal(await held, entry);
+  assert.ok(entry.tex);
+  assert.deepEqual([entry.nw, entry.nh], [r.images.HELD[0], r.images.HELD[1]], "without its size it was drawn nothing wide (drawLayer: src.nw * F)");
+});
+
+test("a load that reaches its upload while the context is lost waits for the new one, where restore makes a layer's picture", async () => {
+  const { r, finish, decoding } = painter({ sizes: { HELD: 60, AHEAD: 60 } });
+  lostSetup(r);
+  let lost = true;
+  r.gl.isContextLost = () => lost;
+  const held = r.load("HELD"), ahead = r.load("AHEAD", true);
+  await tick();
+  assert.deepEqual(decoding(), [], "nothing is uploaded into a lost context");
+  assert.ok(r.tex.has("HELD"), "the entry stays for restore to find: failing the load dropped it, and nothing asked for the picture again");
+  lost = false;
+  const back = r.restore();
+  assert.equal(r.tex.has("AHEAD"), false, "no layer holds it: let go");
+  await tick();
+  assert.deepEqual(decoding(), ["HELD"], "made by restore, once");
+  await finish("HELD"); await back;
+  const e = await held;
+  assert.ok(e.tex, "whoever waited on the load gets the picture");
+  assert.deepEqual([e.nw, e.nh], [r.images.HELD[0], r.images.HELD[1]]);
+  assert.equal((await ahead).tex, null);
+  assert.equal(r.bytes, 60 * MB, "counted once");
+  assert.equal(r.decoding, 0);
+  assert.equal(r.waiting.length, 0, "the turn it held while it waited is given up");
+});
+
+test("an upload that fails because the context went under it is the loss's failure, not the picture's; any other failure is still the load's", async () => {
+  const { r, finish } = painter({ sizes: { HELD: 60, OTHER: 60 } });
+  lostSetup(r);
+  let lost = false;
+  r.gl.isContextLost = () => lost;
+  const held = r.load("HELD");
+  await tick();
+  lost = true;
+  await finish("HELD", true);   // (upload throws "no room for image" when the context is lost)
+  assert.ok(r.tex.has("HELD"));
+  lost = false;
+  const back = r.restore();
+  await tick(); await finish("HELD"); await back;
+  assert.ok((await held).tex);
+  const other = r.load("OTHER");
+  await tick();
+  await finish("OTHER", true);
+  await assert.rejects(other);
+  assert.equal(r.tex.has("OTHER"), false);
+});
+
 test("without the queue (every other device) every picture is decoded as it is asked for, and room is made afterwards, as before", async () => {
   const { r, log, finish, decoding } = painter({ queue: false, sizes: { A: 105, B: 105, C: 105 } });
   r.load("A", true); r.load("B", true); r.load("C");

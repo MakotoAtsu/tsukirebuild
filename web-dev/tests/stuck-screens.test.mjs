@@ -88,3 +88,16 @@ test("a press starts the sound again in a new context when the old one was close
   assert.equal(asked, 2);
   assert.equal(b.ctx, ctx);
 });
+
+test("under a movie the story is not rewound and the log does not open, by key, wheel or finger", () => {
+  // Previous message during a story movie put the story back at the point before it with the movie still up: every press was then the
+  // movie's, and a first showing that cannot be passed ran to its end over the restored point. The log's Quick Jump led to the same.
+  const main = readFileSync(new URL("../../web/app/js/main.js", import.meta.url), "utf8");
+  assert.match(main, /function rewind\(toChoice\) \{\n(\s+\/\/[^\n]*\n)*\s+if \(moviesDone\) return;\n\s+if \(vm\.locked \|\| !vm\.canRewind\(toChoice\)\) return;/);
+  assert.match(main, /case "log": if \(vm\.running && !choosing\(\) && !moviesDone\) ui\.backlog\(\); return true;/);
+  assert.match(main, /if \(up\) \{ if \(!moviesDone\) ui\.backlog\(\); \}/);
+  assert.match(main, /log: \(\) => \{ if \(!moviesDone\) ui\.backlog\(\); \}, hide: hideText/);
+  // every way to the log from the story goes through one of these (the quick bar's does not come down under a movie: canPanel)
+  assert.equal([...main.matchAll(/ui\.backlog\(\)/g)].length, 4);
+  assert.match(main, /canPanel: \(\) => \(vm\.running \|\| vm\.restoring\) && \(!ui\.open \|\| \(ui\.screen === "dialog" && ui\.panelOpen\)\) && !moviesDone && !vm\.locked,/);
+});
