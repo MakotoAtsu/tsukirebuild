@@ -1613,7 +1613,8 @@ export class VM {
     this.cancelAuto();
     const res = this.waitResolve;
     if (!this.auto || !res || this.paused) return;
-    const whole = this.pageEnd ? this.autoPage || 3000 : this.autoClick || 2200;
+    // (0 is the sliders' fastest end, the game going on at once: only a wait never set takes the game's own)
+    const whole = this.pageEnd ? this.autoPage ?? 3000 : this.autoClick ?? 2200;
     const now = this.autoNow();
     const ms = left ?? Math.max(0, whole - Math.max(0, now - (this.autoSince ?? now)));
     this.autoUntil = now + ms;

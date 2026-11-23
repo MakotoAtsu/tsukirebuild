@@ -101,3 +101,31 @@ test("under a movie the story is not rewound and the log does not open, by key, 
   assert.equal([...main.matchAll(/ui\.backlog\(\)/g)].length, 4);
   assert.match(main, /canPanel: \(\) => \(vm\.running \|\| vm\.restoring\) && \(!ui\.open \|\| \(ui\.screen === "dialog" && ui\.panelOpen\)\) && !moviesDone && !vm\.locked,/);
 });
+
+test("auto mode's wait of 0, the sliders' fastest end, is 0 and not the game's default", async () => {
+  // Reported 2026-11-23: `autoPage || 3000` took 0 for "not set", so the fastest setting waited 3 s a page and 2.2 s a line.
+  globalThis.localStorage ||= { store: {}, getItem(k) { return this.store[k] ?? null; }, setItem(k, v) { this.store[k] = String(v); }, removeItem(k) { delete this.store[k]; } };
+  const { VM } = await import("../../web/app/js/vm.js");
+  const arm = (over) => {
+    const vm = Object.assign(Object.create(VM.prototype, { paused: { value: false, writable: true } }), {   // (paused is a setter of the VM's)
+      auto: true, waitResolve: () => {}, pageEnd: false, autoPage: 3000, autoClick: 2200, autoSince: null, frameTimed: false,
+      framePolls: new Set(), autoTimer: null, autoPoll: null, audio: { voiceDone: async () => {} }, autoNow: () => 1000, cancelAuto() { clearTimeout(this.autoTimer); }, ...over,
+    });
+    vm.armAuto();
+    clearTimeout(vm.autoTimer);
+    return vm.autoUntil - 1000;
+  };
+  assert.equal(arm({ autoClick: 0 }), 0);
+  assert.equal(arm({ autoPage: 0, pageEnd: true }), 0);
+  assert.equal(arm({ autoClick: 50 }), 50);
+  assert.equal(arm({ autoClick: undefined }), 2200, "never set: the game's own");
+  assert.equal(arm({ autoPage: undefined, pageEnd: true }), 3000);
+});
+
+test("a held key or button brings the quick bar down once, and does not send it up or press its button again", () => {
+  // Reproduced in a browser 2026-11-23: Up held for a second opened and closed the bar 12 times, from the keyboard and from a controller.
+  const main = readFileSync(new URL("../../web/app/js/main.js", import.meta.url), "utf8");
+  assert.match(main, /case "bar": if \(!e\.repeat && vm\.running && !choosing\(\)\) ui\.modePanel\(\); return true;/);
+  assert.match(ui, /if \(p\.sel >= 0 && !e\.repeat\) this\.pressPanel\(p\.sel\);/);
+  assert.match(ui, /this\.keys\?\.action\(e\) === "bar"\) \{\n(\s+\/\/[^\n]*\n)*\s+if \(e\.repeat\) return true;\n\s+this\.sound\(2\);\n\s+this\.closePanel\(\);/);
+});

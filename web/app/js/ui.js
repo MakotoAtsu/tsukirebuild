@@ -3537,8 +3537,10 @@ export class UI {
       if (i !== p.sel) this.sound(0);
       p.sel = i;
     } else if (k === "Enter" || k === " ") {
-      if (p.sel >= 0) this.pressPanel(p.sel);
+      if (p.sel >= 0 && !e.repeat) this.pressPanel(p.sel);   // (a press: held, it switched Auto on and off at the keys' repeat)
     } else if (k === "ArrowUp" || k === "ArrowDown" || k === "Backspace" || k === "Escape" || this.keys?.action(e) === "bar") {
+      // a press sends the bar up, a key still held from the press that brought it down does not (main.js runAction "bar")
+      if (e.repeat) return true;
       this.sound(2);
       this.closePanel();
     } else return false;

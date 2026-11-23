@@ -537,6 +537,49 @@ const swipeBy = (r, dx, dy, target = r.stage) => {
   r.fire("pointerup", { pointerId: 1, clientX: 400 + dx, clientY: 200 + dy, target });
 };
 
+test("a tap elsewhere right after a swipe or a hold goes through; the gesture's own click, where its finger lifted, does not", () => {
+  // Reported 2026-11-23: the 400 ms in which the click after a gesture is passed over took the next real tap, a swipe making no click of
+  // its own: swipe the panel down, tap one of its buttons at once, and the tap did nothing.
+  const r = rig();
+  const touch = installTouch({ win: r.win, doc: r.doc });
+  touch.bind({ ui: r.ui, vm: r.vm, audio: r.audio, act: r.act });
+  swipeBy(r, 0, TOUCH.swipe + 5);                      // lifts at (400, 249)
+  r.advance(150);
+  assert.equal(r.fire("click", { clientX: 900, clientY: 60 }).stopped, false, "a button of the panel, 150 ms after the swipe that brought it");
+  assert.equal(r.fire("click", { clientX: 400, clientY: 250 }).stopped, false, "and nothing is left waiting for a click");
+  r.ui.panelOpen = false;
+  r.advance(1000);
+  swipeBy(r, 0, TOUCH.swipe + 5);
+  assert.equal(r.fire("click", { clientX: 405, clientY: 255 }).stopped, true, "a click where the finger lifted is the swipe's own");
+  r.ui.panelOpen = false;
+  r.advance(1000);
+  // a hold: its release makes a click where it was held
+  r.fire("pointerdown", { pointerId: 1, clientX: 300, clientY: 400 });
+  r.advance(TOUCH.hold + 20);
+  r.fire("pointerup", { pointerId: 1, clientX: 300, clientY: 400 });
+  assert.equal(r.fire("click", { clientX: 300, clientY: 400 }).stopped, true, "letting go does not advance the text");
+  r.advance(1000);
+  r.fire("pointerdown", { pointerId: 1, clientX: 300, clientY: 400 });
+  r.advance(TOUCH.hold + 20);
+  r.fire("pointerup", { pointerId: 1, clientX: 300, clientY: 400 });
+  r.advance(200);
+  assert.equal(r.fire("click", { clientX: 1200, clientY: 700 }).stopped, false, "a tap elsewhere 200 ms after a hold that made no click");
+  r.advance(1000);
+  // two fingers: where a click of theirs would land is not known, so the next one is passed over wherever it is, as before
+  r.fire("pointerdown", { pointerId: 1, clientX: 400, clientY: 300 });
+  r.advance(40);
+  r.fire("pointerdown", { pointerId: 2, clientX: 700, clientY: 300, isPrimary: false });
+  r.advance(60);
+  r.fire("pointerup", { pointerId: 2, clientX: 700, clientY: 300, isPrimary: false });
+  r.fire("pointerup", { pointerId: 1, clientX: 400, clientY: 300 });
+  assert.equal(r.fire("click", { clientX: 1500, clientY: 900 }).stopped, true);
+  assert.equal(r.fire("click", { clientX: 1500, clientY: 900 }).stopped, false);
+  // a click with no place (a key's, a script's) inside the time is passed over as before
+  r.advance(1000);
+  swipeBy(r, 0, TOUCH.swipe + 5);
+  assert.equal(r.fire("click").stopped, true);
+});
+
 test("on the story a swipe down brings the control panel, a swipe up the log (or sends the panel up), and the click after either is passed over", () => {
   const r = rig();
   const touch = installTouch({ win: r.win, doc: r.doc });

@@ -366,13 +366,14 @@ export function installTouch({ win = window, doc = document } = {}) {
 
   // ---- the story's gestures ----------------------------------------------------------------------------------------
   const gesture = new StoryTouch(unit === 1 ? T : { ...T, slop: T.slop * unit, swipe: T.swipe * unit });   // (a finger's travel is the same on the glass)
-  let holdTimer = null, fastOn = false, skipClick = 0, panelWas = false, plain = true;
+  // skipAt: where the finger of a one-finger gesture lifted, which is where a click of its own would land (null: anywhere)
+  let holdTimer = null, fastOn = false, skipClick = 0, skipAt = null, several = false, panelWas = false, plain = true;
   const story = () => !!touch.vm?.running && !touch.ui.open && !touch.act.movie();
   const passClick = () => { skipClick = Infinity; };
   function endGesture() {
     win.clearTimeout(holdTimer);
     if (gesture.cancel() === "hold-end" || fastOn) { fastOn = false; touch.act?.fast(false); }
-    if (skipClick === Infinity) skipClick = now() + T.after;
+    if (skipClick === Infinity) { skipClick = now() + T.after; skipAt = null; }
   }
   const swipe = (dir) => {
     const { ui, act } = touch;
@@ -387,6 +388,7 @@ export function installTouch({ win = window, doc = document } = {}) {
     if (!free || !touch.vm.running || touch.ui.open || touch.act.movie()) { if (gesture.busy) endGesture(); return; }
     if (e.isPrimary && gesture.busy) endGesture();   // (a finger whose lift never arrived does not hold the next press up)
     const fresh = !gesture.busy;
+    several = !fresh;
     gesture.down(e.pointerId, e.clientX, e.clientY, e.timeStamp);
     if (!fresh) { win.clearTimeout(holdTimer); if (gesture.state !== "hold") passClick(); return; }
     // a finger held on the picture itself fast forwards: not on the panel, nor over a choice
@@ -411,14 +413,23 @@ export function installTouch({ win = window, doc = document } = {}) {
     if (!gesture.busy) win.clearTimeout(holdTimer);
     if (res === "hold-end") { fastOn = false; touch.act.fast(false); }
     else if (res === "two" && plain && story()) { passClick(); touch.act.hide(); }
-    if (!gesture.busy && skipClick === Infinity) skipClick = now() + T.after;
+    if (!gesture.busy && skipClick === Infinity) {
+      skipClick = now() + T.after;
+      skipAt = several || e.type === "pointercancel" || !Number.isFinite(e.clientX) || !Number.isFinite(e.clientY) ? null : [e.clientX, e.clientY];
+    }
   };
   win.addEventListener("pointerup", lift, true);
   win.addEventListener("pointercancel", lift, true);
   // The click a tap makes. One that follows a swipe, a hold or two fingers is passed over; the panel's state as the
   // click began is kept for storyClick, since every click sends the panel up before the story sees it (main.js).
+  // The gesture's own click lands where its finger lifted. One that lands elsewhere in that time is a new tap, a button of the panel
+  // the swipe has just brought down say, and goes through: a swipe makes no click of its own, and its wait took the tap instead.
   win.addEventListener("click", (e) => {
-    if (now() < skipClick) { skipClick = 0; e.stopImmediatePropagation(); e.preventDefault(); return; }
+    if (now() < skipClick) {
+      skipClick = 0;
+      const elsewhere = !!skipAt && Number.isFinite(e.clientX) && Number.isFinite(e.clientY) && Math.hypot(e.clientX - skipAt[0], e.clientY - skipAt[1]) > 2 * T.slop * unit;
+      if (!elsewhere) { e.stopImmediatePropagation(); e.preventDefault(); return; }
+    }
     panelWas = !!touch.ui?.panelOpen;   // (the full screen is asked for by main.js, at every click, as on a desktop)
   }, true);
   // A touch gives the page its activation as it ends, not as it starts: sound is started there too.

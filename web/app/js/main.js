@@ -1163,7 +1163,8 @@ function runAction(act, e = {}) {
     case "auto": toggleAuto(); return true;
     case "rewind": if (vm.running) rewind(false); return true;
     case "log": if (vm.running && !choosing() && !moviesDone) ui.backlog(); return true;
-    case "bar": if (vm.running && !choosing()) ui.modePanel(); return true;
+    // (a press, not its repeats: held, Up brought the bar down and sent it up again twelve times a second)
+    case "bar": if (!e.repeat && vm.running && !choosing()) ui.modePanel(); return true;
     case "hide": hideText(); return true;
     case "voice": vm.replayVoice(); return true;
     case "quickSave": if (vm.running && !moviesDone && !e.repeat) ui.env.quickSave(); return true;
