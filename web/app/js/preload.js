@@ -20,6 +20,9 @@ const AHEAD = { pictures: 8, voices: 6, sounds: 6, music: 1, movies: MOVIES, jum
 // A scene's pictures (scene): how many files are read at once, the scripts after this one whose pictures are read once this one's are, and the
 // waits before a file that did not come is asked for again (one that is not there at all is not asked for twice).
 const SCENE = { lanes: 8, next: 3, again: [1000, 2000, 4000] };
+// The text window's styles a scene after this one names are read ahead as textures only when they are this few: a story scene names one or
+// two, a Ciel-sensei corner up to sixteen (50 MiB), which wait for the corner's own start instead of being held through the scene before it.
+const WINDOWS_AHEAD = 2;
 
 const pack = (name, list) => list.split(" ").map((n) => `${name}/${n}`);
 // The interface's pictures (assets/ui), in the order a player can come to them. The CG grid's sheet is gallery.js's own (preloadGallery).
@@ -168,7 +171,7 @@ export class Preloader {
   picture(rank, name) {
     const key = String(name).toUpperCase();
     if (!this.gfx.images?.[key] || this.gfx.tex.has(key)) return false;
-    return this.add(rank, `img ${key}`, () => this.gfx.load(key));
+    return this.add(rank, `img ${key}`, () => this.gfx.load(key, true));   // (read ahead: the story's own pictures go before it, renderer.js turn)
   }
 
   // A sound, decoded.
@@ -238,7 +241,8 @@ export class Preloader {
     for (const f of this.fonts.menus) this.font(RANK.menus, f);
     // the balloons and the other windows (system.json windows): the page's copy and the renderer's
     const windows = (vm.system?.windows?.styles || []).map((s) => `DISP_PARTS_JA/${s[0]}`);
-    for (const p of windows) { this.art(RANK.menus, p); this.glArt(RANK.menus, p); }
+    // (their textures only for the scene that shows them, where an iPhone or an iPad is spared them: memory.js windows, sceneWindows)
+    for (const p of windows) { this.art(RANK.menus, p); if (!this.gfx.plan?.windows) this.glArt(RANK.menus, p); }
     for (const p of GL_ART.menus) this.glArt(RANK.menus, p);
     for (const p of ART.gallery) this.art(RANK.extras, p);
   }
@@ -329,6 +333,40 @@ export class Preloader {
     return out;
   }
 
+  // ---- the text window's styles (memory.js windows) ----------------------------------------------------------------
+  // The window's picture is one of 33 styles (system.json windows.styles: three full windows, thirty of Ciel-sensei's balloons), which the
+  // renderer draws from a texture of its own: 95 MiB for all of them, read at start and kept, where a scene shows one or two (and a
+  // Ciel-sensei corner up to 16). The style is variable F1105, a second balloon's F1111, and every write to either in the 549 scripts is
+  // `WKST F1105 eq <number>` (checked 2026-11-22), so the styles a script can show are the one it starts with and those it names.
+  windowPath(n) {
+    const s = this.vm.system?.windows?.styles?.[Number(n)];
+    return s?.[0] ? `DISP_PARTS_JA/${s[0]}` : null;
+  }
+  sceneWindows(script, pc = 0) {
+    const out = new Set(), vm = this.vm, ops = script.ops;
+    const add = (n) => { const p = this.windowPath(n); if (p) out.add(p); };
+    add(vm.getVar?.("F1105"));
+    add(vm.getVar?.("F1111"));
+    for (let i = pc; i < ops.length; i++) {
+      const o = ops[i];
+      if (o[0] === "WKST" && (o[1] === "F1105" || o[1] === "F1111") && o[2] === "eq") add(o[3]);
+    }
+    return out;
+  }
+  // The scene's styles as textures: asked for, the other styles' let go, and a promise for those not in yet (null when they all are).
+  // The one the story's own screen always has (GL_ART.story) is not a style to let go of.
+  windows(script, pc) {
+    const gfx = this.gfx, need = this.sceneWindows(script, pc);
+    const styles = this.vm.system?.windows?.styles || [];
+    for (let n = 0; n < styles.length; n++) {
+      const p = this.windowPath(n);
+      if (p && !need.has(p) && !GL_ART.story.includes(p) && gfx.ui?.has(p)) gfx.uiDrop?.(p);
+    }
+    const coming = [];
+    for (const p of need) if (!gfx.uiTexture(p)) coming.push(gfx.ui?.get(p)?.loaded);
+    return coming.length ? Promise.all(coming) : null;
+  }
+
   // A few files at a time, each tried again if it did not come. Resolves when every one has come or been given up; `each` is called as each ends.
   readFiles(keys, alive = () => true, each = () => {}) {
     const list = [...keys].filter((k) => !this.gfx.hasFile(k)), wait = this.wait || ((ms) => new Promise((res) => setTimeout(res, ms)));
@@ -362,9 +400,12 @@ export class Preloader {
     const state = { all: names.size, read: 0 };
     for (const k of names) if (gfx.hasFile(k)) state.read++;
     const after = () => { if (alive()) this.sceneNext(script, pc, keep, alive); };
-    if (state.read === state.all) { after(); return null; }
+    // (the text window's styles the scene shows, as textures: waited for with its pictures' files)
+    const wins = gfx.plan?.windows && gfx.uiTexture ? this.windows(script, pc) : null;
+    if (state.read === state.all) { after(); return wins; }
     this.sceneWait = state;
-    return this.readFiles(names, alive, () => { state.read++; }).then(() => { if (this.sceneWait === state) this.sceneWait = null; after(); });
+    const files = this.readFiles(names, alive, () => { state.read++; }).then(() => { if (this.sceneWait === state) this.sceneWait = null; after(); });
+    return wins ? Promise.all([files, wins]) : files;
   }
   // How far along the scene being waited for is (0 - 1), for the "Loading" window; null when none is.
   sceneProgress() {
@@ -382,9 +423,16 @@ export class Preloader {
       let next = null;
       try { next = await vm.getScript(t); } catch { continue; }
       if (!alive()) return;
-      const names = this.scenePictures(next, (o[2] && next.labels?.[o[2]]) || 0);
+      const from = (o[2] && next.labels?.[o[2]]) || 0;
+      const names = this.scenePictures(next, from);
       for (const k of names) keep.add(k);   // (the set keepFiles was given: only a later scene lets these go)
       await this.readFiles(names, alive);
+      if (!alive()) return;
+      // its window styles too, where they are few, so that it starts without a wait (the scene that does not show them lets them go)
+      if (this.gfx.plan?.windows && this.gfx.uiTexture) {
+        const more = [...this.sceneWindows(next, from)].filter((p) => !this.gfx.ui?.has(p));
+        if (more.length <= WINDOWS_AHEAD) for (const p of more) this.gfx.uiTexture(p);
+      }
     }
   }
 }

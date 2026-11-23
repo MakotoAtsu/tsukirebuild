@@ -1,11 +1,14 @@
 // Replays every script headless (as the 2026-11-07 replay harness does) with the page's own look-ahead (preload.js), and runs the
 // renderer's picture cache (load / evict) and audio.js's decoded-sound cache (buffer / trim) on simulated sizes, at one budget pair.
 // node web-dev/tools/cachesim.mjs <pictureMB> <soundMB> [maxSide] -> one JSON line last on stdout (about 75 s; FIXES.md, 2026-11-21)
+// QUEUE=1: room is made for a picture before it is read, as an iPhone or an iPad does (memory.js queue, renderer.js makeRoom; 2026-11-22).
+// Write the output straight to a file: a pipe cuts it short.
 import fs from "node:fs";
 const WEB = decodeURIComponent(new URL("../../web", import.meta.url).pathname);   // (needs web/assets: images.json, the sounds and packs)
 const JS = `${WEB}/app/js`;
 const PIC_MB = Number(process.argv[2]), SND_MB = Number(process.argv[3]), MAX_SIDE = Number(process.argv[4] || 8192);
 const MB = 1024 * 1024;
+const ROOM_FIRST = process.env.QUEUE === "1";
 const PIC_LIMIT = PIC_MB * MB, SND_LIMIT = SND_MB * MB;
 
 const el = () => ({ innerHTML: "", textContent: "", style: {}, dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
@@ -74,6 +77,7 @@ const gfx = new Proxy({
     const by = Math.max(1, info[0] / MAX_SIDE, info[1] / MAX_SIDE);
     const w = Math.max(1, Math.floor(info[0] / by)), h = Math.max(1, Math.floor(info[1] / by));
     const e = { used: ++clock, tex: {}, w, h, nw: info[0], nh: info[1], bytes: w * h * 4 };
+    if (ROOM_FIRST) this.evict(e.bytes);
     this.tex.set(key, e);
     this.bytes += e.bytes;
     P.misses++; P.decodedBytes += e.bytes;
@@ -95,12 +99,12 @@ const gfx = new Proxy({
     if (this.ruleSlot) live.add(this.ruleSlot);
     return live;
   },
-  evict() {
-    if (this.bytes < PIC_LIMIT) return;
+  evict(incoming = 0) {
+    if (this.bytes + incoming < PIC_LIMIT) return;
     const live = this.liveNames();
     const soon = process.env.SOON === "0" ? new Set() : this.soon?.() || new Set();   // (vm.js picturesAhead, as renderer.js evict; SOON=0: used longest ago alone)
     const old = [...this.tex.entries()].filter(([k]) => !live.has(k)).sort((a, b) => (soon.has(a[0]) - soon.has(b[0])) || a[1].used - b[1].used);
-    for (const [k, v] of old) { if (this.bytes < PIC_LIMIT * 0.8) break; this.bytes -= v.bytes; this.tex.delete(k); }
+    for (const [k, v] of old) { if (this.bytes + incoming < PIC_LIMIT * 0.8) break; this.bytes -= v.bytes; this.tex.delete(k); }
   },
   hazes: undefined, hazeTable: null, effects: null, focusLines: null, split: null, lines: null, shake: null, textShake: null, fade: null,
 }, { get(t, k) { if (k in t) return t[k]; if (typeof k === "symbol") return undefined; return () => {}; }, set(t, k, v) { t[k] = v; return true; } });

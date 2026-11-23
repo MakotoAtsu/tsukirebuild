@@ -8,7 +8,16 @@ import { grainSample, linesDone, linesSample, splitDone, splitSample } from "./s
 import { asset } from "./lang.js";
 import { appleTouch } from "./touch.js";
 import { Shrinker } from "./shrink.js";
+import { MEMORY } from "./memory.js";
 const F = 1.5;
+// What an iPhone or an iPad is spared (memory.js). queue: the pictures being decoded at once take at most QUEUE_ROOM as textures, so a large
+// one is decoded alone and several small ones together: the scene of issue 16 (05_01_CIEL05_3E) shows three sprites of 5000 x 5482, 105 MiB
+// each, within 125 commands, and with eight read ahead at once the pictures on their way to the GPU took the page up by 200 to 270 MB at
+// that point, each time (iOS 18.5 Simulator; decoded one at a time, the jump was gone). count: a target a frame has not drawn through for TARGET_IDLE ms is let go (each is 7.9 MiB, made again when
+// next needed: a new target is empty, as a cleared one is).
+const QUEUE_ROOM = 48 * 1024 * 1024;
+const TARGET_IDLE = 2000;
+const IDLE_TARGETS = ["panelTarget", "groupTarget", "groupCopy", "ownerTarget", "fadeBuffer"];
 const MIN_TEXTURES = 192 * 1024 * 1024;   // the least the picture textures are cut back to when the GPU runs out of room (upload)
 // How much of the pictures' textures is kept, in bytes: 1400 MB, 700 MB where the device says it has 4 GB, 400 MB where it says 2 GB or less
 // or where its GPU takes no texture over 4096 on a side, the mark of a small one. An iPhone or an iPad says neither (Safari has no
@@ -23,6 +32,10 @@ const MIN_TEXTURES = 192 * 1024 * 1024;   // the least the picture textures are 
 // play the page holds that much whatever the scene needs. Replayed over the 549 scripts with the look-ahead (2026-11-21), the pictures decoded a
 // second time within one script: 56 at 1400 MB, 217 at 1000, 413 at 800, 599 at 700, 3253 at 400; those on screen at once take up to 412 MB.
 export const PHONE_PICTURES = 1000;
+// An iPhone or an iPad keeps its 400 MB after GitHub issue 16 too. 320 was built and measured (2026-11-22, a WKWebView on a Mac, reading pace
+// through 05_01_CIEL05_3E): the page 86 MB lower, but the story waiting for a picture 49 times instead of 21 and, replayed over the 549
+// scripts, 5,089 pictures decoded a second time within a script instead of 2,272: the scene shows up to 337 MB at once, and a limit under
+// what is on screen only turns pictures over. The other parts of memory.js took 120 MB off with no more waits; this one was taken out.
 export function pictureBudget(maxSide, win = globalThis) {
   const n = win.navigator;
   const memory = n?.deviceMemory || (appleTouch(win) ? 2 : 8);
@@ -686,6 +699,15 @@ export class Renderer {
     this.blurCache = new Map();
     this.blurRefused = new Set();   // blurred copies the GPU would not hold: drawn sharp (blurred)
     this.blurBytes = 0;             // what the blurred copies take (blurred: a share of limit)
+    // memory.js: the parts this device takes (a copy: the tests switch them), and their state
+    this.plan = { ...MEMORY };
+    this.queueRoom = QUEUE_ROOM;
+    this.decoding = 0;              // bytes of the pictures being decoded now (turn)
+    this.waiting = [];              // those waiting their turn: { key, bytes, ahead, go, n }
+    this.turns = 0;
+    this.frameNo = 0;               // counts the frames drawn (blurred: which copies the last one showed)
+    this.targetUsed = new Map();    // target name -> the real time a frame last drew through it (lazy, tidyTargets)
+    this.waits = { n: 0, ms: 0, max: 0 };   // the story's own waits for a picture that was not ready (memStats)
     this.fade = null;
     this.shake = null;
   }
@@ -735,12 +757,20 @@ export class Renderer {
     this.groupState.first = true;
     const live = this.liveNames(), back = [];
     this.bytes = 0;
+    this.targetUsed?.clear();
+    // (the loads begun in the old context see this and make nothing: load)
+    const gen = (this.gen = (this.gen || 0) + 1);
     for (const [key, e] of [...this.tex]) {
       e.tex = null;
+      e.extra = 0;
       if (!live.has(key)) { this.tex.delete(key); continue; }
+      const mine = () => this.gen === gen && this.tex.get(key) === e;
       e.promise = (async () => {
-        await this.upload(e, await this.file(key), key);
-        this.bytes += e.w * e.h * 4;
+        const blob = await this.file(key), done = await this.turn(key, false);
+        try {
+          if (!mine() || (await this.upload(e, blob, key, mine)) === false) return this.tex.get(key) === e && this.gen !== gen ? e.promise : e;
+          this.bytes += e.w * e.h * 4;
+        } finally { done(); }
         return e;
       })();
       e.promise.catch(() => { if (this.tex.get(key) === e) this.tex.delete(key); });
@@ -771,13 +801,16 @@ export class Renderer {
 
   // Lets the blurred copies go, the least recently drawn first, until they take no more than `room` bytes. Copies drawn within the last
   // `fresh` ms stay (they are on screen and would be made again on the next frame); 0: none stays.
+  // Where the copies are counted (memory.js count) the ones that stay are those the frame being drawn and the last one drawn used, which is
+  // what is on screen: by the clock, fast forward and quick cuts kept every copy of the last half second, and the copies passed their
+  // share (147 MB against 100 under fast forward in 14_01B_01_CIEL14B_1D, iOS 18.5 Simulator, 2026-11-22).
   dropBlurred(room = 0, fresh = 500) {
     if (!this.blurCache?.size) return;
-    const now = performance.now();
+    const now = performance.now(), byFrame = this.plan?.count;
     const old = [...this.blurCache.entries()].sort((x, y) => x[1].used - y[1].used);
     for (const [key, c] of old) {
       if (this.blurBytes <= room) break;
-      if (now - c.used < fresh) continue;
+      if (fresh > 0 && (byFrame ? (this.frameNo || 0) - (c.frame ?? -9) <= 1 : now - c.used < fresh)) continue;
       this.freeTarget(c.target);
       this.blurBytes -= c.bytes || 0;
       this.blurCache.delete(key);
@@ -834,27 +867,130 @@ export class Renderer {
   hasFile(key) { return !!this.files.get(key)?.done; }
   keepFiles(keys) { for (const k of [...this.files.keys()]) if (!keys.has(k)) this.files.delete(k); }
 
-  // A picture of the game, as a texture. Resolves when it can be drawn.
-  load(name) {
+  // A picture of the game, as a texture. Resolves when it can be drawn. ahead: asked for by the look-ahead (preload.js), not by the story
+  // itself, which is what every other caller is: the story's own go first (turn).
+  load(name, ahead = false) {
     const key = name.toUpperCase();
     const hit = this.tex.get(key);
     if (hit) {
       hit.used = performance.now();
+      // (the entry says so itself: its file may still be on its way, with nothing waiting a turn yet for hurry to move up)
+      if (!ahead) { hit.ahead = false; this.hurry(key); if (!hit.tex) this.timeWait(hit.promise); }
       return hit.promise;
     }
-    const e = { used: performance.now(), tex: null, w: 0, h: 0 };
+    const e = { used: performance.now(), tex: null, w: 0, h: 0, ahead: !!ahead };
+    // Still this load's to finish: the context has not been lost since it began (restore takes over the entries layers hold, with a
+    // load of its own, and lets the others go), and the entry is still the picture's. One that is not makes no texture and counts
+    // nothing: it would be a texture no entry holds, counted for good.
+    const gen = this.gen || 0, mine = () => (this.gen || 0) === gen && this.tex.get(key) === e;
     e.promise = (async () => {
-      await this.upload(e, await this.file(key), key);
-      const info = this.images ? this.images[key] : null;
-      e.nw = info ? info[0] : e.w;
-      e.nh = info ? info[1] : e.h;
-      this.bytes += e.w * e.h * 4;
+      const blob = await this.file(key), done = await this.turn(key, e.ahead);
+      try {
+        if (!mine() || (await this.upload(e, blob, key, mine)) === false) return (this.gen || 0) !== gen && this.tex.get(key) === e ? e.promise : e;
+        const info = this.images ? this.images[key] : null;
+        e.nw = info ? info[0] : e.w;
+        e.nh = info ? info[1] : e.h;
+        this.bytes += e.w * e.h * 4;
+      } finally { done(); }
       this.evict();
       return e;
     })();
     e.promise.catch(() => { if (this.tex.get(key) === e) this.tex.delete(key); });
     this.tex.set(key, e);
+    if (!ahead) this.timeWait(e.promise);
     return e.promise;
+  }
+
+  // How long the story waited for a picture it asked for itself (memStats: the same on every device, for comparing).
+  timeWait(promise) {
+    const t0 = performance.now(), w = (this.waits ||= { n: 0, ms: 0, max: 0 });
+    const end = () => { const ms = performance.now() - t0; w.n++; w.ms += ms; if (ms > w.max) w.max = ms; };
+    promise.then(end, end);
+  }
+
+  // ---- one large picture at a time (memory.js queue) ------------------------------------------------------------
+  // What a picture will take as a texture, known before it is decoded (images.json has its size; upload makes one over the GPU's limit smaller).
+  sizeOf(key) {
+    const info = this.images?.[key];
+    if (!info) return 0;
+    const by = Math.max(1, info[0] / this.maxSide, info[1] / this.maxSide);
+    return Math.max(1, Math.floor(info[0] / by)) * Math.max(1, Math.floor(info[1] / by)) * 4;
+  }
+
+  // A picture's turn to be decoded. Resolves with what to call once it is a texture and counted (or has failed). Without the queue every
+  // picture goes at once, as before. With it: the story's own before those read ahead, each kind in the order asked; one goes when nothing
+  // is being decoded or when it fits in queueRoom with those that are, so a large picture is alone and never left waiting by smaller ones
+  // asked after it; and before it goes, the pictures used longest ago are let go to make its room (makeRoom), where they used to go only
+  // once the new one was in, the page holding both meanwhile.
+  turn(key, ahead) {
+    if (!this.plan?.queue) return Promise.resolve(() => {});
+    return new Promise((go) => {
+      (this.waiting ||= []).push({ key, bytes: this.sizeOf(key), ahead: !!ahead, go, n: (this.turns = (this.turns || 0) + 1) });
+      this.pumpTurns();
+    });
+  }
+  pumpTurns() {
+    for (;;) {
+      let next = null;
+      for (const w of this.waiting || []) if (!next || (w.ahead !== next.ahead ? !w.ahead : w.n < next.n)) next = w;
+      const busy = this.decoding || 0;
+      if (!next || (busy > 0 && busy + next.bytes > (this.queueRoom ?? QUEUE_ROOM))) return;
+      this.waiting.splice(this.waiting.indexOf(next), 1);
+      this.decoding = busy + next.bytes;
+      this.makeRoom();
+      let done = false;
+      const bytes = next.bytes;
+      next.go(() => { if (done) return; done = true; this.decoding -= bytes; this.pumpTurns(); });
+    }
+  }
+  // The story has come to a picture the look-ahead had asked for: it waits with the story's own from now on.
+  hurry(key) {
+    let moved = false;
+    for (const w of this.waiting || []) if (w.key === key && w.ahead) { w.ahead = false; moved = true; }
+    if (moved) this.pumpTurns();
+  }
+  // Room for the pictures being decoded, before they come.
+  makeRoom() {
+    if (this.bytes + this.decoding < this.limit) return;
+    this.evict(false, this.decoding);
+    this.gl.flush?.();   // (the deleted textures' memory is the GPU's to give back: said now, not when the next frame is drawn)
+  }
+
+  // ---- the targets a frame draws through (memory.js count) ------------------------------------------------------
+  // One of the targets made when first needed, and when it was last drawn through.
+  lazy(name) {
+    if (!this[name]) this[name] = this.target(1920, 1080);
+    (this.targetUsed ||= new Map()).set(name, performance.now());
+    return this[name];
+  }
+  // Those no frame has drawn through for a while are let go, and the menu's pair once no menu is up. Each is filled anew every time it is
+  // drawn through (cleared, or written over whole), so one made again when next needed draws the same.
+  tidyTargets(real = performance.now()) {
+    if (!this.plan?.count || this.gl.isContextLost()) return;
+    for (const name of IDLE_TARGETS) {
+      const t = this[name];
+      if (!t || real - (this.targetUsed?.get(name) ?? real) < TARGET_IDLE) continue;
+      // (the group's target is cleared by the first layer of a group, and only by it: one a group is still adding to stays)
+      if (name === "groupTarget" && !this.groupState.first) continue;
+      if (this.drawFbo === t.fbo) this.drawFbo = this.scene.fbo;
+      this.freeTarget(t);
+      this[name] = null;
+    }
+    if (!this.menu && this.menuA) {
+      this.freeTarget(this.menuA);
+      this.freeTarget(this.menuB);
+      this.menuA = this.menuB = null;
+    }
+  }
+
+  // What the renderer holds, in bytes, for the measurements and the tests: the pictures (with the reduced copies wide blurs made of some),
+  // the blurred copies, the interface art, the targets; what is being decoded and waiting; and the story's waits for its pictures.
+  memStats() {
+    let ui = 0, targets = 0;
+    for (const e of this.ui.values()) ui += (e.w || 0) * (e.h || 0) * 4;
+    for (const k of ["post", "scene", "prev", "backTex", "displayTarget", "menuA", "menuB", ...IDLE_TARGETS]) if (this[k]) targets += this[k].w * this[k].h * 4;
+    const pictures = this.bytes, blur = this.blurBytes;
+    return { pictures, blur, ui, targets, total: pictures + blur + ui + targets, limit: this.limit, decoding: this.decoding || 0, waiting: this.waiting?.length || 0, waits: { ...(this.waits || {}) } };
   }
 
   // The picture's pixels into a texture of its own (e.tex, e.w, e.h). A GPU takes no texture larger than its own limit on a side: 4096 on older
@@ -862,7 +998,9 @@ export class Renderer {
   // room left for one more. Either way the texture stays empty, and an empty texture draws as a black box where the picture should be. So a
   // picture over the limit is made smaller first (it is drawn at its own size whatever its texture's: nw, nh), and an upload the GPU turns down is
   // made again with every picture not on screen let go, then at half the size. One that still fails is no picture at all, which is not drawn.
-  async upload(e, blob, key) {
+  // alive: asked once the pixels are decoded, before any texture is made; false, and nothing is (load: the context was lost meanwhile).
+  // Returns false then.
+  async upload(e, blob, key, alive = null) {
     const gl = this.gl, opts = { premultiplyAlpha: "premultiply", colorSpaceConversion: "none" };
     const most = this.maxSide;
     let bmp = await createImageBitmap(blob, opts);
@@ -875,6 +1013,7 @@ export class Renderer {
         // (in a worker: asked for on the page, the resize holds the page's thread, up to 0.7 s for the largest pictures: shrink.js)
         bmp = await (this.shrink ||= new Shrinker()).bitmap(blob, { ...opts, resizeWidth: w, resizeHeight: h, resizeQuality: "high" });
       }
+      if (alive && !alive()) { bmp.close(); return false; }
       let failed = gl.isContextLost() || bmp.width > most || bmp.height > most;
       let tex = null;
       if (!failed) {
@@ -913,17 +1052,19 @@ export class Renderer {
   // Those the script names within the look-ahead's reach (vm.js picturesAhead) go last: used longest ago alone, the heaviest scenes let go of
   // pictures they showed again moments later. Replayed over the 549 scripts (web-dev/tools/cachesim.mjs, 2026-11-21) that cut the pictures
   // decoded a second time within a script from 599 to 426 at 700 MB and from 217 to 153 at 1000 MB (05_01_CIEL05_3E, day 5's Vlov: 41 to 20).
-  evict(all = false) {
+  // incoming: the bytes of the pictures being decoded now, for which room is made before they come (makeRoom).
+  evict(all = false, incoming = 0) {
     const limit = this.limit;
     if (all) this.dropBlurred(0);   // (no room on the GPU: the blurred copies not on screen go too)
-    if (!all && this.bytes < limit) return;
+    if (!all && this.bytes + incoming < limit) return;
     const live = this.liveNames(), soon = this.soon?.() || new Set();
     const old = [...this.tex.entries()].filter(([k, v]) => v.tex && !live.has(k)).sort((a, b) => (soon.has(a[0]) - soon.has(b[0])) || a[1].used - b[1].used);
     for (const [k, v] of old) {
-      if (!all && this.bytes < limit * 0.8) break;
+      if (!all && this.bytes + incoming < limit * 0.8) break;
       this.gl.deleteTexture(v.tex);
       v.tex = null;   // (a layer still holding it draws nothing, where a deleted texture would draw as whatever was bound last)
-      this.bytes -= v.w * v.h * 4;
+      this.bytes -= v.w * v.h * 4 + (v.extra || 0);
+      v.extra = 0;
       this.tex.delete(k);
     }
   }
@@ -938,6 +1079,7 @@ export class Renderer {
       .then((b) => createImageBitmap(b, { premultiplyAlpha: "premultiply", colorSpaceConversion: "none" }))
       .then((bmp) => {
         const gl = this.gl;
+        if (this.ui.get(path) !== e) { bmp.close(); return; }   // let go while it was being read (uiDrop)
         e.w = bmp.width; e.h = bmp.height;
         e.tex = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, e.tex);
@@ -950,6 +1092,16 @@ export class Renderer {
     return null;
   }
 
+  // An interface picture let go, to be read again when next asked for (preload.js: a text-window style no scene at hand shows).
+  uiDrop(path) {
+    const e = this.ui.get(path);
+    if (!e) return;
+    if (e.tex && !this.gl.isContextLost()) this.gl.deleteTexture(e.tex);
+    e.tex = null;
+    this.ui.delete(path);
+    this.uiGen = (this.uiGen || 0) + 1;   // (a frame drawn with it differs from one drawn without: frameKey, present)
+  }
+
   // A picture softened as the game's pre-blurred `<name>_XX_YY` picture is (blurSigma; rx, ry are the script's blur numbers),
   // made once and kept while it is used.
   blurred(e, name, rx, ry) {
@@ -957,6 +1109,7 @@ export class Renderer {
     const hit = this.blurCache.get(key);
     if (hit) {
       hit.used = performance.now();
+      hit.frame = this.frameNo || 0;
       return hit;
     }
     if (this.blurRefused.has(key)) return e;
@@ -969,7 +1122,7 @@ export class Renderer {
     // tall). It is made at a working scale that fits, and one the GPU turns down anyway is made again with the pictures not on screen let go,
     // then at half that scale. One that still fails leaves the picture sharp, which is better than no picture.
     let f = Math.max(1, Math.floor(Math.max(sx, sy) / 4), Math.ceil((e.w + 2 * pad) / this.maxSide), Math.ceil((e.h + 2 * pad) / this.maxSide));
-    let w, h, a = null, b = null;
+    let w, h, a = null, b = null, grew = false;
     for (let tries = 0; ; tries++) {
       w = Math.max(2, Math.ceil((e.w + 2 * pad) / f));
       h = Math.max(2, Math.ceil((e.h + 2 * pad) / f));
@@ -1002,7 +1155,11 @@ export class Renderer {
     gl.uniform1i(this.copyProg.u.t, 0);
     // a wide blur starts from the picture shrunk f times: that one copy is averaged through mipmaps (the layers themselves
     // are drawn without any, as the game draws them)
-    if (f > 1) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); }
+    if (f > 1) {
+      gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      // (the reduced copies stay with the picture, a third of its size again: counted with it where the copies are counted)
+      if (this.plan?.count && !e.extra && this.tex.get(name) === e) { e.extra = Math.floor((e.w * e.h * 4) / 3); this.bytes += e.extra; grew = true; }
+    }
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     if (f > 1) gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.useProgram(this.blurProg.p);
@@ -1023,7 +1180,7 @@ export class Renderer {
     this.freeTarget(b);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.drawFbo || this.scene.fbo);   // back to the frame being drawn
     gl.viewport(0, 0, 1920, 1080);
-    const out = { tex: a.tex, target: a, w: e.w + 2 * pad, h: e.h + 2 * pad, nw: (e.w + 2 * pad) / k, nh: (e.h + 2 * pad) / k, used: performance.now(), flipped: true, bytes: w * h * 4 };
+    const out = { tex: a.tex, target: a, w: e.w + 2 * pad, h: e.h + 2 * pad, nw: (e.w + 2 * pad) / k, nh: (e.h + 2 * pad) / k, used: performance.now(), frame: this.frameNo || 0, flipped: true, bytes: w * h * 4 };
     this.blurCache.set(key, out);
     this.blurBytes += out.bytes;
     // The copies are kept to a quarter of the pictures' budget (100 MB on an iPhone), the least recently drawn going first, and to 24.
@@ -1035,6 +1192,7 @@ export class Renderer {
       this.blurBytes -= old[1].bytes;
       this.blurCache.delete(old[0]);
     }
+    if (grew) this.evict();   // (the pictures count more now: room is made as after a load, never from what a layer holds)
     return out;
   }
 
@@ -1043,6 +1201,7 @@ export class Renderer {
     const gl = this.gl;
     this.liveLayers = layers;
     if (this.held) { this.sceneSame = true; return; }
+    this.tidyTargets();
     // While a shake or a split is on, what this frame shows is kept for the next transition's old picture (beginFade): the commands before a FADS have changed the
     // live layers by then (STCP hiding them, for example), and the native redraw reads the records, which those changes only reach at the commit.
     this.shown = !this.noSplit && (this.shake || this.split) ? { now, layers: layers.map((l) => ({ ...l, effects: { ...l.effects } })) } : null;
@@ -1073,6 +1232,7 @@ export class Renderer {
     this.sceneSame = same;
     if (same && !this.verifySkip) return;
     this.sceneDrawn = real;
+    this.frameNo = (this.frameNo || 0) + 1;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.scene.fbo);
     gl.viewport(0, 0, 1920, 1080);
     gl.clearColor(0, 0, 0, 1);
@@ -1158,7 +1318,7 @@ export class Renderer {
     };
     const drawTurnedAlone = (l, back) => {
       const clip = clipAt(placed.get(l).clip), alpha = placed.get(l).alpha;
-      if (!this.panelTarget) this.panelTarget = this.target(1920, 1080);
+      this.lazy("panelTarget");
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.panelTarget.fbo);
       gl.viewport(0, 0, 1920, 1080);
       gl.clearColor(0, 0, 0, 0);
@@ -1186,7 +1346,7 @@ export class Renderer {
       let prev = 0, buffered = false;
       const toBuffer = (on) => {
         if (on === buffered) return;
-        if (on && !this.groupTarget) this.groupTarget = this.target(1920, 1080);
+        if (on) this.lazy("groupTarget");
         const t = on ? this.groupTarget : this.scene;
         gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo);
         gl.viewport(0, 0, 1920, 1080);
@@ -1244,7 +1404,7 @@ export class Renderer {
           let source = this.groupTarget;
           if (edge && c0) {
             // the mask fades the composite only (0xa74b0 keeps it in its own target), not the buffer the next member adds to
-            if (!this.groupCopy) this.groupCopy = this.target(1920, 1080);
+            this.lazy("groupCopy");
             gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.groupTarget.fbo);
             gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.groupCopy.fbo);
             gl.blitFramebuffer(0, 0, 1920, 1080, 0, 0, 1920, 1080, gl.COLOR_BUFFER_BIT, gl.NEAREST);
@@ -1289,7 +1449,7 @@ export class Renderer {
           run.coverage = groupCoverage(A, edgeWidth);
           run.first = A;
           run.shader = shader;
-          if (!this.groupTarget) this.groupTarget = this.target(1920, 1080);
+          this.lazy("groupTarget");
           gl.bindFramebuffer(gl.FRAMEBUFFER, this.groupTarget.fbo);
           gl.viewport(0, 0, 1920, 1080);
           gl.clearColor(0, 0, 0, 0);
@@ -1706,7 +1866,7 @@ export class Renderer {
     // a blurred owner's texture first: making it rebinds the frame being drawn (`blurred`), a cached one does not
     const rx = Math.round(state?.blurX) || 0, ry = Math.round(state?.blurY) || 0;
     if ((rx > 0 || ry > 0) && owner.ready?.tex) this.blurred(owner.ready, owner.image.toUpperCase(), rx, ry);
-    if (!this.ownerTarget) this.ownerTarget = this.target(1920, 1080);
+    this.lazy("ownerTarget");
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.ownerTarget.fbo);
     gl.viewport(0, 0, 1920, 1080);
     gl.clearColor(0, 0, 0, 0);
@@ -1829,7 +1989,7 @@ export class Renderer {
       const sp = splitSample(this.split, this.splitTime ? this.splitTime() : now);
       const splitOver = sp && sp.alpha > 0;
       if (splitOver) {
-        if (!this.fadeBuffer) this.fadeBuffer = this.target(1920, 1080);
+        this.lazy("fadeBuffer");
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.fadeBuffer.fbo);
       }
       gl.useProgram(this.fadeProg.p);

@@ -26,13 +26,14 @@ export function fakeContext() {
     currentTime: 0,
     sources: [],
     state: "running",
-    createGain() { return { gain: new Param(ctx, 1), connect(out) { this.out = out; } }; },
-    createChannelSplitter(n) { return { n, connect(out) { this.out = out; } }; },
-    createChannelMerger(n) { return { n, connect(out) { this.out = out; } }; },
+    createGain() { return { gain: new Param(ctx, 1), connect(out) { this.out = out; }, disconnect() { this.cut = true; } }; },
+    createChannelSplitter(n) { return { n, connect(out) { this.out = out; }, disconnect() { this.cut = true; } }; },
+    createChannelMerger(n) { return { n, connect(out) { this.out = out; }, disconnect() { this.cut = true; } }; },
     createBufferSource() {
       const s = {
         buffer: null, loop: false, loopStart: 0, loopEnd: 0, onended: null, listeners: [], started: null, stopped: false,
         connect(out) { this.out = out; },
+        disconnect() { this.cut = true; },   // (out is kept: the tests read a source's gain through it after it has gone)
         start(when, offset) { this.started = { when, offset }; },
         stop() { this.stopped = true; },
         addEventListener(_, f) { this.listeners.push(f); },

@@ -2094,3 +2094,93 @@ days since as updates on first run.
   `web-dev/android/out/tsukihime-2026-11-13.apk`.
 
 Tests: `app-update.test.mjs` (the build reads its list from `app_manifest.py`). 737 tests, 734 pass, 3 skipped (in the working folder).
+
+## iPhone and iPad: what the page holds (GitHub issue 16), 2026-11-22
+
+At the user's word, after the diagnosis of issue 16 ("Frequent crashes and page reloads during Chapter 13 and later ... on iPhone": an iPhone 13
+Pro Max, iOS 18.7.8, Simplified Chinese; also day 5's 焦躁 under fast forward; no crash there with the other apps and tabs closed). The
+reporter's own extract of the phone's log has the page's process (`com.apple.WebKit.WebContent`) at 102,421 pages = 1,600 MiB when it was ended,
+reason `highwater`. **In the working folder only: not in the repository checkout, not pushed.** A setting to try, not a proven fix: the page was
+ended at 1,678 MB, and the heaviest case measured below still reaches 1,700 to 1,800 MB at its peak.
+
+**What was wrong with the earlier measurements.** WebKit counts a page's graphics against the page's own process: textures, the targets it draws
+through, pictures on their way to the GPU. The iOS Simulator shows none of that, and issue 8's limits (400 MB of pictures, 256 MB of sound) were
+measured there. Another agent's report said so; checked here in a WKWebView on a Mac (M2, real GPU accounting) with an iPhone user agent, so
+that the iPhone's limits and the touch layer are on: fast forward through `05_01_CIEL05_3E` held the page at 1,405 to 1,445 MB (median of three
+runs each), peak 1,873 to 1,987, of which graphics 932 to 942 MB while the renderer counted about 485 of pictures and blurred copies and 99 of
+interface textures. The same scene in the Simulator: 400 to 620 MB.
+
+**What changed**, all in `web/app/js`, each part only on an iPhone or an iPad (`memory.js`: `appleTouch`; `?mem=off` switches it off for a
+visit, `?mem=on` on anywhere, `?mem=queue,count,...` names parts: for measuring). Every other device runs what it ran.
+
+- **queue** (`renderer.js load`, `turn`, `makeRoom`): the pictures being decoded at once take at most 48 MiB as textures, so a large one is
+  decoded alone and never left waiting by smaller ones asked after it; a picture the story itself asks for goes before those read ahead
+  (`preload.js picture` now says it reads ahead), and one the story comes to moves up; the pictures used longest ago are let go before a
+  picture is decoded, not after, the size being known from `images.json`. A lost context's pictures come back through the same queue.
+- **count** (`renderer.js`): the blurred copies that stay over their share (a quarter of the limit) are those the frame being drawn and the
+  last one drawn used, not those of the last half second; the reduced copies a wide blur makes of its picture (`generateMipmap`, a third again)
+  are counted with the picture; the five targets made when first needed (`panelTarget`, `groupTarget`, `groupCopy`, `ownerTarget`, `fadeBuffer`)
+  are let go when no frame has drawn through them for 2 s and the menu's pair when no menu is up (the group's stays while a group is adding to
+  it). `memStats()` adds up what is held by kind and times the story's own waits for pictures.
+- **windows** (`preload.js sceneWindows`, `windows`; `renderer.js uiDrop`): the text window's 33 styles were read as textures at start and
+  kept, 95 MiB. A scene's styles are the one it starts with (F1105, F1111) and those it names: every write to either variable in the 549
+  scripts is `WKST F1105 eq <number>` (a test checks it). They are read with the scene's pictures before it starts, the next scenes' with
+  theirs, and the others let go, never the story's own window. The page's own copies (`art`) are read as before: WebKit holds none of those
+  decoded until it paints them (measured: 100 to 110 MB with all 133 kept, unchanged after decoding all of them again).
+- **sounds** (`audio.js node`, `stopNode`, `letGo`): a source that has ended is disconnected, with every node made for it, and gives up its
+  samples; one stopped while the sound system is not running does so at once, since no end comes from a context that is not running. Nothing
+  is ended by the clock: a sound still due to play is left as it is (a first version did end them, and would have cut a line's voice short on
+  coming back from another app, the case issue 8's reporter confirmed; taken out once the rest was seen to hold the leak alone).
+- **limit**: 320 MB of pictures instead of 400 was built and measured as a fifth part, and **taken out at the user's word** ("Yes, back
+  to 400"): the one part with a cost, see the table. `pictureBudget` is as it was; its comment says what was measured.
+
+**Measured** (the Mac window, `05_01_CIEL05_3C` -> `3E`, page footprint in the scene; two or three runs a condition, single runs at reading
+pace, so differences under about 60 MB are within the spread):
+
+| | fast forward: median | peak | reading pace (Enter every 150 ms): median | peak | story's waits for a picture |
+|---|---|---|---|---|---|
+| before (and the new build with `?mem=off`) | 1,405 - 1,445 | 1,873 - 1,987 | 1,192 - 1,211 | 1,858 - 1,887 | 21, 2.5 s in all, longest 0.32 s |
+| **queue + count + windows + sounds (what is in)** | 1,257 - 1,265 | 1,711 - 1,785 | 1,090 | 1,625 | 21, 2.4 s, 0.31 s |
+| ... and the limit at 320 (not taken) | 1,244 - 1,252 | 1,688 - 1,701 | 1,004 | 1,561 | 49, 7.2 s, 0.50 s |
+| ... and the limit at 256 (not taken) | 1,148 - 1,170 | 1,618 - 1,627 | | | (fast forward: twice the waits of 400) |
+
+Each part alone under fast forward: windows 1,354 - 1,357 (the interface textures 98 -> 20 MB); queue 1,367 - 1,421, peak 1,744 - 1,854; count
+1,366 - 1,450: nothing measurable alone. The replay of all 549 scripts (`web-dev/tools/cachesim.mjs`, now with `QUEUE=1` for the room-first
+rule): the picture cache's own peak 531 MB -> 438 with the queue at 400 (re-loads within a script 2,198 -> 2,272), 397 at 320 (5,089), 367 at
+256 (11,029). Sounds (iOS 18.5 Simulator, day 13 for 200 s with the sound system never started): the page's sound memory 44 -> 530 MB before
+while the cache said 252; 266 - 282 after.
+
+**Frames** (the Mac window, the scene buffer and the canvas hashed, sound off): the new build against the copy of the build before at 13
+points entered by `?pc=` (焦躁, `13_01_02_CIEL13_5_1`, the reporter's line in `13_01_02_CIEL13_6_2`, two balloon points of `QA_01`): 10 the
+same byte for byte, 3 animated in both builds and so not comparable as stills; in one sitting played in from `05_01_CIEL05_3D`, 4 stops the
+same, 1 animated; with `?mem=off`, 10 of 10 the same, 52 interface textures and the 400 limit as before.
+
+**Not covered**: a real iPhone or iPad; day 13's fast forward path and the skip of read scenes on the new build; a save loaded while a balloon
+is up (the style's texture would then come a moment late, the page's own copy of the window showing meanwhile, as at start before); whether
+WebKit's process on a phone holds what the Mac's does. The reporter's phone was ended at 1,678 MB with other apps open; closing them was enough
+once.
+
+Tests: `memory.test.mjs` (new, 27: the devices and the address's switch; the sound release, and that nothing ends a sound by the clock; the
+queue's order, room and failures; the blurred copies, the reduced copies, the targets; the scripts' writes to the style variables, a scene's
+styles, the wait, the start-up list; the limit), `touch.test.mjs` and `reverify.test.mjs` (the lines that stated the iPhone's 400 and named
+`load` / `evict`), `fake-audio.mjs` (nodes that can be disconnected). 765 tests, 762 pass, 3 skipped (after the review below). The measuring tools (the WKWebView host,
+the drivers, the frame checks, the copy of the build before) are in `~/Downloads/tsukire-pc-port/local-tools/webkit-memory`, outside the repo.
+
+**Review the same day** (another agent's, of the working folder; its own WKWebView runs agree: `13_01_02_CIEL13_5_1` under fast forward
+1,367 - 1,478 MB before, 1,077 - 1,205 after). Four faults in the change, all confirmed in the code and corrected:
+- a load waiting its turn when the context was lost made its texture afterwards for an entry `restore` had let go or taken over, a texture no
+  entry held, counted for good (the fault was there before for a load in mid-decode; the queue made many more wait). A load now asks, between
+  the pixels and the texture, whether it is still its own (`load`'s `mine`, `upload`'s `alive`, `restore`'s count in `gen`);
+- a picture the story asked for while the look-ahead was still fetching its file queued as read ahead (`hurry` found nothing waiting): the
+  entry itself now says which it is;
+- the reduced copies were counted without room being made: `blurred` now does, once its copy is done;
+- `windowKeep` was written and never read (gone), and the scenes after this one had all their window styles read ahead, a Ciel-sensei
+  corner's sixteen (about 30 MiB more, held through the scene before it): now only where they are two or fewer (`WINDOWS_AHEAD`).
+One of its proposals was measured and not taken: no pictures read ahead while fast forwarding. The page's median was the same (1,220 MB
+against 1,222 - 1,252) and the story waited for a picture 262 - 267 times instead of 60 - 65: under paced fast forward every picture is
+still shown, so nothing is saved, only asked for later. Its other proposals are not built and are the user's to decide: the playing track
+and one more as the only music kept decoded; no reduced copies (the blur's input made by halving passes) and a coarser working size for
+blurs of 4 to 8, both of which change the blurred pixels; a size cap by each picture's largest drawn size (the user had said no size cap);
+the same four free parts on Android. Frames after the corrections: 5 points entered and 3 stops played in, all the same as the build before.
+The build as it stands (the four parts, the limit at 400, the review's corrections), one run at each pace: fast forward 1,290 MB median,
+peak 1,721; reading pace 1,102, peak 1,544, the story's waits 21 (2.4 s, longest 0.31 s); two frames checked again, the same.

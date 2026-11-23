@@ -7,6 +7,7 @@
 //   069 a start offset in samples (MPLY; nn::atk StartInfo offset type 2, 0xee200), 070 the character (1-19) whose
 //   voice setting the sound follows (voiced sound effects, SEV_*).
 import { appleTouch } from "./touch.js";
+import { MEMORY } from "./memory.js";
 
 export function parseOpts(args) {
   const o = {};
@@ -136,6 +137,10 @@ export class Audio {
     this.buffers = new Map();     // url -> the decoding or decoded sound, the least recently used first
     this.sizes = new Map();       // url -> { buf, bytes } once decoded
     this.budget = soundBudget();
+    // The sources playing, each with the nodes made for it (node), so that one that has stopped can let go of its samples (letGo): where
+    // this is on (memory.js: an iPhone or an iPad). source -> { parts, ctx }
+    this.release = MEMORY.sounds;
+    this.live = new Map();
     this.se = new Map();          // channel 0-19 -> the record its handle plays (state 1, or 2 while fading out)
     this.seLast = Array(20).fill(-1);   // 0x146e6cc: each channel's last scripted volume (-1 after a script ends)
     this.seChar = Array(20).fill(0);    // 0x146e690: the 070 of the channel's last SEPL
@@ -410,6 +415,7 @@ export class Audio {
     const g = ctx.createGain();
     g.gain.value = gain;
     s.connect(g);
+    const parts = [s, g];
     const channels = buf.numberOfChannels || 2;
     const matrix = panMatrix(stream, channels, pan);
     const [[a, b], [c, d] = [0, 0]] = matrix;
@@ -420,6 +426,7 @@ export class Audio {
       k.gain.value = a;
       g.connect(k);
       k.connect(this.groups[group]);
+      parts.push(k);
     } else {
       // each channel's share of each side: a splitter, a gain per channel and side, a two-channel merger
       const split = channels >= 2 ? ctx.createChannelSplitter(channels) : null;
@@ -431,11 +438,19 @@ export class Audio {
         k.gain.value = v;
         if (split) split.connect(k, ch); else g.connect(k);
         k.connect(merge, 0, side);
+        parts.push(k);
       }));
       merge.connect(this.groups[group]);
+      parts.push(merge);
+      if (split) parts.push(split);
     }
     const from = offset > 0 && offset < buf.duration ? offset : 0;
     s.start(0, from);
+    if (this.release) {
+      // (after the sound's own end handler, set by whoever plays it, which is given the source as it was)
+      this.live.set(s, { parts, ctx });
+      s.addEventListener?.("ended", () => setTimeout(() => this.letGo(s), 0));
+    }
     // (at: the context's time at the sound's top, and the group and options: what renew needs to start it again elsewhere)
     return { s, g, matrix, group, opts: { loop, stream, pan }, at: ctx.currentTime - from };
   }
@@ -443,6 +458,23 @@ export class Audio {
   stopNode(n) {
     if (!n || !n.s) return;
     try { n.s.stop(); } catch { /* already stopped */ }
+    // a sound system that is not running (not yet started by a press, or held by the phone: a call, another app's sound) carries the stop
+    // out only once it runs again, and until then says nothing has ended
+    if (this.release && this.ctx?.state !== "running") this.letGo(n.s);
+  }
+
+  // A source that has stopped is taken out of the graph and gives up its samples. WebKit keeps a source's decoded sound for as long as the
+  // source is in the graph, whatever the page's own cache has let go of (trim); a source that has ended leaves the graph by itself, but in a
+  // context that is not running none ever ends, and a stop is carried out only once it runs again. Day 13 played for 200 s in a context
+  // never started (iOS 18.5 Simulator, GitHub issue 16): the page's sounds went from 44 to 530 MB while the cache said 252; with this, 282.
+  // Only a sound the game has stopped, or one that has ended, is let go: one still due to play is left as it is, however long the context
+  // stands (a line's voice goes on from where it was when the player comes back: renew).
+  letGo(s) {
+    const t = this.live.get(s);
+    if (!t) return;
+    this.live.delete(s);
+    for (const part of t.parts) { try { part.disconnect(); } catch { /* not connected */ } }
+    try { s.buffer = null; } catch { /* a browser that will not have it unset */ }
   }
 
   // Where in its sound a node is at the context's time t (every source plays at rate 1): looping in its loop region once
@@ -462,9 +494,10 @@ export class Audio {
     const old = n.s, ended = old.onended, pos = this.playedTo(n, t);
     old.onended = null;
     try { old.stop(); } catch { /* stopped */ }
-    if (pos < 0) { ended?.call(old); return false; }
+    if (pos < 0) { this.letGo(old); ended?.call(old); return false; }
     Object.assign(n, this.node(old.buffer, n.group, { ...n.opts, offset: pos, gain: n.g.gain.value }));
     n.s.onended = ended;
+    this.letGo(old);
     return true;
   }
 
@@ -488,6 +521,7 @@ export class Audio {
     for (const n of this.voice) this.moveNode(n, was);
     for (const n of [this.test, ...(this.sys || [])]) if (n?.s && !this.voice.includes(n)) this.moveNode(n, was);
     this.player?.moved?.(was);
+    for (const [s, kept] of [...this.live]) if (kept.ctx === old) this.letGo(s);   // (what was not moved goes with the old context)
     old.close?.()?.catch?.(() => {});
   }
 
