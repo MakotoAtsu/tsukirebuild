@@ -79,11 +79,14 @@ def shell(app=ROOT / "web/app"):
 
 
 def app_version(root, files):
-    """The name of a set of app files (paths under `root`): the folder the site serves them from, v/<this>/. index.html is not part of it."""
+    """The name of a set of app files (paths under `root`): the folder the site serves them from, v/<this>/.
+
+    index.html as it is in the source is part of it (the page the site stores at its root is made from it and names this
+    folder). The apps name an update by this version: a deployment that changed index.html alone used to keep the name,
+    and an app already running the update of that name could not take it ("that update is in use")."""
     digest = hashlib.sha256()
     for path in sorted(files):
-        if path.name != "index.html":
-            digest.update(path.as_posix().encode() + b"\0" + (root / path).read_bytes() + b"\0")
+        digest.update(path.as_posix().encode() + b"\0" + (root / path).read_bytes() + b"\0")
     return digest.hexdigest()[:12]
 
 

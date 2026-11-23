@@ -184,7 +184,10 @@ export class Audio {
     if (this.ctx) {
       // Not only "suspended": on an iPhone or an iPad the sound is "interrupted" when another app, a call or Siri takes it, and it
       // may stay so when they are done; a press resumes it (issue 8: the sound gone after switching apps).
-      if (this.ctx.state !== "running" && this.ctx.state !== "closed") this.ctx.resume()?.catch?.(() => {});
+      // A closed one is what pagehide leaves (main.js) when the browser keeps the page for Back / Forward and shows it again as it was:
+      // nothing reopens it, so the sound is made again in a new one, what was playing going on from where it was (renew).
+      if (this.ctx.state === "closed") this.renew();
+      else if (this.ctx.state !== "running") this.ctx.resume()?.catch?.(() => {});
       return;
     }
     this.open();

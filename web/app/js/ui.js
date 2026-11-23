@@ -547,6 +547,7 @@ export class UI {
     this.keyFn = null;
     this.screenFocus = this.screenClose = this.screenRight = this.columnTook = null;   // the column's hooks belong to the screen that set them
     this.analogViewer = false;
+    this.binding = false;       // (a wait for a key on the Controls page ends with its screen)
     this.menuBusy = false;      // a fade of the system menu or of the screen beside it is running: no keys, no pointer (N2-30, N2-135)
     this.menuHidden = false;    // the column's cursor goes out whatever has the focus (0x4c370, states 0xe and 0xf)
     this.menuLevel = 1;
@@ -580,6 +581,7 @@ export class UI {
     this.cancelSystemWindows();
     this.keyFn = null;
     this.analogViewer = false;
+    this.binding = false;
     this.menuBusy = false;
     this.screen = null;
     this.root.style.display = "none";
@@ -1637,11 +1639,14 @@ export class UI {
         q.style.transform = rows > 1 ? `translateY(${(-(rows - 1) * row) / 2}px)` : "";
       };
       centre();
-      const keep = this.keyFn;
+      // (the keys under a notice this one takes over from, not that notice's own: it gives none back once this one has them)
+      let keep = this.keyFn;
+      while (keep?.under !== undefined) keep = keep.under;
       const keys = (e) => {
         if (e.key === "Enter" || e.key === " " || e.key === "Escape" || e.key === "Backspace") { if (!fx.press() && !e.repeat) pressed?.(); }
         return true;
       };
+      keys.under = keep;
       if (passive) box.style.pointerEvents = "none";
       else {
         this.keyFn = keys;
@@ -1880,18 +1885,21 @@ export class UI {
     for (const { rec, kind, slot: i } of entries) {
       const act = () => {
         if (mode !== "save") { if (rec) load(rec); return; }
-        const write = () => {
+        // back: the Overwrite? window's way back to the list (ui.dialog), for a save that is not made after all
+        const write = (back) => {
           const made = this.env.makeSave();
-          if (!made) { this.sound(2); return; }   // no checkpoint yet (0xf17ff2)
-          saves[i] = made;
+          if (!made) { back?.(); this.sound(2); return; }   // no checkpoint yet (0xf17ff2)
+          const next = { ...saves, [i]: made };
           // "Saving" (0x50fc0 case 7 / 0xf: 0x4abe0(183, 1200), held by 0x4abd0(1)) stays at least 30 frames and until the
           // write is done (case 8), then closes with sound 1; the list comes back 40 frames later (case 9). A failed
           // write shows SYSMES 186 instead ("Saving Failed. / Data may be Corrupted.").
           try {
-            localStorage.setItem(this.saveKey, JSON.stringify(saves));
+            localStorage.setItem(this.saveKey, JSON.stringify(next));
+            saves[i] = made;   // (only once it is stored: a write that failed leaves the list showing what storage has)
             this.env.savedNow?.();
           } catch (e) {
             console.warn(e);
+            back?.();
             this.notify(this.vm.system?.messages?.["186"] || "Saving Failed.^Data may be Corrupted.");
             return;
           }
@@ -2134,7 +2142,8 @@ export class UI {
   // (0x4e170 state 5): No goes back to it, Yes sends it up (state 6 -> 4).
   confirmSystem(question, opts = {}) {
     return new Promise((res) => {
-      if (this.open) { this.dialog(question, () => res(true), () => { res(false); }, opts); return; }
+      // over a screen that is up (a gallery movie's skip question): the screen has its items and its Back again as the window goes
+      if (this.open) { this.dialog(question, (back) => { back(); res(true); }, (back) => { back(); res(false); }, opts); return; }
       const fromPanel = this.panelOpen;
       this.begin("dialog", { keepPanel: fromPanel });
       this.dialog(question, () => { this.close(); if (fromPanel) this.closePanel(); res(true); }, () => { this.close(); res(false); }, opts);
@@ -2636,6 +2645,7 @@ export class UI {
       this.audio?.stopTests?.();   // 0x2b5c0: the SE Test (0x9cf90) and interface handle 4 (0x9b740(4))
       this.sound(2);
       state = "out";
+      page.style.pointerEvents = "none";   // the pointer waits for the fade as the keys do: a key slot clicked now would wait for a key on a page that is going
       if (fromTitle) { bgFade.set(-CONFIG.rate); this.env.titleHold?.(false); }   // 0x2c558: 0x49630(-0.024) -> 0x1b20(0)
       then = typeof next === "function" ? next : () => (fromTitle ? this.titleBack() : this.system({ back: true }));
       setTimeout(() => { if (state === "out" && page.isConnected && then) { const fn = then; then = null; fn(); } }, 1000);
@@ -2941,14 +2951,14 @@ export class UI {
       s.el.textContent = say("Press a key");
       const end = (sound) => {
         this.binding = false;
-        this.keyFn = keep;
+        if (this.keyFn === capture) this.keyFn = keep;   // (not over another screen's keys, should the page have gone meanwhile)
         s.el.classList.remove("wait");
         removeEventListener("pointerdown", cancel, true);
         refresh();
         if (sound !== undefined) this.sound(sound);
       };
       const cancel = () => end();
-      this.keyFn = (e) => {
+      const capture = (e) => {
         const name = keyName(e);
         if (e.repeat) return true;
         if (name === "Escape") end(2);
@@ -2956,6 +2966,7 @@ export class UI {
         else if (canBind(name)) { K.set(s.id, s.slot, name); end(1); }
         return true;
       };
+      this.keyFn = capture;
       setTimeout(() => { if (this.binding) addEventListener("pointerdown", cancel, true); });
     };
     ACTIONS.forEach((a, row) => {

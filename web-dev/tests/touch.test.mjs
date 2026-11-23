@@ -246,14 +246,16 @@ test("decoded sounds are kept to a budget of bytes, the least recently used goin
   assert.equal(again.url, "a", "a sound let go is decoded again when asked for");
 });
 
-test("a press resumes the sound whatever stopped it, an iPhone's interruption too, but not a closed one", async () => {
+test("a press resumes the sound whatever stopped it, an iPhone's interruption too; a closed one is made again, not resumed", async () => {
   const { Audio } = await import("../../web/app/js/audio.js");
   for (const [state, resumed] of [["suspended", true], ["interrupted", true], ["running", false], ["closed", false]]) {
     const a = new Audio();
-    let n = 0;
+    let n = 0, renewed = 0;
     a.ctx = { state, resume() { n++; return Promise.resolve(); } };
+    a.renew = () => { renewed++; };   // (what renew does: stuck-screens.test.mjs and the test below)
     a.start();
     assert.equal(n, resumed ? 1 : 0, state);
+    assert.equal(renewed, state === "closed" ? 1 : 0, state);
   }
 });
 

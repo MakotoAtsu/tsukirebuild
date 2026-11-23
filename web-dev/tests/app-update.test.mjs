@@ -747,10 +747,20 @@ d = pathlib.Path(${JSON.stringify(dir)}); app_manifest.bundle(d / "out", d / "ap
   assert.equal(list, `${md5("aaa")} 3 img/A.avif\n${md5("{}")} 2 text.json\n`, "no ja/, voice/, se/ or hidden files");
   assert.deepEqual(m.assets, { md5: md5(list), size: list.length });
   assert.ok(Math.abs(m.time - Date.now() / 1000) < 120, "when it was built");
-  // the version is the site's name for the same files (deploy.py's v/<version>/): index.html is not part of it
-  const digest = createHash("sha256");
-  for (const [rel, body] of [["js/apphost.js", "export const SHELL = 7;\n"], ["js/main.js", "main"], ["style.css", "css"]]) digest.update(`${rel}\0${body}\0`);
-  assert.equal(m.version, digest.digest("hex").slice(0, 12));
+  // the version is the site's name for the same files (deploy.py's v/<version>/), index.html among them: an update is named by it, so
+  // a page that changed alone must have another name (an app running the update of that name refuses it: "that update is in use")
+  const versionOf = (page) => {
+    const digest = createHash("sha256");
+    for (const [rel, body] of [["index.html", page], ["js/apphost.js", "export const SHELL = 7;\n"], ["js/main.js", "main"], ["style.css", "css"]]) digest.update(`${rel}\0${body}\0`);
+    return digest.digest("hex").slice(0, 12);
+  };
+  assert.equal(m.version, versionOf("<html>"));
+  put("app/index.html", "<html lang>");
+  execFileSync("python3", ["-c", code], { stdio: "pipe" });
+  const again = readManifest(JSON.parse(readFileSync(path.join(dir, "out", "bundled.json"), "utf8")));
+  assert.equal(again.version, versionOf("<html lang>"));
+  assert.notEqual(again.version, m.version, "index.html alone changed: another version, so another update id");
+  put("app/index.html", "<html>");
   assert.deepEqual([...parseList(list).keys()], ["img/A.avif", "text.json"]);
   // the site's description: the same list of the game's files, and one list for each language folder, named under "langs"
   const manifest = path.join(dir, "assets-manifest.txt"), line = (p, body) => `${md5(body)} ${body.length} ${p}`;
