@@ -286,6 +286,7 @@ export class Jukebox {
     this.audio.start();
     const ctx = this.audio.ctx;
     if (!ctx) return null;
+    this.audio.player = this;   // (again after close)
     if (!this.gain) { this.gain = ctx.createGain(); this.gain.connect(this.audio.master); }
     if (!this.fade) this.gain.gain.value = this.gainAt(this.level());
     return ctx;
@@ -349,9 +350,12 @@ export class Jukebox {
   pause() { if (this.state === "playing") { this.offset = this.position(); this.release(); this.state = "paused"; } }
   resume() { if (this.state === "paused" && this.buf) this.start(this.offset); }
   toggle() { if (this.state === "playing") this.pause(); else this.resume(); }
-  // The end of a track, or Stop (0x1dc40): the panel clears.
+  // The end of a track, or Stop (0x1dc40): the panel clears. The track's samples are not kept here from then on: a stopped player
+  // held its last track (up to 113 MiB decoded, MOON01_BGM33) for as long as the page lived, outside the sounds' budget, through the
+  // story played after a visit to the gallery. The sound cache (audio.buffer) still has them, counted and let go as the budget says,
+  // and play asks it again.
   finish() {
-    this.token = null; this.release(); this.state = "stopped"; this.offset = 0;
+    this.token = null; this.release(); this.state = "stopped"; this.offset = 0; this.buf = null;
     if (this.fade && this.gain) { this.gain.gain.cancelScheduledValues(0); this.gain.gain.value = this.gainAt(this.level()); }
     this.fade = null;
     if (this.onEnd) this.onEnd();
@@ -365,7 +369,23 @@ export class Jukebox {
     session.volume = Math.max(0, Math.min(1, v));
     if (this.gain && !this.fade && (this.state === "playing" || this.state === "paused")) this.gain.gain.value = this.gainAt(this.level());
   }
-  release() { if (this.src) { const s = this.src; this.src = null; try { s.stop(); } catch { /* ended */ } } }
+  // The source stopped, out of the graph and without its samples: WebKit keeps a stopped source's decoded sound for as long as the
+  // source is connected, and in a context that is not running a stop is not carried out at all (audio.js letGo).
+  release() {
+    if (!this.src) return;
+    const s = this.src;
+    this.src = null;
+    try { s.stop(); } catch { /* ended */ }
+    try { s.disconnect(); } catch { /* not connected */ }
+    try { s.buffer = null; } catch { /* a browser that will not have it unset */ }
+  }
+  // The Music Player left (the section closed, the gallery with it): the track stops as Stop does, and the player's gain leaves the
+  // graph and the sound system lets go of the player. Opened again, ready makes both again.
+  close() {
+    this.stop();
+    if (this.gain) { try { this.gain.disconnect(); } catch { /* not connected */ } this.gain = null; }
+    if (this.audio.player === this) this.audio.player = null;
+  }
   // The sound made again in a new context (Audio.renew, at the old context's time was): a track playing goes on there from
   // where it was, one fading out ends now; the gain is made again in the new context when next needed (ready).
   moved(was) {
@@ -620,7 +640,7 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
   // (0x8e1c0, 0x9c870(100)); not for the flowchart or the title.
   function closeSection(another, id = section) {
     if (view?.close) view.close();
-    if (id === "music") { jukebox.stop(); if (another) env.titleMusic?.(); }
+    if (id === "music") { jukebox.close(); if (another) env.titleMusic?.(); }
   }
 
   // fadeSection: a section chosen in the column; the first comes in with the column.

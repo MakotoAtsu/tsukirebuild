@@ -599,3 +599,59 @@ test("the pictures kept are as they were on every device, an iPhone's 400 MB too
   assert.match(src, /this\.dropBlurred\(this\.limit \/ 4\);/, "the blurred copies' share: a quarter of the limit");
   assert.doesNotMatch(src, /SPARED_PICTURES|plan\?\.limit/);
 });
+
+// Reported 2026-11-23: the gallery's music player kept its last track after Stop and after the gallery was left.
+test("the music player keeps no track once it has stopped, and leaves the sound system when its section closes", async () => {
+  globalThis.localStorage ||= { store: {}, getItem(k) { return this.store[k] ?? null; }, setItem(k, v) { this.store[k] = String(v); }, removeItem(k) { delete this.store[k]; } };
+  const { Audio } = await import("../../web/app/js/audio.js");
+  const gal = await import("../../web/app/js/gallery.js");
+  const a = new Audio();
+  const { ctx } = withContext(a);
+  const buf = { duration: 308, numberOfChannels: 2 };
+  let asked = 0;
+  a.buffer = async () => { asked++; return buf; };
+  const jb = new gal.Jukebox(a);
+  gal.session.repeat = false;
+  const track = { stream: "MOON01_BGM33", loopStart: 0, loopEnd: 308 * 48000 };
+  await jb.play(track);
+  const first = ctx.sources.at(-1);
+  assert.equal(first.buffer, buf);
+  assert.equal(jb.state, "playing");
+  jb.stop();
+  assert.equal(jb.buf, null, "the samples are the sound cache's alone again");
+  assert.ok(first.stopped && first.cut, "the source is stopped and out of the graph");
+  assert.equal(first.buffer, null, "and holds no samples (WebKit keeps them while it is connected)");
+  // paused, the track is still the player's (Resume goes on from it); a seek while playing swaps the source and keeps none behind
+  await jb.play(track);
+  const second = ctx.sources.at(-1);
+  jb.pause();
+  assert.equal(jb.buf, buf);
+  assert.equal(second.buffer, null);
+  jb.resume();
+  const third = ctx.sources.at(-1);
+  assert.equal(third.buffer, buf);
+  jb.seek(0.5);
+  assert.equal(third.buffer, null);
+  assert.equal(ctx.sources.at(-1).buffer, buf);
+  // a track that ends by itself is let go as Stop lets it go
+  ctx.sources.at(-1).end();
+  assert.equal(jb.state, "stopped");
+  assert.equal(jb.buf, null);
+  // the section closed
+  await jb.play(track);
+  const gain = jb.gain;
+  jb.close();
+  assert.equal(jb.buf, null);
+  assert.ok(gain.cut, "the player's gain is out of the graph");
+  assert.equal(jb.gain, null);
+  assert.equal(a.player, null, "the sound system holds no player");
+  // opened again in the same visit: it plays as before, through a new gain, and is the sound system's player again
+  await jb.play(track);
+  assert.equal(jb.state, "playing");
+  assert.equal(a.player, jb);
+  assert.equal(jb.gain.out, a.master);
+  assert.equal(asked, 4, "each play asks the cache");
+  jb.close();
+  const src = readFileSync(new URL("../../web/app/js/gallery.js", import.meta.url), "utf8");
+  assert.match(src, /if \(id === "music"\) \{ jukebox\.close\(\); if \(another\) env\.titleMusic\?\.\(\); \}/);
+});
