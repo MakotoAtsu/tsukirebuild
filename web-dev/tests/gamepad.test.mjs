@@ -80,17 +80,49 @@ test("non-standard odd devices (wheels, flight sticks, resting -1 axes) never dr
   assert.equal(isLikelyGamepad(makePad({ mapping: "", id: "3Dconnexion SpaceMouse", count: 2 })), false);
   assert.equal(readPad(makePad({ mapping: "", id: "Logitech G29 Racing Wheel", buttons: { 0: true }, axes: [-1, -1, 0, 0] })), null);
 
-  // Unknown generic non-standard device whose axes rest at -1 / +1 must produce zero stick, trigger, or hat input
-  const odd = makePad({ index: 2, mapping: "", id: "Generic USB HID", count: 6, axes: [-1, -1, 1, -1, 1, 1, -1, -1, 0, -1] });
-  const oddReading = readPad(odd, { confirmEast: false });
+  // Unknown generic non-standard device whose axes rest at -1 / +1 must produce zero stick, trigger, or hat input,
+  // even after a trigger on axes[2] or an unnamed throttle on axes[1] is swept through 0 and parked/released!
+  const oddRest = makePad({ index: 2, mapping: "", id: "Generic USB HID", count: 6, axes: [-1, -1, -1, 0, 1, 1, -1, -1, 0, -1] });
+  const oddReading = readPad(oddRest, { confirmEast: false });
   assert.ok(oddReading);
   assert.equal(oddReading.pressed.size, 0, "resting -1/+1 hat and trigger axes do not fire");
   assert.deepEqual(oddReading.ls, { x: 0, y: 0 });
   assert.deepEqual(oddReading.rs, { x: 0, y: 0 });
-  assert.equal(leftStickScrollY([odd]), 0);
-  assert.deepEqual(readSticks([odd]), { lx: 0, ly: 0, rx: 0, ry: 0 });
+  assert.equal(leftStickScrollY([oddRest]), 0);
+  assert.deepEqual(readSticks([oddRest]), { lx: 0, ly: 0, rx: 0, ry: 0 });
 
-  // A real non-standard gamepad seen neutral at rest calibrates cleanly and responds once moved
+  // Sweep throttle (axes[1]) and trigger (axes[2]) through centre (0), then park throttle at +0.8 and release trigger back to -1
+  const oddMid = makePad({ index: 2, mapping: "", id: "Generic USB HID", count: 6, axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 3.2857] });
+  readPad(oddMid, { confirmEast: false });
+  const oddParked = makePad({ index: 2, mapping: "", id: "Generic USB HID", count: 6, axes: [0, 0.8, -1, 0.9, 1, 1, -1, 0, 0, -1] });
+  const parkedR = readPad(oddParked, { confirmEast: false });
+  assert.equal(parkedR.pressed.size, 0, "sweeping uncentered hat/axes through neutral never promotes them");
+  assert.deepEqual(parkedR.ls, { x: 0, y: 0 }, "unnamed throttle parked after sweeping centre stays ignored");
+  assert.deepEqual(parkedR.rs, { x: 0, y: 0 }, "non-standard pad never reads right stick from axes[2..3]");
+  assert.equal(leftStickScrollY([oddParked]), 0);
+  assert.deepEqual(readSticks([oddParked]), { lx: 0, ly: 0, rx: 0, ry: 0 });
+
+  // Non-standard pad trigger on axes[2] squeezed through 0 and released back to -1 must NOT drive menu Left presses
+  let triggerPads = [makePad({ index: 4, mapping: "", id: "Generic USB Pad", axes: [0, 0, -1, 0] })];
+  const trigDriver = new GamepadDriver({ config: new PadConfig(fakeStorage()), getPads: () => triggerPads });
+  const trigKeys = [];
+  const trigCtx = {
+    menus: true, panelOpen: false, choosing: false, binding: false, screen: "titlemenu",
+    leftStickScrolls: false, analogViewer: false, voiceKey: "V",
+    keyDown: (spec) => trigKeys.push(spec.key), keyUp: () => {}, runAction: () => {},
+    cancelStory: () => {}, fastForward: () => {}, wakeAudio: () => {},
+  };
+  trigDriver.poll(100, trigCtx);
+  triggerPads = [makePad({ index: 4, mapping: "", id: "Generic USB Pad", axes: [0, 0, 0, 0] })];
+  trigDriver.poll(120, trigCtx);
+  triggerPads = [makePad({ index: 4, mapping: "", id: "Generic USB Pad", axes: [0, 0, 1, 0] })];
+  trigDriver.poll(140, trigCtx);
+  triggerPads = [makePad({ index: 4, mapping: "", id: "Generic USB Pad", axes: [0, 0, -1, 0] })];
+  trigDriver.poll(160, trigCtx);
+  trigDriver.poll(500, trigCtx);
+  assert.deepEqual(trigKeys, [], "trigger on axes[2] never becomes right-stick Left");
+
+  // A real non-standard gamepad seen neutral at rest calibrates cleanly and responds on left stick, D-pad, and triggers (no right stick)
   const odinIdle = makePad({ index: 3, mapping: "", id: "Odin Controller", count: 6, axes: [0, 0, 0, 0, -1, -1, 0, 0, 0, 3.2857] });
   const idleR = readPad(odinIdle, { confirmEast: false });
   assert.equal(idleR.pressed.size, 0);
@@ -102,7 +134,7 @@ test("non-standard odd devices (wheels, flight sticks, resting -1 axes) never dr
   assert.ok(activeR.pressed.has("lt"), "calibrated trigger axis fires LT");
   assert.ok(!activeR.pressed.has("rt"));
   assert.equal(leftStickScrollY([odinActive]), 64);
-  assert.deepEqual(readSticks([odinActive]), { lx: 0.5, ly: -0.5, rx: 0, ry: 0.75 });
+  assert.deepEqual(readSticks([odinActive]), { lx: 0.5, ly: -0.5, rx: 0, ry: 0 });
   resetPadBaselines();
 });
 

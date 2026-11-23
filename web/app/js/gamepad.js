@@ -39,6 +39,8 @@ function baselineFor(pad) {
   const axes = pad.axes || [];
   let state = padBaselines.get(k);
   if (!state || state.len !== axes.length) {
+    // Trust an axis as self-centering only if it rested near 0 when first seen; never promote an uncentered axis
+    // (trigger, pedal, throttle) just because it later sweeps through 0.
     state = {
       len: axes.length,
       initial: Array.from(axes, (v) => Number(v) || 0),
@@ -46,14 +48,6 @@ function baselineFor(pad) {
       hatNeutral: axes.length >= 10 ? Math.abs(Number(axes[9]) || 0) > 1.05 : false,
     };
     padBaselines.set(k, state);
-  } else {
-    for (let i = 0; i < axes.length; i++) {
-      const v = Number(axes[i]) || 0;
-      if (!state.centered[i] && Math.abs(v) < STICK_DEAD_ZONE) state.centered[i] = true;
-    }
-    if (axes.length >= 10 && !state.hatNeutral && Math.abs(Number(axes[9]) || 0) > 1.05) {
-      state.hatNeutral = true;
-    }
   }
   return state;
 }
@@ -293,7 +287,8 @@ export function readPad(pad, { confirmEast = false } = {}) {
     if (base.initial[5] < -0.5 && axes[5] > 0.25) pressed.add("rt");
   }
   const ls = { x: calibratedAxis(axes, 0, base), y: calibratedAxis(axes, 1, base) };
-  const rs = axes.length >= 4 ? { x: calibratedAxis(axes, 2, base), y: calibratedAxis(axes, 3, base) } : { x: 0, y: 0 };
+  // Never take a right stick from non-standard pads: axes[2..3] is often an analog trigger or throttle on DirectInput/Linux HIDs.
+  const rs = pad.mapping === "standard" && axes.length >= 4 ? { x: deadZone(axes[2]), y: deadZone(axes[3]) } : { x: 0, y: 0 };
   return { pressed, ls, rs, style: detectPadStyle(pad.id) };
 }
 
@@ -307,9 +302,9 @@ export function readSticks(pads = []) {
     const axes = pad.axes || [];
     lx += calibratedAxis(axes, 0, base);
     ly += calibratedAxis(axes, 1, base);
-    if (axes.length >= 4) {
-      rx += calibratedAxis(axes, 2, base);
-      ry += calibratedAxis(axes, 3, base);
+    if (pad.mapping === "standard" && axes.length >= 4) {
+      rx += deadZone(axes[2]);
+      ry += deadZone(axes[3]);
     }
   }
   const clamp = (v) => Math.max(-1, Math.min(1, v));
