@@ -2244,3 +2244,20 @@ touch's own wherever it lands. A click with no touch before it (a browser's own 
 
 **Checked:** the same six taps now all open the Log or the Menu; a new test in `touch.test.mjs` (fails on the old `touch.js` at the quick tap
 where the swipe lifted); the earlier tests unchanged.
+
+## A tap the browser makes no click of is clicked by the page, 2026-11-23 (later)
+
+**Report** (the user, after `be80350b`): in the Android app on their phone a quick tap on the control panel's button right after swiping
+the panel down still did nothing. **Measured on the phone (OnePlus CPH2749, Chrome 158, real input through `adb shell input`)**: a tap about
+200 ms after a swipe arrives as pointerdown and pointerup and no click, on any element (a plain full-screen layer too, and with nothing
+moving); 350 ms after, a click. The browser drops it, not the page: the earlier fix was right but not enough, and its emulated touches
+(CDP `Input.dispatchTouchEvent`) bypass the browser's own tap rules, so they could not show this.
+
+**Change** (`touch.js`, `TOUCH.owed` = 150 ms): a tap on the story or the panel (a gesture that ended as "tap") owes a click; a click from
+the browser pays it; if none has come within 150 ms the page dispatches one on the tapped element at the tap's place, and a late click of the
+browser's from the same touch is then passed over. Menus (`#ui`) are not covered: their taps are not tracked as gestures, and there a tap
+just after a scroll is meant to stop it.
+
+**Checked on the phone** with the working copy served over `adb reverse`: swipe ending on Log, tap 0.15 s later, twice: the page's click
+150 ms after the tap, the Log opened. A tap 0.08 s after (faster than a finger) hit the button then sliding under it (Full screen).
+Not on iPhones and iPads (`appleTouch`): measured in Chrome and the Android WebView only. `touch.test.mjs` new test.

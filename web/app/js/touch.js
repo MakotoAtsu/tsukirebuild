@@ -18,6 +18,10 @@ export const TOUCH = {
   // wander `slop`; past `swipe` the press is a swipe; held still for `hold` it fast forwards; a second finger within
   // `two` of the first makes a two-finger tap. `after`: how long a click that follows a gesture is passed over.
   slop: 14, swipe: 44, hold: 420, two: 350, after: 400,
+  // A tap on the story or the control panel that the browser made no click of within `owed` ms is clicked by the page: Chrome and the
+  // Android WebView drop a tap that comes soon after a swipe (about 200 ms after it on a OnePlus, 2026-11-23: down and up arrive, no
+  // click), so a quick tap on the panel's button right after swiping the panel down did nothing. A browser's click comes within a few ms.
+  owed: 150,
   // A tap in the top strip of the story's picture brings the panel down, as the mouse at the top does (stage pixels).
   topZone: 86,
   // The control panel (ui.js buildPanel): the game's panel plates, uncut (220 x 62), drawn at `scale` in `cols` columns
@@ -416,6 +420,7 @@ export function installTouch({ win = window, doc = document } = {}) {
     if (!gesture.busy) win.clearTimeout(holdTimer);
     if (res === "hold-end") { fastOn = false; touch.act.fast(false); }
     else if (res === "two" && plain && story()) { passClick(); touch.act.hide(); }
+    else if (res === "tap" && Number.isFinite(e.clientX) && Number.isFinite(e.clientY)) owe(e.target, e.clientX, e.clientY);
     if (!gesture.busy && skipClick === Infinity) {
       skipClick = now() + T.after;
       skipAt = several || e.type === "pointercancel" || !Number.isFinite(e.clientX) || !Number.isFinite(e.clientY) ? null : [e.clientX, e.clientY];
@@ -423,12 +428,30 @@ export function installTouch({ win = window, doc = document } = {}) {
   };
   win.addEventListener("pointerup", lift, true);
   win.addEventListener("pointercancel", lift, true);
+  // A tap's click, owed until the browser makes it (TOUCH.owed): the page makes it where the browser did not, at the tap's place, and a
+  // click of the browser's coming after all from the same touch is passed over, as a gesture's own.
+  // (Not on an iPhone or an iPad: the dropped tap was measured in Chrome and the Android WebView only, and WebKit's click was not timed.)
+  let owed = null;
+  const owing = !appleTouch(win);
+  function owe(target, x, y) {
+    if (!owing) return;
+    if (owed) win.clearTimeout(owed.timer);
+    owed = { target, x, y, timer: win.setTimeout(() => {
+      const o = owed;
+      owed = null;
+      if (!o?.target?.dispatchEvent || o.target.isConnected === false || !win.MouseEvent) return;
+      o.target.dispatchEvent(new win.MouseEvent("click", { bubbles: true, cancelable: true, composed: true, view: win, detail: 1, clientX: o.x, clientY: o.y }));
+      skipClick = now() + T.after;
+      skipAt = [o.x, o.y];
+    }, T.owed) };
+  }
   // The click a tap makes. One that follows a swipe, a hold or two fingers is passed over; the panel's state as the
   // click began is kept for storyClick, since every click sends the panel up before the story sees it (main.js).
   // The gesture's own click lands where its finger lifted. One that lands elsewhere in that time is a new tap, a button of the panel
   // the swipe has just brought down say, and goes through: a swipe makes no click of its own, and its wait took the tap instead.
   // So does any click after a new touch has begun (pointerdown, above): a gesture's own click comes before the next touch.
   win.addEventListener("click", (e) => {
+    if (owed) { win.clearTimeout(owed.timer); owed = null; }   // the browser made the tap's click
     if (now() < skipClick) {
       skipClick = 0;
       const elsewhere = !!skipAt && Number.isFinite(e.clientX) && Number.isFinite(e.clientY) && Math.hypot(e.clientX - skipAt[0], e.clientY - skipAt[1]) > 2 * T.slop * unit;

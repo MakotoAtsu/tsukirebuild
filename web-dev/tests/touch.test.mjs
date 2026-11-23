@@ -613,6 +613,57 @@ test("a new tap at once after a swipe, a hold or two fingers goes through, even 
   assert.equal(tapAt(r, r.stage, 400, 300).stopped, false, "a tap at once after two fingers");
 });
 
+test("a tap the browser makes no click of (Chrome drops one soon after a swipe) is clicked by the page, once, at its place", () => {
+  // Measured 2026-11-23 on a OnePlus in Chrome with real input: a tap about 200 ms after a swipe gave pointerdown and pointerup and no
+  // click, on any element; 350 ms after, a click. So the panel's button tapped quickly after swiping the panel down did nothing.
+  const r = rig();
+  r.win.MouseEvent = class { constructor(type, init) { Object.assign(this, init); this.type = type; } };
+  const touch = installTouch({ win: r.win, doc: r.doc });
+  touch.bind({ ui: r.ui, vm: r.vm, audio: r.audio, act: r.act });
+  const panel = new r.El(), btn = new r.El("button"), made = [];
+  panel.cls.add("modepanel"); panel.append(btn); r.stage.append(panel);
+  btn.dispatchEvent = (ev) => { made.push(ev); return !r.fire("click", { clientX: ev.clientX, clientY: ev.clientY, target: btn, isTrusted: false }).stopped; };
+  swipeBy(r, 0, TOUCH.swipe + 5);
+  r.advance(200);
+  r.fire("pointerdown", { pointerId: 1, clientX: 900, clientY: 60, target: btn });
+  r.fire("pointerup", { pointerId: 1, clientX: 900, clientY: 60, target: btn });   // and no click from the browser
+  r.advance(TOUCH.owed - 10);
+  assert.equal(made.length, 0, "not before the browser has had its time");
+  r.advance(20);
+  assert.equal(made.length, 1, "the page clicks the button");
+  assert.equal(made[0].type, "click");
+  assert.deepEqual([made[0].clientX, made[0].clientY, made[0].bubbles], [900, 60, true]);
+  assert.equal(r.fire("click", { clientX: 900, clientY: 60, target: btn }).stopped, true, "the browser's own click, late after all, is not a second press");
+  r.advance(1000);
+  // a tap the browser does click: nothing more
+  r.fire("pointerdown", { pointerId: 1, clientX: 900, clientY: 60, target: btn });
+  r.fire("pointerup", { pointerId: 1, clientX: 900, clientY: 60, target: btn });
+  r.advance(3);
+  assert.equal(r.fire("click", { clientX: 900, clientY: 60, target: btn }).stopped, false);
+  r.advance(1000);
+  assert.equal(made.length, 1);
+  // a swipe or a hold is no tap: nothing owed
+  swipeBy(r, 0, TOUCH.swipe + 5);
+  r.advance(1000);
+  r.fire("pointerdown", { pointerId: 1, clientX: 300, clientY: 400 });
+  r.advance(TOUCH.hold + 20);
+  r.fire("pointerup", { pointerId: 1, clientX: 300, clientY: 400 });
+  r.advance(1000);
+  assert.equal(made.length, 1);
+  // not on an iPhone or an iPad, where it was not measured
+  const ios = rig({ iphone: 3 });
+  ios.win.MouseEvent = r.win.MouseEvent;
+  const t2 = installTouch({ win: ios.win, doc: ios.doc });
+  t2.bind({ ui: ios.ui, vm: ios.vm, audio: ios.audio, act: ios.act });
+  const b2 = new ios.El("button"), made2 = [];
+  b2.dispatchEvent = (ev) => { made2.push(ev); return true; };
+  ios.stage.append(b2);
+  ios.fire("pointerdown", { pointerId: 1, clientX: 900, clientY: 60, target: b2 });
+  ios.fire("pointerup", { pointerId: 1, clientX: 900, clientY: 60, target: b2 });
+  ios.advance(1000);
+  assert.equal(made2.length, 0);
+});
+
 test("on the story a swipe down brings the control panel, a swipe up the log (or sends the panel up), and the click after either is passed over", () => {
   const r = rig();
   const touch = installTouch({ win: r.win, doc: r.doc });
