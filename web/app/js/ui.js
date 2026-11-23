@@ -8,6 +8,7 @@ import { LogoDust, LogoShards, MenuCursor, MENU_COLUMN, MENU_FADE, drawTitlePart
   SCROLLBAR, ScrollBarFx, BACKLOG, logPages, CONFIG, ConfigScroll, configFollow, configMove, configStep, sliderValue,
   SampleFx, NOTICE, NoticeFx, voiceScrollMax, wheelPixels, hitBoxPixels, STORY_HIT, SYSTEM_HIT } from "./uifx.js";
 import { ACTIONS, MENU_KEYS, MOUSE, SLOTS, canBind, keyLabel, keyName } from "./keys.js";
+import { PadConfig, leftStickScrollY, padControlsList } from "./gamepad.js";
 import { chapterNamed, localizedChapter, menuChapter, sceneName } from "./chapters.js";
 import { TOUCH, TOUCH_CONTROLS, TOUCH_HINTS, barPlace } from "./touch.js";
 import { JA, ZH, PT, RU, ORIG, LANG, asset, has } from "./lang.js";
@@ -545,6 +546,7 @@ export class UI {
     this.backSound = undefined;
     this.keyFn = null;
     this.screenFocus = this.screenClose = this.screenRight = this.columnTook = null;   // the column's hooks belong to the screen that set them
+    this.analogViewer = false;
     this.menuBusy = false;      // a fade of the system menu or of the screen beside it is running: no keys, no pointer (N2-30, N2-135)
     this.menuHidden = false;    // the column's cursor goes out whatever has the focus (0x4c370, states 0xe and 0xf)
     this.menuLevel = 1;
@@ -577,6 +579,7 @@ export class UI {
     this.dropTitle();
     this.cancelSystemWindows();
     this.keyFn = null;
+    this.analogViewer = false;
     this.menuBusy = false;
     this.screen = null;
     this.root.style.display = "none";
@@ -699,22 +702,39 @@ export class UI {
   // The hint bar along the bottom: what the keys and the mouse do on this screen, on the game's translucent band (native
   // 0x4a8f0 drew the controller's buttons there). labels: the screen's entries by name (HINTS above), or [name, keys] for
   // a screen's own keys under a name another screen has (the flowchart's zoom).
-  helpBar(page, labels) {
-    const bar = document.createElement("div");
-    bar.className = "helpbar";
-    const entries = labels.map((l) => (Array.isArray(l) ? l : [l, null]));
-    bar.setAttribute("aria-label", entries.map(([label]) => label).join(", "));
+  fillHelpBar(bar, entries) {
+    bar.textContent = "";
+    const padOn = !!this.pad?.active;
+    const pHints = padOn ? this.pad.hints() : null;
     for (const [label, own] of entries) {
       const hint = document.createElement("span");
       hint.className = "hint";
-      // on a touch device, what a finger does instead (touch.js TOUCH_HINTS); an entry with nothing to say is left out
-      const keys = this.touch ? TOUCH_HINTS[label] : own ? own : label === "Replay voice" ? [this.keys?.label("voice") || "V", ...HINTS[label].slice(1)] : HINTS[label] || [];
+      // when a controller is active, show its prompts; on a touch device without a controller, what a finger does instead
+      const keys = padOn
+        ? (pHints[label] || own || HINTS[label] || [])
+        : this.touch ? TOUCH_HINTS[label] : own ? own : label === "Replay voice" ? [this.keys?.label("voice") || "V", ...HINTS[label].slice(1)] : HINTS[label] || [];
       if (!keys) continue;
       // (Russian's words for the keys and the entries are among its page words: words.js say)
       for (const key of keys) hint.append(Object.assign(document.createElement("kbd"), { textContent: RU ? say(key) : HINT_KEYS[key] || key }));
       hint.append(Object.assign(document.createElement("span"), { className: "hint-label", textContent: RU ? say(label) : HINT_WORDS[label] || label }));
       bar.append(hint);
     }
+  }
+
+  refreshHints() {
+    if (!this.root?.querySelectorAll) return;
+    for (const bar of this.root.querySelectorAll(".helpbar")) {
+      if (bar._entries) this.fillHelpBar(bar, bar._entries);
+    }
+  }
+
+  helpBar(page, labels) {
+    const bar = document.createElement("div");
+    bar.className = "helpbar";
+    const entries = labels.map((l) => (Array.isArray(l) ? l : [l, null]));
+    bar._entries = entries;
+    bar.setAttribute("aria-label", entries.map(([label]) => label).join(", "));
+    this.fillHelpBar(bar, entries);
     page.appendChild(bar);
     return bar;
   }
@@ -2691,11 +2711,7 @@ export class UI {
     this.animate(() => {
       if (!page.isConnected) { removeEventListener("keydown", stickKeys, true); removeEventListener("keyup", stickKeys, true); return; }
       const pads = globalThis.navigator?.getGamepads?.() || [];
-      stick = 0;
-      for (const pad of pads) {
-        const v = pad && pad.mapping === "standard" ? pad.axes?.[1] ?? 0 : 0;
-        if (Math.abs(v) >= 7849 / 32767) stick += Math.trunc(-v * 128);
-      }
+      stick = leftStickScrollY(pads);
       if (sticks.has("PageUp")) stick += 128;
       if (sticks.has("PageDown")) stick -= 128;
       stick = Math.max(-128, Math.min(128, stick));
@@ -2839,11 +2855,73 @@ export class UI {
   // (The game's page was a picture of the controller, conf_manual0_ja.) A click or Enter on a key waits for the next
   // key pressed and gives it to that action, taking it from any other; Esc leaves it as it was, Backspace or Delete
   // empties it. "Reset to defaults" puts the game's settings and these keys back. Its words are in Chinese in Chinese (words.js say).
+  // Controller settings and live button map appended to the Controls page (desktop and touch alike).
+  buildControllerSection(page, topY, startRow) {
+    const L = KEYPAGE;
+    const cfg = this.pad?.config || new PadConfig();
+    const detected = () => this.pad?.detectedStyle || "xbox";
+    const labels = () => cfg.labels(detected());
+    const div = (cls, text, css) => { const d = document.createElement("div"); d.className = cls; if (text !== undefined) d.textContent = text; if (css) d.style.cssText = css; return d; };
+    page.under.append(div("keyhead", say("Controller"), `left:${L.x}px;top:${topY}px;width:${L.w}px;height:${L.head}px;line-height:${L.head}px;`));
+    const optY = topY + L.head;
+    const btnW = L.slotX[1] + L.slot[0] - L.slotX[0];
+    const layoutText = () => {
+      const m = cfg.layout;
+      if (m === "south") return say("South (A / \u2715)");
+      if (m === "east") return say("East (A / \u25cb)");
+      return `${say("Auto")} (${labels().confirm} / ${labels().cancel})`;
+    };
+    const styleNames = { auto: "Auto", xbox: "Xbox", playstation: "PlayStation", nintendo: "Nintendo" };
+    const styleText = () => (cfg.style === "auto" ? `${say("Auto")} (${styleNames[labels().style]})` : styleNames[cfg.style]);
+
+    const makeBtn = (row, y, label, onClick) => {
+      page.under.append(div("keyrow", say(label), `left:${L.x}px;top:${y}px;width:${L.w}px;height:${L.row}px;line-height:${L.row}px;`));
+      const b = document.createElement("button");
+      b.className = "keyslot";
+      b.style.cssText = `left:${L.slotX[0]}px;top:${y + (L.row - L.slot[1]) / 2}px;width:${btnW}px;height:${L.slot[1]}px;`;
+      b.setAttribute("aria-label", say(label));
+      b.setSelected = (on) => b.classList.toggle("sel", on);
+      b.placeY = y;
+      this.confWidget(page.widgets, b, row, 0, onClick, { sound: 1 });
+      return b;
+    };
+
+    const capEls = [];
+    const refresh = () => {
+      layoutBtn.textContent = layoutText();
+      styleBtn.textContent = styleText();
+      const rows = padControlsList(labels());
+      rows.forEach(([, what], k) => { if (capEls[k]) capEls[k].textContent = what; });
+      this.refreshHints();
+    };
+    const layoutBtn = makeBtn(startRow, optY, "Confirm / Cancel", () => { cfg.cycleLayout(); refresh(); });
+    const styleBtn = makeBtn(startRow + 1, optY + L.row, "Button prompts", () => { cfg.cycleStyle(); refresh(); });
+
+    const rows = padControlsList(labels());
+    const half = (L.w - L.gap) / 2, x2 = L.x + half + L.gap;
+    const halfCount = Math.ceil(rows.length / 2);
+    const listTop = optY + 2 * L.row;
+    rows.forEach(([label, what], k) => {
+      const col = k < halfCount ? 0 : 1;
+      const idx = col === 0 ? k : k - halfCount;
+      const x = col === 0 ? L.x : x2;
+      const y = listTop + idx * L.row;
+      page.under.append(div("keyrow", say(label), `left:${x}px;top:${y}px;width:${half}px;height:${L.row}px;line-height:${L.row}px;`));
+      const cap = div("keycap", what, `left:${x + 410}px;top:${y + (L.row - L.slot[1]) / 2}px;height:${L.slot[1]}px;line-height:${L.slot[1]}px;`);
+      page.over.append(cap);
+      capEls.push(cap);
+    });
+    refresh();
+    return listTop + halfCount * L.row;
+  }
+
   buildControlsPage(pageBox) {
     const C = this.conf, M = this.confMem, K = this.keys;
     const L = KEYPAGE, rowsY = L.top + L.head;
     const menuTop = rowsY + ACTIONS.length * L.row + L.gap, fixedRows = Math.max(MENU_KEYS.length, MOUSE.length);
-    const height = menuTop + L.head + fixedRows * L.row + L.foot - CONFIG.clip[1];
+    const padTop = menuTop + L.head + fixedRows * L.row + L.gap;
+    const padRows = Math.ceil(padControlsList(new PadConfig().labels()).length / 2);
+    const height = padTop + L.head + (2 + padRows) * L.row + L.foot - CONFIG.clip[1];
     const page = this.configScroll(pageBox, Math.max(0, height - CONFIG.clip[3]), M?.scroll[2] ?? 0);
     C.scroll = page.scroll;
     const div = (cls, text, css) => { const d = document.createElement("div"); d.className = cls; if (text !== undefined) d.textContent = text; if (css) d.style.cssText = css; return d; };
@@ -2910,13 +2988,17 @@ export class UI {
       line(say(label), x2, y, half);
       cap(say(what), x2 + 360, y);
     });
+    this.buildControllerSection(page, padTop, ACTIONS.length);
     page.order();
   }
 
-  // The Controls page on a touch device: what a finger does (touch.js TOUCH_CONTROLS), in the rows of the keyboard's page.
+  // The Controls page on a touch device: what a finger does (touch.js TOUCH_CONTROLS), in the rows of the keyboard's page,
+  // followed by the Controller section for Bluetooth/USB gamepads.
   buildTouchPage(pageBox) {
     const C = this.conf, M = this.confMem, L = KEYPAGE, rowsY = L.top + L.head;
-    const height = rowsY + TOUCH_CONTROLS.length * L.row + L.foot - CONFIG.clip[1];
+    const padTop = rowsY + TOUCH_CONTROLS.length * L.row + L.gap;
+    const padRows = Math.ceil(padControlsList(new PadConfig().labels()).length / 2);
+    const height = padTop + L.head + (2 + padRows) * L.row + L.foot - CONFIG.clip[1];
     const page = this.configScroll(pageBox, Math.max(0, height - TOUCH.config.height), M?.scroll[2] ?? 0);
     C.scroll = page.scroll;
     const div = (cls, text, css) => { const d = document.createElement("div"); d.className = cls; d.textContent = text; d.style.cssText = css; return d; };
@@ -2926,6 +3008,7 @@ export class UI {
       page.under.append(div("keyrow", say(label), `left:${L.x}px;top:${y}px;width:${L.w}px;height:${L.row}px;line-height:${L.row}px;`));
       page.over.append(div("keycap", say(how), `left:${L.x + 520}px;top:${y + (L.row - L.slot[1]) / 2}px;height:${L.slot[1]}px;line-height:${L.slot[1]}px;`));
     });
+    this.buildControllerSection(page, padTop, 0);
     page.order();
   }
 
@@ -3351,7 +3434,7 @@ export class UI {
     if (keyboard) this.sound(3);
     p.open = true;
     p.keyboard = keyboard;
-    p.sel = keyboard && !this.touch ? p.defs.findIndex((d) => d.id === "auto") : -1;   // (a finger has no cursor to start on)
+    p.sel = keyboard && (!this.touch || this.pad?.active) ? p.defs.findIndex((d) => d.id === "auto") : -1;   // (a finger has no cursor to start on)
     p.hover = -1;
     this.renderPanel();
     p.el.classList.add("on");

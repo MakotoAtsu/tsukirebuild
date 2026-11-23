@@ -14,6 +14,9 @@ import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.util.Base64;
 import android.util.Log;
+import android.view.InputDevice;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -103,6 +106,14 @@ public class MainActivity extends Activity {
 
         web = new WebView(this);
         web.setBackgroundColor(Color.BLACK);
+        web.setFocusable(true);
+        web.setFocusableInTouchMode(true);
+        if (Build.VERSION.SDK_INT >= 26) {
+            // Android draws a translucent white defaultFocusHighlight over the whole WebView whenever a physical
+            // controller/D-pad exits touch mode (e.g. AYN Odin 2 Portal); disable it on both WebView and decor view.
+            web.setDefaultFocusHighlightEnabled(false);
+            w.getDecorView().setDefaultFocusHighlightEnabled(false);
+        }
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);                  // saves, settings and unlocks are in localStorage
@@ -136,6 +147,7 @@ public class MainActivity extends Activity {
             }
         });
         setContentView(web);
+        web.requestFocus();
         hideBars();
 
         if (Build.VERSION.SDK_INT >= 33) {
@@ -284,6 +296,42 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() { back(); }
 
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int code = event.getKeyCode();
+        if (code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN || code == KeyEvent.KEYCODE_VOLUME_MUTE) {
+            return super.dispatchKeyEvent(event);
+        }
+        int src = event.getSource();
+        boolean dpadKey = code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN
+                || code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT
+                || code == KeyEvent.KEYCODE_DPAD_CENTER;
+        boolean fromPad = (src & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
+                || (src & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+                || ((src & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD && dpadKey)
+                || KeyEvent.isGamepadButton(code);
+        if (fromPad && web != null) {
+            // Deliver to WebView so Chromium's Gamepad API sees the state change, then consume so Android does not
+            // synthesize KEYCODE_BACK from BUTTON_B (which would double-fire Cancel or conflict with East-confirm pads).
+            web.dispatchKeyEvent(event);
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        int src = event.getSource();
+        boolean fromPad = (src & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+                || (src & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD;
+        if (fromPad && web != null) {
+            // Forward analog sticks, triggers, and hat-switch D-pad directly to WebView for navigator.getGamepads().
+            web.dispatchGenericMotionEvent(event);
+            return true;
+        }
+        return super.dispatchGenericMotionEvent(event);
+    }
+
     @SuppressWarnings("deprecation")
     private void hideBars() {
         if (Build.VERSION.SDK_INT >= 30) {
@@ -304,7 +352,10 @@ public class MainActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean focus) {
         super.onWindowFocusChanged(focus);
-        if (focus) hideBars();
+        if (focus) {
+            hideBars();
+            if (web != null) web.requestFocus();
+        }
     }
 
     @Override
@@ -312,6 +363,7 @@ public class MainActivity extends Activity {
         super.onResume();
         web.onResume();
         web.resumeTimers();
+        web.requestFocus();
     }
 
     @Override

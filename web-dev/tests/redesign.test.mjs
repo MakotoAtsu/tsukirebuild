@@ -74,8 +74,9 @@ test("127: the story screen and the pad run actions, not letters; the config's p
   assert.match(main, /const act = keys\.action\(e\);/);
   assert.match(main, /if \(act && runAction\(act, e\)\) e\.preventDefault\(\);/);
   assert.doesNotMatch(main, /k === "s" \|\| k === "S"/);
-  assert.match(main, /const PAD_STORY = \{ A: "advance", Down: "advance", Y: "menu", X: "log", Up: "bar", R: "skip", L: "auto", ZL: "rewind" \};/);
-  assert.match(main, /const PAD_MENU = \{ A: "Enter", B: "Escape", Up: "ArrowUp", Down: "ArrowDown", Left: "ArrowLeft", Right: "ArrowRight", L: "Tab", R: "Tab" \};/);
+  const gamepad = source("js/gamepad.js");
+  assert.match(gamepad, /export const PAD_STORY_ACTIONS = \{[\s\S]*?confirm: "advance"[\s\S]*?lt: "rewind"/);
+  assert.match(gamepad, /export const PAD_MENU_KEYS = \{[\s\S]*?confirm: \{ key: "Enter" \}[\s\S]*?rb: \{ key: "Tab", shiftKey: false \}/);
   const ui = source("js/ui.js");
   assert.match(ui, /if \(k === "Tab"\) \{ if \(!e\.repeat\) changePage\(e\.shiftKey \? -1 : 1\); return true; \}/);
   assert.doesNotMatch(ui, /k === "a" \|\| k === "A" \|\| k === "f"/);

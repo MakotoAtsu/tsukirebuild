@@ -8,6 +8,7 @@ import { TextBox } from "./textbox.js";
 import { VM, markSaved } from "./vm.js";
 import { QUICK_BAR, UI } from "./ui.js";
 import { KeyMap, keyName } from "./keys.js";
+import { GamepadDriver } from "./gamepad.js";
 import { advanceRandom, textShakePixels } from "./effects.js";
 import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
@@ -961,11 +962,17 @@ const ui = new UI({
   vm, gfx, audio, text, keys,
   env: null,
 });
+const pad = new GamepadDriver();
+ui.pad = pad;
+pad.onModeChange = (active) => {
+  document.documentElement.dataset.input = active ? "pad" : "";
+  ui.refreshHints?.();
+};
 ui.touch = touch.on ? touch : null;   // the screens ask it for their touch layouts
 ui.env = {
   newGame, startStory, firstLaunch: () => firstLaunch, loadSave, makeSave, toTitle, flowchart, gallery, toast, settings, titleVideo, titleHold, titleMusic,
   setSetting, autosaves, preloadGallery,
-  resetSettings: () => { settings = { ...DEFAULTS }; ui.env.settings = settings; for (const [k, v] of Object.entries(settings)) setSetting(k, v); audio.resetVolumes(); keys.reset(); },
+  resetSettings: () => { settings = { ...DEFAULTS }; ui.env.settings = settings; for (const [k, v] of Object.entries(settings)) setSetting(k, v); audio.resetVolumes(); keys.reset(); pad.config.reset(); ui.refreshHints?.(); },
   toggleAuto, toggleSkip, rewind,
   // the quick bar's own (ui.buildPanel): the log, hiding the text, full screen, and the system menu (row: opened on Save 0, Load 1 or Config 2)
   log: () => { if (vm.running && !vm.choosing) ui.backlog(); },
@@ -1179,57 +1186,42 @@ addEventListener("keydown", (e) => {
   if (act && runAction(act, e)) e.preventDefault();
 });
 addEventListener("keyup", (e) => { if (isFastKey(e)) fastForwardKey(false); });
-addEventListener("blur", () => fastForwardKey(false));   // a key let go in another window never reports it
+addEventListener("blur", () => { fastForwardKey(false); pad.releaseAll(padHandlers); });   // a key or button let go in another window never reports it
+addEventListener("keydown", (e) => { if (e.isTrusted) pad.setMode(false); }, true);
+addEventListener("pointerdown", (e) => { if (e.isTrusted) pad.setMode(false); }, true);
+addEventListener("gamepaddisconnected", () => pad.releaseAll(padHandlers));
 
 // ---- controllers ----------------------------------------------------------------------------------------------
-// A controller is a second way to play, as the game's own Controls page had it: A confirm and advance, B cancel or stop
-// skipping, Y system menu, X log, up the quick bar, down advance, R skip, L auto, ZR fast forward while held, ZL rewind.
-// The Gamepad API's standard layout numbers the face buttons by position (0 bottom = B, 1 right = A, 2 left = Y, 3 top = X
-// on a Nintendo layout). On the story screen a button runs its action; in the menus it is the menus' key; held
-// directions repeat.
-const PAD = { 1: "A", 0: "B", 2: "Y", 3: "X", 12: "Up", 13: "Down", 14: "Left", 15: "Right", 5: "R", 4: "L", 9: "Y", 6: "ZL", 7: "ZR" };
-const PAD_MENU = { A: "Enter", B: "Escape", Up: "ArrowUp", Down: "ArrowDown", Left: "ArrowLeft", Right: "ArrowRight", L: "Tab", R: "Tab" };
-const PAD_STORY = { A: "advance", Down: "advance", Y: "menu", X: "log", Up: "bar", R: "skip", L: "auto", ZL: "rewind" };
-const padHeld = new Map();
-// repeat: a held direction's repeat (KeyboardEvent.repeat), which choices and dialogs treat differently from a press.
-function padKey(btn, down = true, repeat = false) {
-  if (btn === "ZR") { fastForwardKey(down); return; }
-  if (!down) return;
-  if (ui.open || choosing() || (ui.panelOpen && ui.panel.keyboard)) {
-    const key = PAD_MENU[btn];
-    if (key) dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey: btn === "L", repeat, bubbles: true, cancelable: true }));
-    return;
-  }
-  if (btn === "B") { if (askingSkip()) passMovie(); else if (vm.skipOn) setSkip(false); return; }
-  if (PAD_STORY[btn]) runAction(PAD_STORY[btn], { repeat });
-}
-// In the menus (a screen, the quick bar or a choice up) the right stick goes with the D-pad: their direction masks
-// (0x100010 up, 0x400040 down, 0x800080 left, 0x200020 right) take the second stick's directions, set past 80 of 128
-// (0xb3a18), and the PC build feeds that stick from the pad's right stick, past its dead zone of 7849 / 32767. The left
-// stick is the first, which scrolls (flowchart.js stickY). Directions pulse as the input's repeat does: at the push,
-// after 15 frames, then every 5 (0xb3a18 with +0x3ec / +0x3e8).
-const STICK_DEAD_ZONE = 7849 / 32767, STICK_DIR = 80 / 128;
+// Full controller support through gamepad.js: auto-detects Nintendo / PlayStation / Xbox layouts (with a manual override
+// in Config -> Controls), falls back cleanly for non-standard mappings, dispatches both keydown and keyup in menus so
+// sliders and viewers never stick, and maps left + right sticks in menus (with left stick reserved for scrolling in
+// Config/Flowchart and smooth pan/zoom in the CG viewer).
+const padHandlers = {
+  fastForward: fastForwardKey,
+  wakeAudio: () => audio.start(),
+  keyDown: (spec, repeat) => {
+    if (ui.panelOpen && !ui.panel.keyboard) {
+      ui.panel.keyboard = true;
+      if (ui.panel.sel < 0) ui.panel.sel = Math.max(0, ui.panel.defs.findIndex((d) => d.id === "auto"));
+      ui.renderPanel();
+    }
+    dispatchEvent(new KeyboardEvent("keydown", { key: spec.key, shiftKey: !!spec.shiftKey, repeat: !!repeat, bubbles: true, cancelable: true }));
+  },
+  keyUp: (spec) => dispatchEvent(new KeyboardEvent("keyup", { key: spec.key, shiftKey: !!spec.shiftKey, bubbles: true, cancelable: true })),
+  cancelStory: () => { if (showText()) return; if (askingSkip()) passMovie(); else if (vm.skipOn) setSkip(false); },
+  runAction,
+};
 function pollGamepads(now) {
-  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-  const pressed = new Set();
   const menus = ui.open || ui.panelOpen || choosing();
-  for (const pad of pads) {
-    if (!pad || pad.mapping !== "standard") continue;
-    pad.buttons.forEach((b, i) => { if (b.pressed && PAD[i]) pressed.add(i); });
-    if (!menus) continue;
-    const ax = (k) => { const v = pad.axes?.[k] ?? 0; return Math.abs(v) < STICK_DEAD_ZONE ? 0 : v; };
-    if (ax(3) < -STICK_DIR) pressed.add(12);
-    if (ax(3) > STICK_DIR) pressed.add(13);
-    if (ax(2) < -STICK_DIR) pressed.add(14);
-    if (ax(2) > STICK_DIR) pressed.add(15);
-  }
-  for (const i of pressed) {
-    const h = padHeld.get(i);
-    const dir = i >= 12 && i <= 15;
-    if (!h) { padHeld.set(i, { next: now + (dir ? 250 : 400) }); audio.start(); padKey(PAD[i]); }
-    else if (dir || i === 6) { if (now >= h.next) { h.next = now + (i === 6 ? 250 : 1000 / 12); padKey(PAD[i], true, true); } }
-  }
-  for (const i of [...padHeld.keys()]) if (!pressed.has(i)) { padHeld.delete(i); padKey(PAD[i], false); }
+  const screen = ui.open ? ui.screen : null;
+  pad.poll(now, {
+    ...padHandlers,
+    menus,
+    screen,
+    leftStickScrolls: screen === "config" || screen === "flowchart",
+    analogViewer: !!ui.analogViewer,
+    voiceKey: keys.keys("voice")[0] || "V",
+  });
 }
 
 // What a finger does on the story's screen goes through the same actions (touch.js).
@@ -1267,6 +1259,7 @@ async function loadingScreen() {
   text.pageCounter = () => [vm.getVar("F822"), vm.getVar("F823")];
   window.ui = ui;
   window.keys = keys;
+  window.pad = pad;
   requestAnimationFrame(frame);
   // Letters drawn on a canvas (the plates, the config's words, the Audio Track label) take whatever face is ready when they are drawn and are not
   // drawn again: where the system has none of a stack's fonts, its bundled backup (style.css) is fetched first. A system that has them asks for

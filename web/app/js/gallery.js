@@ -6,6 +6,7 @@ import { LAYOUT as END, endingList } from "./endings.js";
 import { ButtonState, EASE, GALLERY_OPEN, MenuBgFade, Tween, fadeIn, fadeOut, wheelPixels } from "./uifx.js";
 import { cgLists, musicUnlocked } from "./unlocks.js";
 import { TOUCH, pinch } from "./touch.js";
+import { readSticks } from "./gamepad.js";
 import { asset } from "./lang.js";
 
 const P = "GALLERY_PARTS_JA";
@@ -891,6 +892,7 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
     const held = new Set();
     const onKeyUp = (e) => held.delete(e.key);
     window.addEventListener("keyup", onKeyUp);
+    ui.analogViewer = true;
     // fit: the starting scale; min / max: the zoom range (native +0x40 / +0x44); cx, cy: the centre on screen.
     const placeView = () => {
       if (!view) return;
@@ -1056,6 +1058,11 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
           if (hold > CHANGE_HOLD + 0.5 && loaded && wipe.ready) { phase = "wipe"; if (guide.phase === "hold") guide.hold = 2; else if (guide.phase !== "in") guide.show(); run = Math.min(dt, hold - CHANGE_HOLD); }
         } else if (phase === "wipe") run = dt;
         if (run && wipe.step(run)) { wipe.remove(); wipe = null; phase = "idle"; }
+        if (phase === "idle" && view) {
+          const { lx, ly, ry } = readSticks(globalThis.navigator?.getGamepads?.() || []);
+          if (ry) zoomTo(view.scale * (1 - ry * 0.008 * dt));
+          if (lx || ly) { view.cx -= lx * 14 * dt; view.cy -= ly * 14 * dt; placeView(); }
+        }
         guide.step(dt);
         band.style.opacity = String(guide.alpha);
         band.style.transform = `translateY(${guide.offset}px)`;
@@ -1064,6 +1071,7 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
           if (tw.done && phase === "open") phase = "idle";
           if (tw.done && phase === "close") {
             window.removeEventListener("keyup", onKeyUp);
+            ui.analogViewer = false;
             box.remove(); overlay = null;
           }
         }

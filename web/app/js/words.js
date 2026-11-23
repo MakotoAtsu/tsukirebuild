@@ -70,6 +70,13 @@ export const CONTROLS_ZH = {
   "Tap or swipe: picture, pinch: zoom, drag: move": "轻触或滑动：图像的切换，双指：扩大・缩小，拖动：移动",
   "Flowchart": "流程图",
   "Tap a scene to see it, tap again to open it, pinch: zoom": "轻触场景查看，再次轻触打开，双指：扩大・缩小",
+  // controller (gamepad.js / ui.js buildControlsPage)
+  "Controller": "手柄",
+  "Confirm / Cancel": "确定 / 返回",
+  "Button prompts": "按键提示",
+  "Auto": "自动",
+  "South (A / \u2715)": "下键（A / \u2715）",
+  "East (A / \u25cb)": "右键（A / \u25cb）",
 };
 
 // The Controls page's words in the language in use: Chinese where the table has them, else the English as it is.

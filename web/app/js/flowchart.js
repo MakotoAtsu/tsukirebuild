@@ -8,6 +8,7 @@ import { EASE, MenuBgFade, Tween, fadeIn, fadeOut, wheelPixels } from "./uifx.js
 import { GuideFx, REPLAY_MENU_BG, cgCursorLight, fadeMusicOut, scrollBar } from "./gallery.js";
 import { ORIG, RU, asset } from "./lang.js";
 import { pinch } from "./touch.js";
+import { leftStickScrollY } from "./gamepad.js";
 
 const PACK = "MENU_PARTS_JA";
 
@@ -62,8 +63,7 @@ export const helpEntries = (kind) => [...(HELP[kind] || HELP[10]), ...ZOOM_HELP]
 // from the browser's pads (standard mapping: axes[1], down positive, is the left stick) and PageUp / PageDown, which the
 // PC build binds to that stick pushed all the way (SUP / SDOWN).
 export function stickY(pads = [], keys = new Set()) {
-  let y = 0;
-  for (const pad of pads) if (pad && pad.mapping === "standard" && pad.axes?.length > 1) y += Math.trunc(-pad.axes[1] * 128);
+  let y = leftStickScrollY(pads);
   if (keys.has("PageUp")) y += 128;
   if (keys.has("PageDown")) y -= 128;
   return Math.max(-128, Math.min(128, y));

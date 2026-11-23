@@ -1975,7 +1975,9 @@ test("N2-208, N2-209, N2-28: the skip toggle and the fast-forward key are the ga
   // the key is seen wherever the game is, and its release goes back to the toggle
   assert.match(main, /if \(isFastKey\(e\)\) fastForwardKey\(true\);\n  if \(ui\.open\) return;/);   // the Fast forward key of the map (Ctrl)
   assert.match(main, /if \(isFastKey\(e\)\) fastForwardKey\(false\);/);
-  assert.match(main, /if \(btn === "ZR"\) \{ fastForwardKey\(down\); return; \}/);
+  assert.match(main, /fastForward: fastForwardKey/);
+  const gamepad = readFileSync(new URL("../../web/app/js/gamepad.js", import.meta.url), "utf8");
+  assert.match(gamepad, /if \(btn === "rt" && !ctx\.menus\) \{[\s\S]*?ctx\.fastForward\?\.\(true\)/);
   // the system menu turns the toggle off (0x40ed0 at 0x421ac), from the key and the right click
   assert.match(main, /function systemMenu\(row = null\) \{\n  setSkip\(false\);\n  ui\.system\(/);
   assert.equal([...main.matchAll(/ui\.system\(/g)].length, 1);
