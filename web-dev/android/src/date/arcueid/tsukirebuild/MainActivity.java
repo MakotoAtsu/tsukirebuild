@@ -299,20 +299,22 @@ public class MainActivity extends Activity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int code = event.getKeyCode();
-        if (code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN || code == KeyEvent.KEYCODE_VOLUME_MUTE) {
+        if (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_HOME || code == KeyEvent.KEYCODE_APP_SWITCH
+                || code == KeyEvent.KEYCODE_POWER || code == KeyEvent.KEYCODE_VOLUME_UP
+                || code == KeyEvent.KEYCODE_VOLUME_DOWN || code == KeyEvent.KEYCODE_VOLUME_MUTE) {
             return super.dispatchKeyEvent(event);
         }
         int src = event.getSource();
         boolean dpadKey = code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN
                 || code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT
                 || code == KeyEvent.KEYCODE_DPAD_CENTER;
-        boolean fromPad = (src & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
+        boolean padSource = (src & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
                 || (src & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
-                || ((src & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD && dpadKey)
-                || KeyEvent.isGamepadButton(code);
+                || (src & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD;
+        boolean fromPad = KeyEvent.isGamepadButton(code) || (padSource && dpadKey);
         if (fromPad && web != null) {
-            // Deliver to WebView so Chromium's Gamepad API sees the state change, then consume so Android does not
-            // synthesize KEYCODE_BACK from BUTTON_B (which would double-fire Cancel or conflict with East-confirm pads).
+            // Deliver gamepad buttons and D-pad to WebView so Chromium's Gamepad API updates, then consume so Android
+            // does not synthesize KEYCODE_BACK from BUTTON_B (while leaving a controller's own KEYCODE_BACK untouched).
             web.dispatchKeyEvent(event);
             return true;
         }

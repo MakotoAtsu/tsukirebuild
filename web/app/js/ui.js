@@ -705,7 +705,7 @@ export class UI {
   fillHelpBar(bar, entries) {
     bar.textContent = "";
     const padOn = !!this.pad?.active;
-    const pHints = padOn ? this.pad.hints() : null;
+    const pHints = padOn ? this.pad.hints(this.screen) : null;
     for (const [label, own] of entries) {
       const hint = document.createElement("span");
       hint.className = "hint";

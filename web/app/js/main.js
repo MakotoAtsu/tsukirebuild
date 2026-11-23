@@ -1199,24 +1199,22 @@ addEventListener("gamepaddisconnected", () => pad.releaseAll(padHandlers));
 const padHandlers = {
   fastForward: fastForwardKey,
   wakeAudio: () => audio.start(),
-  keyDown: (spec, repeat) => {
-    if (ui.panelOpen && !ui.panel.keyboard) {
-      ui.panel.keyboard = true;
-      if (ui.panel.sel < 0) ui.panel.sel = Math.max(0, ui.panel.defs.findIndex((d) => d.id === "auto"));
-      ui.renderPanel();
-    }
-    dispatchEvent(new KeyboardEvent("keydown", { key: spec.key, shiftKey: !!spec.shiftKey, repeat: !!repeat, bubbles: true, cancelable: true }));
-  },
+  keyDown: (spec, repeat) => dispatchEvent(new KeyboardEvent("keydown", { key: spec.key, shiftKey: !!spec.shiftKey, repeat: !!repeat, bubbles: true, cancelable: true })),
   keyUp: (spec) => dispatchEvent(new KeyboardEvent("keyup", { key: spec.key, shiftKey: !!spec.shiftKey, bubbles: true, cancelable: true })),
   cancelStory: () => { if (showText()) return; if (askingSkip()) passMovie(); else if (vm.skipOn) setSkip(false); },
   runAction,
 };
 function pollGamepads(now) {
-  const menus = ui.open || ui.panelOpen || choosing();
+  const panelKeyMode = !ui.open && ui.panelOpen && !!ui.panel.keyboard;
+  const inChoice = !ui.open && choosing();
+  const menus = ui.open || inChoice || panelKeyMode;
   const screen = ui.open ? ui.screen : null;
   pad.poll(now, {
     ...padHandlers,
     menus,
+    panelOpen: panelKeyMode,
+    choosing: inChoice,
+    binding: !!ui.binding,
     screen,
     leftStickScrolls: screen === "config" || screen === "flowchart",
     analogViewer: !!ui.analogViewer,
