@@ -580,6 +580,39 @@ test("a tap elsewhere right after a swipe or a hold goes through; the gesture's 
   assert.equal(r.fire("click").stopped, true);
 });
 
+test("a new tap at once after a swipe, a hold or two fingers goes through, even where the gesture's finger lifted: only a click before the next touch is passed over", () => {
+  // Reported 2026-11-23 (later): swipe the panel down and tap the button under the finger at once, and nothing happened; held a little
+  // longer, so that its click came after the 400 ms, it worked.
+  const r = rig();
+  const touch = installTouch({ win: r.win, doc: r.doc });
+  touch.bind({ ui: r.ui, vm: r.vm, audio: r.audio, act: r.act });
+  swipeBy(r, 0, TOUCH.swipe + 5);                      // lifts at (400, 249)
+  r.advance(50);
+  assert.equal(tapAt(r, r.stage, 400, 249).stopped, false, "a quick tap where the swipe's finger lifted");
+  r.ui.panelOpen = false;
+  r.advance(1000);
+  swipeBy(r, 0, TOUCH.swipe + 5);
+  assert.equal(r.fire("click", { clientX: 400, clientY: 249 }).stopped, true, "a click with no touch before it is still the swipe's own");
+  r.ui.panelOpen = false;
+  r.advance(1000);
+  // a hold, then a tap on the same place at once
+  r.fire("pointerdown", { pointerId: 1, clientX: 300, clientY: 400 });
+  r.advance(TOUCH.hold + 20);
+  r.fire("pointerup", { pointerId: 1, clientX: 300, clientY: 400 });
+  r.advance(40);
+  assert.equal(tapAt(r, r.stage, 300, 400).stopped, false, "a tap at once where a hold let go");
+  r.advance(1000);
+  // two fingers, then a tap
+  r.fire("pointerdown", { pointerId: 1, clientX: 400, clientY: 300 });
+  r.advance(40);
+  r.fire("pointerdown", { pointerId: 2, clientX: 700, clientY: 300, isPrimary: false });
+  r.advance(60);
+  r.fire("pointerup", { pointerId: 2, clientX: 700, clientY: 300, isPrimary: false });
+  r.fire("pointerup", { pointerId: 1, clientX: 400, clientY: 300 });
+  r.advance(40);
+  assert.equal(tapAt(r, r.stage, 400, 300).stopped, false, "a tap at once after two fingers");
+});
+
 test("on the story a swipe down brings the control panel, a swipe up the log (or sends the panel up), and the click after either is passed over", () => {
   const r = rig();
   const touch = installTouch({ win: r.win, doc: r.doc });

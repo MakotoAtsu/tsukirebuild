@@ -2230,3 +2230,17 @@ without the change, so it was not walked; nor were Return to Title and the galle
 `am send-trim-memory COMPLETE` and brought back, the menu showed all its pictures (no context was lost there, so the redraw after a lost
 context is checked by the unit test only). `kept.test.mjs`; `node --test web-dev/tests/*.test.mjs` 789 passed, 3 skipped. Not run on an Odin
 or any real device.
+
+## A quick tap on the control panel right after the swipe that brought it down goes through, 2026-11-23
+
+**Report** (the user): on a touch device, a button of the control panel (Menu, Log...) did nothing when tapped quickly. Reproduced in
+headless Chromium with touch events: swipe the panel down with the finger ending on a button, then tap that button within 400 ms with a
+short touch: nothing (at 50, 150 and 250 ms); the same tap held 400 ms, or made 500 ms after the swipe, worked. `touch.js` passes over the
+click a gesture may make for 400 ms, and since `0f2ea0d8` only near where its finger lifted, which is where the button under the finger is.
+A swipe makes no click of its own (checked on a plain page: 60 and 140 px swipes no click, a tap wandering 4 px a click).
+
+**Change** (`touch.js`): a new touch (a primary pointerdown with no gesture under way) ends the wait, so the click that follows is that
+touch's own wherever it lands. A click with no touch before it (a browser's own after a swipe, a hold or two fingers) is passed over as before.
+
+**Checked:** the same six taps now all open the Log or the Menu; a new test in `touch.test.mjs` (fails on the old `touch.js` at the quick tap
+where the swipe lifted); the earlier tests unchanged.

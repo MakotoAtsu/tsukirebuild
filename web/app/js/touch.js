@@ -384,6 +384,9 @@ export function installTouch({ win = window, doc = document } = {}) {
   };
   win.addEventListener("pointerdown", (e) => {
     if (e.pointerType !== "touch" || !touch.ui) return;
+    // A new touch: a click the last gesture may still make has come by now, so the next click is this touch's own, wherever it lands (a quick
+    // tap on the panel's button under the finger that had just swiped it down was passed over, 2026-11-23).
+    if (e.isPrimary && !gesture.busy) { skipClick = 0; skipAt = null; }
     const t = e.target, free = !t.closest?.("#ui, #sysui, #touch-back");
     if (!free || !touch.vm.running || touch.ui.open || touch.act.movie()) { if (gesture.busy) endGesture(); return; }
     if (e.isPrimary && gesture.busy) endGesture();   // (a finger whose lift never arrived does not hold the next press up)
@@ -424,6 +427,7 @@ export function installTouch({ win = window, doc = document } = {}) {
   // click began is kept for storyClick, since every click sends the panel up before the story sees it (main.js).
   // The gesture's own click lands where its finger lifted. One that lands elsewhere in that time is a new tap, a button of the panel
   // the swipe has just brought down say, and goes through: a swipe makes no click of its own, and its wait took the tap instead.
+  // So does any click after a new touch has begun (pointerdown, above): a gesture's own click comes before the next touch.
   win.addEventListener("click", (e) => {
     if (now() < skipClick) {
       skipClick = 0;
