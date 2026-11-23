@@ -338,6 +338,8 @@ test("web, touch, Chinese & Russian Controls labels, and Android wrapper wire co
   assert.match(gallery, /ui\.analogViewer = true/);
   assert.match(android, /dispatchKeyEvent\(KeyEvent event\)/);
   assert.match(android, /dispatchGenericMotionEvent\(MotionEvent event\)/);
+  // a pad button the page left unhandled does not become its fallback key (B's is Back), seen on the emulator 2026-11-23
+  assert.match(android, /public void onUnhandledKeyEvent\(WebView v, KeyEvent event\) \{\n\s+if \(KeyEvent\.isGamepadButton\(event\.getKeyCode\(\)\)\) return;/);
   assert.match(android, /setDefaultFocusHighlightEnabled\(false\)/);
   assert.match(android, /web\.requestFocus\(\)/);
   assert.match(android, /KEYCODE_BACK/);

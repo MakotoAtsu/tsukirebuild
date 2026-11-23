@@ -399,6 +399,14 @@ public class MainActivity extends Activity {
 
     /** Answers the page's requests from the update in use where it has the file, else from assets/www, with byte ranges (the movies seek). */
     final class Assets extends WebViewClient {
+        // A pad button the page did not take ends here. Left to the system it becomes its fallback key, and B's is
+        // Back (on Android 13 and later that goes straight to back(), past dispatchKeyEvent): B is the page's own cancel.
+        @Override
+        public void onUnhandledKeyEvent(WebView v, KeyEvent event) {
+            if (KeyEvent.isGamepadButton(event.getKeyCode())) return;
+            super.onUnhandledKeyEvent(v, event);
+        }
+
         private final Pattern RANGE = Pattern.compile("bytes=(\\d*)-(\\d*)");
         private final Map<String, String> TYPES = new HashMap<>();
         {
