@@ -64,7 +64,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 :is(#text, .logpage) .ch.mirror { display: inline-block; transform: scaleX(-1); }
 /* The patch's bank 2 (U+E100): mirrored and italic, a slanted line seen in a mirror. */
 :is(#text, .logpage) .ch.mirror.italic { font-style: italic; }
-:is(#text, .logpage) rt.italic, :is(#text, .logpage) ruby.italic { font-style: italic; }
+:is(#text, .logpage) :is(rt, .rt).italic, :is(#text, .logpage) :is(ruby, .ruby).italic { font-style: italic; }
 /* A run of U+2015 is one element whose dashes overlap, so it draws as one line as in the game, its shadow painted once
    under it (textbox.js setDashJoin); the margin gives the last dash its advance back. */
 :is(#text, .logpage) .dashrun { letter-spacing: var(--dash-join, -0.29em); margin-right: var(--dash-end, 0.29em); }
@@ -247,6 +247,8 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 .logscroll::-webkit-scrollbar { display: none; }
 .loglist { padding: 40px 0 60px; }
 .logscroll .logpage { position: relative; left: 265px; top: auto; bottom: auto; pointer-events: auto; padding: 26px 0 40px; border-bottom: 1px solid rgba(190, 225, 255, .22); }
+/* An iPhone or iPad (memory.js log): each page a layer of its own, so WebKit backs the pages near the view and not the whole list as one picture. */
+.logscroll.layered .logpage { will-change: transform; }
 .logscroll .logpage:last-child { border-bottom: 0; }
 .logrec.jump { cursor: pointer; }
 /* the line under the cursor glows as a choice's row does (the label's blurred copy added in cyan, 0.44, 1, 1): no box behind it */
@@ -476,10 +478,12 @@ html.ja :is(#text, .logpage) .seg.glued { margin-left: 2px; }
 /* a narrow letter: half a cell, whatever its glyph's own advance */
 html.ja :is(#text, .logpage) .ch.hw { display: inline-block; width: calc(var(--cell) / 2); letter-spacing: 0; text-align: center; font-variant-east-asian: normal; }
 /* Ruby: half the size, 2 px between its letters, centred on its base and taking no room of its own, so the cells stay where they are (native frames:
-   a reading wider than its base runs out over the letters on both sides). */
-html.ja :is(#text, .logpage) ruby { position: relative; display: inline; }
-html.ja :is(#text, .logpage) rt { position: absolute; display: block; left: calc(50% - var(--gap) / 2); bottom: 100%; transform: translate(-50%, -2px); padding-left: 2px; font-size: 22.8px; line-height: 1; letter-spacing: 2px; white-space: nowrap; text-align: center; }
-html.ja :is(#text, .logpage) rt .ch.hw { width: 12.4px; }
+   a reading wider than its base runs out over the letters on both sides). Spans here, not <ruby> / <rt> (textbox.js fillSegment): WebKit keeps an
+   <rt> in the row whatever its position, so each reading took a row of its own on iPhones and in Safari (GitHub issue 16). The tags stay named for a
+   page saved before that (textbox.js spanReadings changes them as it is restored). */
+html.ja :is(#text, .logpage) :is(ruby, .ruby) { position: relative; display: inline; }
+html.ja :is(#text, .logpage) :is(rt, .rt) { position: absolute; display: block; left: calc(50% - var(--gap) / 2); bottom: 100%; transform: translate(-50%, -2px); padding-left: 2px; font-size: 22.8px; line-height: 1; letter-spacing: 2px; white-space: nowrap; text-align: center; }
+html.ja :is(#text, .logpage) :is(rt, .rt) .ch.hw { width: 12.4px; }
 /* A run of dashes is one solid line across its cells (318 to 458 of 313.6 to 462.4 for three, 2 px, a little above the middle), a run of blocks one bar. */
 html.ja :is(#text, .logpage) .dashrun { position: relative; display: inline-block; width: calc(var(--n) * var(--cell) - var(--gap)); margin-right: var(--gap); letter-spacing: 0; white-space: nowrap; -webkit-text-fill-color: transparent; text-shadow: none; }
 html.ja :is(#text, .logpage) .dashrun::after { content: ""; position: absolute; left: 4.4px; right: 0; top: calc(50% - 1px); height: 2.4px; background: currentColor; box-shadow: 0 1px 3px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.45); }

@@ -14,6 +14,7 @@ import { TOUCH, TOUCH_CONTROLS, TOUCH_HINTS, barPlace } from "./touch.js";
 import { JA, ZH, PT, RU, ORIG, LANG, asset, has } from "./lang.js";
 import { say } from "./words.js";
 import { KeptArt } from "./kept.js";
+import { MEMORY } from "./memory.js";
 const PHASES = {
   // script prefix -> [column, row] in system_phasetitle_ja. The route of each is inferred from the script names.
   "00": [2, 7], "01": [0, 1], "02": [0, 2], "03": [0, 3], "04": [0, 4], "05_00": [2, 8], "05_01": [0, 5],
@@ -3077,6 +3078,7 @@ export class UI {
     const page = this.begin("log", { blur: false });
     const div = (cls) => Object.assign(document.createElement("div"), { className: cls });
     const veil = div("logveil"), fg = div("logfg"), list = div("logscroll"), inner = div("loglist");
+    if (MEMORY.log) list.classList.add("layered");   // a layer a page on an iPhone or iPad (memory.js log)
     list.append(inner);
     fg.append(list);
     page.append(veil, fg);

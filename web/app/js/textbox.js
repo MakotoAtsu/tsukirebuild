@@ -263,9 +263,25 @@ export function parseMarkup(s) {
   return res;
 }
 
-// A line's text read back from the page (a restored page has only its HTML): the letters without the ruby's readings (<rt>).
+// A reading and its base on the page: <ruby> / <rt> in English, span.ruby / span.rt in Japanese and Chinese (fillSegment); a page saved before
+// 2026-11-23 has the tags in those too until adoptPage changes them.
+const RUBY = "ruby, .ruby", READING = "rt, .rt";
+const isReading = (n) => n.nodeName === "RT" || (typeof n.className === "string" && /(^| )rt( |$)/.test(n.className));
+
+// A Japanese or Chinese page saved with <ruby> / <rt> (before 2026-11-23): the spans fillSegment makes now, their classes and data kept.
+export function spanReadings(root) {
+  for (const old of [...(root?.querySelectorAll?.("ruby, rt") || [])]) {
+    const s = document.createElement("span");
+    s.className = [old.nodeName === "RT" ? "rt" : "ruby", old.className].filter(Boolean).join(" ");
+    for (const [k, v] of Object.entries(old.dataset || {})) s.dataset[k] = v;
+    while (old.firstChild) s.appendChild(old.firstChild);
+    old.replaceWith(s);
+  }
+}
+
+// A line's text read back from the page (a restored page has only its HTML): the letters without the ruby's readings.
 export function lineText(ln) {
-  const text = (n) => (n.nodeType === 3 ? n.data : n.nodeName === "RT" ? "" : [...(n.childNodes || [])].map(text).join(""));
+  const text = (n) => (n.nodeType === 3 ? n.data : isReading(n) ? "" : [...(n.childNodes || [])].map(text).join(""));
   return (ln?.segs || []).map(text).join("");
 }
 
@@ -461,12 +477,16 @@ export function fillSegment(seg, markup) {
         box.appendChild(em);
       } else addChars(box, p.t, p.m ? (p.it ? "mirror italic" : "mirror") : p.u ? "flip" : "");
     } else {
-      const r = document.createElement("ruby");
-      if (p.g) r.className = "italic";
+      // Japanese and Chinese place the reading themselves, over its base (style.css html.ja .ruby / .rt): plain spans there, as WebKit keeps an <rt> in
+      // the row whatever its position, and each reading then took a row of its own on iPhones and in Safari (GitHub issue 16). English keeps the
+      // browser's own ruby.
+      const r = document.createElement(ORIG ? "span" : "ruby");
+      const rubyClass = (base, italic) => [base, italic && "italic"].filter(Boolean).join(" ");
+      if (ORIG || p.g) r.className = rubyClass(ORIG && "ruby", p.g);
       const from = chars.length;
       addChars(r, p.base);
-      const rt = document.createElement("rt");
-      if (p.rubyItalic) rt.className = "italic";
+      const rt = document.createElement(ORIG ? "span" : "rt");
+      if (ORIG || p.rubyItalic) rt.className = rubyClass(ORIG && "rt", p.rubyItalic);
       // the reading's letters fill in across its base (0xc0684, listing 0xc09d4-0xc0ab4: N2-120)
       const letters = [];
       const at = p.rubyAt || [], len = p.rubyLen || [...p.ruby].length;
@@ -986,6 +1006,7 @@ export class TextBox {
   // A restored page (a save's HTML): its lines from the segments' line numbers, earlier lines at their dim level, as
   // a load leaves them (0x813e0 sets their timers to -1).
   adoptPage() {
+    if (ORIG) spanReadings(el());
     const lines = [];
     for (const s of el().querySelectorAll(".seg")) {
       const n = Number(s.dataset?.line ?? lines.length);
@@ -1060,19 +1081,19 @@ export class TextBox {
     for (const seg of ln.segs) {
       if (seg.dataset?.t) t = chars.length + Number(seg.dataset.t);
       for (const c of seg.querySelectorAll(".ch")) {
-        const reading = c.closest("rt");
+        const reading = c.closest(READING);
         c.classList.remove("on");
         c.style.opacity = "";
         if (reading) continue;
         const copies = Number(c.dataset?.n) || 1;   // a glyph strip takes its cells' typing time
         for (let k = 0; k < copies; k++) chars.push(c);
       }
-      for (const r of seg.querySelectorAll("ruby")) {
-        const base = [...r.querySelectorAll(".ch")].filter((c) => !c.closest("rt"));
+      for (const r of seg.querySelectorAll(RUBY)) {
+        const base = [...r.querySelectorAll(".ch")].filter((c) => !c.closest(READING));
         if (!base.length) continue;
         const from = chars.indexOf(base[0]);
-        const letters = [...r.querySelectorAll("rt .ch")];
-        const len = Number(r.querySelector("rt")?.dataset?.len) || letters.length;
+        const letters = [...r.querySelectorAll(":is(rt, .rt) .ch")];
+        const len = Number(r.querySelector(READING)?.dataset?.len) || letters.length;
         if (letters.length) ruby.push({ from, to: from + base.length, letters, at: letters.map((c, k) => Number(c.dataset?.at ?? k)), len });
       }
     }

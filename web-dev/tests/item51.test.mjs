@@ -22,12 +22,14 @@ function textDom() {
     after() {}
     get textContent() { return this._text + this.children.map((c) => c.textContent).join(""); }
     set textContent(t) { this._text = t; this.children = []; }
-    closest(tag) { for (let n = this; n; n = n.parent) if (n.tag === tag) return n; return null; }
+    // a tag, a class or a list of them ("rt, .rt"): what textbox.js asks of the page
+    matches(sel) { return this.tag !== "#text" && sel.split(",").map((s) => s.trim()).some((s) => (s[0] === "." ? this.classList.contains(s.slice(1)) : this.tag === s)); }
+    closest(sel) { for (let n = this; n; n = n.parent) if (n.matches(sel)) return n; return null; }
     all(t) { const out = [], walk = (n) => { for (const c of n.children) { if (t(c)) out.push(c); walk(c); } }; walk(this); return out; }
     querySelectorAll(sel) {
-      if (sel === "rt .ch") return this.all((c) => c.tag !== "#text" && c.classList.contains("ch") && c.closest("rt"));
-      if (sel[0] === ".") return this.all((c) => c.tag !== "#text" && c.classList.contains(sel.slice(1)));
-      return this.all((c) => c.tag === sel);
+      const inside = /^(?::is\((.+)\)|(\S+)) \.ch$/.exec(sel);   // "rt .ch", ":is(rt, .rt) .ch": the letters inside one
+      if (inside) return this.all((c) => c.matches(".ch") && c.closest(inside[1] || inside[2]));
+      return this.all((c) => c.matches(sel));
     }
     querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
     getClientRects() { return []; }

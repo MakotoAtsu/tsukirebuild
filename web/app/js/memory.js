@@ -15,12 +15,16 @@
 //   windows  the text window's styles are read as textures for the scene that shows them, not all 33 at start (preload.js scene)
 //   sounds   a sound that has stopped lets go of its samples, also where the sound system is not running and would never say it ended
 //            (audio.js)
-// (A fifth part, fewer pictures kept, was built, measured and taken out: renderer.js pictureBudget.)
+//   log      each page of the backlog is a layer of its own (ui.js backlog, style.css .logscroll.layered): WebKit gave the whole list one
+//            backing picture as it opened, the length of every page laid out, so opening it took the page up about 700 MB for 118 records
+//            and 2.3 GB for 416 (2026-11-23, the reporter's fourth report: "opening the history repeatedly can crash"; Mac WKWebView, iPhone
+//            limits, 05_01_CIEL05_3E); with a layer a page, 163-207 MB either way. Its look is the same; only WebKit's way of holding it changes.
+// (Another part, fewer pictures kept, was built, measured and taken out: renderer.js pictureBudget.)
 // `?mem=off` in the address switches all of it off for that visit, `?mem=on` all of it on (on any device: for measuring), and a list
 // (`?mem=queue,sounds`) only those parts.
 import { appleTouch } from "./touch.js";
 
-export const PARTS = ["queue", "count", "windows", "sounds"];
+export const PARTS = ["queue", "count", "windows", "sounds", "log"];
 
 export function memoryPlan(win = globalThis) {
   let asked = null;

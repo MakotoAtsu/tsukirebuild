@@ -2261,3 +2261,51 @@ just after a scroll is meant to stop it.
 **Checked on the phone** with the working copy served over `adb reverse`: swipe ending on Log, tap 0.15 s later, twice: the page's click
 150 ms after the tap, the Log opened. A tap 0.08 s after (faster than a finger) hit the button then sliding under it (Full screen).
 Not on iPhones and iPads (`appleTouch`): measured in Chrome and the Android WebView only. `touch.test.mjs` new test.
+
+## Japanese and Chinese readings on iPhones and in Safari; the backlog's cost on an iPhone (GitHub issue 16, fourth report), 2026-11-23
+
+**Report** (the reporter, after `8b0cf34c`, iPhone 13 Pro Max, iOS 18.7.8, Simplified Chinese): the crashes in normal play are gone; two
+new problems: (1) some long passages run off the bottom of the screen (screenshot: 「啊，不过你要去意大利吧？ 真巧呢……」, text 41883, script 493
+= 15_01A_CIEL15A_1, op 11892), readable only in the backlog, and opening the backlog more than twice can crash; (2) no movie in the Gallery
+plays: a tap goes black and back.
+
+**(1a) Readings.** The line's emphasis dots are readings (`<的|・>` on each letter). Japanese and Chinese place a reading themselves
+(style.css `html.ja rt`: absolute, over its base). WebKit keeps an `<rt>` in the row whatever its `position` (checked in the Mac's WKWebView:
+as `display: block` each reading became a row of its own, as `inline-block` it took room beside its base), so on iPhones and in Safari every
+dotted letter got a row of its own and the line ran off the screen; Japanese furigana did the same (2,051 Japanese lines and 1,396 Chinese
+ones have readings). Chromium never did. The second screenshot (the backlog breaking after 志) is right: it is the engine's own row for the
+MSAD there (zh/rows.json 493 / 11911), as the game shows it.
+**Change** (`textbox.js` fillSegment, `style.css`): in Japanese and Chinese the base and reading are `span.ruby` / `span.rt` with the same
+rules (the rules name both, `:is(ruby, .ruby)`, `:is(rt, .rt)`); English keeps the browser's `<ruby>`. `lineText` and `retype` read either;
+a page saved before (its HTML holds the tags) is changed as it is restored (`spanReadings`, from `adoptPage`).
+**Checked:** WebKit (Mac WKWebView): the reported line on its four rows with the dots over the letters, a Japanese furigana line
+(乾有彦) and the Chinese backlog right. Headless Chromium, nine points (zh 493 / 11892 and 11911, 36 / 2465, 7 / 1229, 75 / 1930; ja 493 /
+11892, 7 / 125, 1053, 350): every letter's box the same before and after, on the story screen, the backlog and a restore (the restore given
+the old HTML with the tags); the backlog and restore screenshots byte-identical; two story screenshots differ only by the next line's
+typing caught a moment apart. Tests: `ruby-spans.test.mjs` (new: the spans, the old page changed, the rules), the three test DOMs taught
+selector lists.
+
+**(1b) The backlog's cost.** Measured in the Mac WKWebView with an iPhone user agent (memory.js parts on), 05_01_CIEL05_3E read at Enter
+every 150 ms, then the log opened and closed again (`local-tools/webkit-memory/logdrive.py`, `logprobe.py`): no staircase (the page back
+at 930-960 MB after each close), but each opening took it up about 700 MB for a moment (118 records: +680 to +750, all of it graphics),
+with 12 records +230. Not the text's shadows, not the fade, not painting only the pages near the view (`visibility` on the rest: still
++720), not `content-visibility` (worse), not a layer for the list (`translateZ`, `will-change` on the list, `contain: paint`). Hidden
+text: +80. So WebKit gave the list one backing picture the height of every page laid out. A layer for each page: +125 to +207.
+**Change** (`memory.js` part `log`, `ui.js` backlog, `style.css` `.logscroll.layered .logpage { will-change: transform }`): on an iPhone
+or iPad each page of the backlog is a layer of its own; nothing else changes and other devices are untouched (`?mem=` as for the other parts).
+**Checked:** same sitting, part off / on: +751 / +163, +723 / +163, +207 (119 records); with 416 records (5.5 minutes read) off +2,249
+and +2,359 (the page to 3.2 and 3.4 GB), on +179 and +200, so the part's cost stays flat as the log grows; the backlog at its newest page and after Home
+(its oldest) the same in WebKit with the part on and off (no pixel differing by more than 8 of 255, Home identical), and with the
+iPhone user agent (touch layout) and a record selected, identical. Not run on an iPhone (a change to try, not a proven cure):
+the Mac's WebKit draws at twice the stage's scale where an iPhone draws at about one, so the phone's figures are smaller, but they grew
+with the backlog's length (the game keeps 800 records) and the reporter's page was ended at 1,678 MB.
+
+**(2) Movies: not changed yet.** Every movie is AV1 (convert.py). Safari plays AV1 only where the device decodes it in hardware (iPhone 15
+Pro and later, M3 Macs and later): in this Mac's WKWebView (M2) `canPlayType('video/mp4; codecs="av01.0.08M.08"')` is "" and a movie fails
+with MEDIA_ERR_SRC_NOT_SUPPORTED, so on an iPhone 13 no movie plays: the Gallery's goes back at once (main.js playMovie: `onerror` ends it),
+and the story passes its prologue, openings, endings and chapter cards in silence. HEVC is "probably" there. Trial HEVC encodes from the
+game's H.264 (libx265 medium, `hvc1`, faststart), size and VMAF against the H.264 source beside the port's AV1: phasetitle_13_00 AV1 1.63 MB
+/ 96.4, crf 24 0.69 MB / 94.2; op2_ciel AV1 81.9 MB / 77.5, crf 24 66.9 MB / 76.0, crf 28 36.8 MB / 73.7; prologue AV1 34.2 MB / 96.8, crf
+24 19.8 MB / 95.6, crf 28 15.0 MB / 94.4; the three trial files play in the M2 WKWebView (decoded at 1920 x 1080, time running). No
+Japanese or Chinese choice label has a reading (the 122 SEL commands' texts), so the readings' spans appear only where the rules reach. A copy of all 104 movies (567 MB of AV1, 57 minutes) at about the AV1's quality would be some
+400-550 MB; R2 held 8.91 GB on 2026-11-23. Left for the user (the bucket is theirs).

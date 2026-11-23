@@ -30,7 +30,7 @@ test("the address switches it off on an iPhone, on anywhere, or names the parts"
   assert.deepEqual(memoryPlan(win("Mozilla/5.0 (Windows NT 10.0)", "?script=3&mem=on")), all(true));
   assert.deepEqual(memoryPlan(win("Mozilla/5.0 (Windows NT 10.0)", "?mem=queue,sounds")), { ...all(false), queue: true, sounds: true });
   assert.deepEqual(memoryPlan(win(IPHONE, "?mem=windows")), { ...all(false), windows: true });
-  assert.deepEqual(PARTS, ["queue", "count", "windows", "sounds"], "(fewer pictures kept was a fifth: measured and taken out)");
+  assert.deepEqual(PARTS, ["queue", "count", "windows", "sounds", "log"], "(fewer pictures kept was a fifth before: measured and taken out)");
 });
 
 // ---- sounds ----------------------------------------------------------------------------------------------------------
